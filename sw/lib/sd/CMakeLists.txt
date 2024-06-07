@@ -17,6 +17,7 @@ target_sources(sd INTERFACE ${SRC})
 target_link_libraries(sd INTERFACE
     common
     pico_stdlib
+    hardware_rtc
     hardware_spi
 )
 target_include_directories(sd INTERFACE

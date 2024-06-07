@@ -1,5 +1,6 @@
 #include "crc.h"
 #include "diskio.h"
+#include "hardware/rtc.h"
 #include "hardware/spi.h"
 #include "pico/stdlib.h"
 #include "sdcard.h"
@@ -547,6 +548,8 @@ void sdcard_init(uint port, uint miso, uint mosi, uint sck, uint cs)
         sd.spi = spi1;
     }
     sd.cs = cs;
+
+    rtc_init();
 
     // initially set 100 kHz
     spi_init(sd.spi, 100 * 1000);
