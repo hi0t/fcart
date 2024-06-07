@@ -9,6 +9,7 @@
 #define PACKET_SIZE 6
 #define SD_INIT_TIMEOUT_MS 1000
 #define SD_READ_TIMEOUT_MS 500
+#define SD_WRITE_TIMEOUT_MS 1000
 #define SD_CMD_TIMEOUT_MS 500
 #define BLOCK_SIZE 512
 
@@ -17,13 +18,17 @@ typedef enum {
     CMD8_SEND_IF_COND = 8,
     CMD9_SEND_CSD = 9,
     CMD12_STOP_TRANSMISSION = 12,
+    CMD13_SEND_STATUS = 13,
     CMD16_SET_BLOCKLEN = 16,
     CMD17_READ_SINGLE_BLOCK = 17,
     CMD18_READ_MULTIPLE_BLOCK = 18,
+    CMD24_WRITE_BLOCK = 24,
+    CMD25_WRITE_MULTIPLE_BLOCK = 25,
     CMD55_APP_CMD = 55,
     CMD58_READ_OCR = 58,
     CMD59_CRC_ON_OFF = 59,
 
+    ACMD23_SET_WR_BLK_ERASE_COUNT = 23,
     ACMD41_SD_SEND_OP_COND = 41
 } sd_cmd;
 
@@ -42,6 +47,8 @@ typedef enum {
     SD_ERR_CRC = -4,
     SD_ERR_PARAM = -5,
     SD_ERR_NO_INIT = -6,
+    SD_ERR_WRITE = -7,
+    SD_ERR_WRITE_PROTECTED = -8
 } sd_err;
 
 #define R1_READY_STATE 0
@@ -53,6 +60,7 @@ typedef enum {
 #define R1_ADDRESS_ERROR (1 << 5)
 #define R1_PARAMETER_ERROR (1 << 6)
 #define R1_NO_RESPONSE 0xFF
+#define SD_START_BLOCK 0xFE
 
 struct sdcard {
     spi_inst_t *spi;
@@ -84,7 +92,7 @@ static uint8_t resp()
 static bool wait_start_block()
 {
     absolute_time_t timeout = make_timeout_time_ms(SD_READ_TIMEOUT_MS);
-    while (resp() != 0xFE) {
+    while (resp() != SD_START_BLOCK) {
         if (absolute_time_diff_us(get_absolute_time(), timeout) < 0) {
             return false;
         }
@@ -348,13 +356,12 @@ static sd_err read_blocks(uint8_t *buf, uint64_t sectorNum, uint32_t sectorCnt)
         goto out;
     }
 
-    while (blockCnt) {
+    while (blockCnt--) {
         rc = read_single_block(buf, BLOCK_SIZE);
         if (rc != SD_ERR_OK) {
             goto out;
         }
         buf += BLOCK_SIZE;
-        --blockCnt;
     }
 
     if (sectorCnt > 1) {
@@ -364,6 +371,101 @@ static sd_err read_blocks(uint8_t *buf, uint64_t sectorNum, uint32_t sectorCnt)
             rc = sd_status2err(status);
             goto out;
         }
+    }
+out:
+    cs_deselect();
+    return rc;
+}
+
+static sd_err write_block(const uint8_t *buf, uint32_t size, uint8_t token)
+{
+    uint8_t status;
+
+    spi_write_blocking(sd.spi, &token, 1);
+    spi_write_blocking(sd.spi, buf, size);
+
+    uint16_t crc = crc16(buf, size);
+    uint8_t byte = crc >> 8;
+    spi_write_blocking(sd.spi, &byte, 1);
+    byte = crc;
+    spi_write_blocking(sd.spi, &byte, 1);
+
+    status = resp();
+    if ((status & 0x1F) != 0x05) {
+        TRACE("SD block write failed. Status: %u", status);
+        return SD_ERR_WRITE;
+    }
+    if (!wait_not_busy(SD_WRITE_TIMEOUT_MS)) {
+        TRACE("SD write timeout");
+        return SD_ERR_NO_RESPONSE;
+    }
+    return SD_ERR_OK;
+}
+
+static sd_err write_blocks(const uint8_t *buf, uint64_t sectorNum, uint32_t sectorCnt)
+{
+    TRACE("SD writung sector. Num: %llu, Cnt: %lu", sectorNum, sectorCnt);
+    if (sectorNum + sectorCnt > sd.sectors) {
+        TRACE("SD invalid sector");
+        return SD_ERR_PARAM;
+    }
+    if (!sd.connected) {
+        TRACE("SD device is not initialized");
+        return SD_ERR_NO_INIT;
+    }
+
+    uint32_t blockCnt = sectorCnt;
+    uint64_t addr;
+    uint8_t status;
+    sd_err rc = SD_ERR_OK;
+    if (sd.type == SD_CARD_TYPE_SDHC) {
+        addr = sectorNum;
+    } else {
+        addr = sectorNum * BLOCK_SIZE;
+    }
+
+    cs_select();
+    if (blockCnt == 1) {
+        if ((status = do_cmd(CMD24_WRITE_BLOCK, addr)) != R1_READY_STATE) {
+            TRACE("SD error while writing. Status: %u", status);
+            rc = sd_status2err(status);
+            goto out;
+        }
+        write_block(buf, BLOCK_SIZE, SD_START_BLOCK);
+    } else {
+        do_acmd(ACMD23_SET_WR_BLK_ERASE_COUNT, blockCnt);
+
+        if ((status = do_cmd(CMD25_WRITE_MULTIPLE_BLOCK, addr)) != R1_READY_STATE) {
+            TRACE("SD error while writing multiple block. Status: %u", status);
+            rc = sd_status2err(status);
+            goto out;
+        }
+        while (blockCnt--) {
+            if (write_block(buf, BLOCK_SIZE, 0xFC) != SD_ERR_OK) {
+                break;
+            }
+            buf += BLOCK_SIZE;
+        };
+        const uint8_t byte = 0xFD;
+        spi_write_blocking(sd.spi, &byte, 1);
+    }
+
+    uint16_t statusR2 = do_cmd(CMD13_SEND_STATUS, 0);
+    statusR2 <<= 8;
+    statusR2 |= resp();
+    if (statusR2 == 0) {
+        rc = SD_ERR_OK;
+    } else if ((statusR2 & 0x01 << 1) || (statusR2 & 0x01 << 5)) {
+        rc = SD_ERR_WRITE_PROTECTED;
+    } else if (statusR2 & 0x01 << 11) {
+        rc = SD_ERR_CRC;
+    } else if ((statusR2 & 0x01 << 7) || (statusR2 & 0x01 << 13) || (statusR2 & 0x01 << 14)) {
+        rc = SD_ERR_PARAM;
+    } else {
+        rc = SD_ERR_WRITE;
+    }
+    if (rc != SD_ERR_OK) {
+        TRACE("SD write status: %u", statusR2);
     }
 out:
     cs_deselect();
@@ -382,8 +484,8 @@ static DSTATUS sd_err2ff(sd_err rc)
     case SD_ERR_PARAM:
     case SD_ERR_UNSUPPORTED:
         return RES_PARERR;
-    // case SD_BLOCK_DEVICE_ERROR_WRITE_PROTECTED:
-    //     return RES_WRPRT;
+    case SD_ERR_WRITE_PROTECTED:
+        return RES_WRPRT;
     default:
         return RES_ERROR;
     }
@@ -408,7 +510,8 @@ DRESULT disk_read(BYTE pdrv, BYTE *buff, LBA_t sector, UINT count)
 
 DRESULT disk_write(BYTE pdrv, const BYTE *buff, LBA_t sector, UINT count)
 {
-    return RES_PARERR;
+    sd_err rc = write_blocks(buff, sector, count);
+    return sd_err2ff(rc);
 }
 
 DRESULT disk_ioctl(BYTE pdrv, BYTE cmd, void *buff)

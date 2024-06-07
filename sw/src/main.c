@@ -41,6 +41,13 @@ int main()
         printf("%d dirs, %d files.\n", ndir, nfile);
     }
 
+    const char txt[] = "Hello World!\n";
+    FIL fp;
+    UINT bw;
+    f_open(&fp, "0:/test.txt", FA_OPEN_ALWAYS | FA_WRITE);
+    f_write(&fp, txt, sizeof(txt) - 1, &bw);
+    f_close(&fp);
+
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
 
