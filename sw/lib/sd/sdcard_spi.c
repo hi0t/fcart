@@ -4,15 +4,18 @@
 #include "pico/stdlib.h"
 #include "sdcard.h"
 #include "trace.h"
+#include <inttypes.h>
 
 #define PACKET_SIZE 6
 #define SD_INIT_TIMEOUT_MS 1000
 #define SD_READ_TIMEOUT_MS 500
+#define SD_CMD_TIMEOUT_MS 500
 #define BLOCK_SIZE 512
 
 typedef enum {
     CMD0_GO_IDLE_STATE = 0,
     CMD8_SEND_IF_COND = 8,
+    CMD9_SEND_CSD = 9,
     CMD12_STOP_TRANSMISSION = 12,
     CMD16_SET_BLOCKLEN = 16,
     CMD17_READ_SINGLE_BLOCK = 17,
@@ -31,6 +34,16 @@ typedef enum {
     SD_CARD_TYPE_SDHC
 } sd_type;
 
+typedef enum {
+    SD_ERR_OK = 0,
+    SD_ERR_NO_DEVICE = -1,
+    SD_ERR_UNSUPPORTED = -2,
+    SD_ERR_NO_RESPONSE = -3,
+    SD_ERR_CRC = -4,
+    SD_ERR_PARAM = -5,
+    SD_ERR_NO_INIT = -6,
+} sd_err;
+
 #define R1_READY_STATE 0
 #define R1_IDLE_STATE (1 << 0)
 #define R1_ERASE_RESET (1 << 1)
@@ -39,12 +52,14 @@ typedef enum {
 #define R1_ERASE_SEQUENCE_ERROR (1 << 4)
 #define R1_ADDRESS_ERROR (1 << 5)
 #define R1_PARAMETER_ERROR (1 << 6)
+#define R1_NO_RESPONSE 0xFF
 
 struct sdcard {
     spi_inst_t *spi;
     uint cs;
     bool connected;
     sd_type type;
+    uint64_t sectors;
 };
 
 static struct sdcard sd;
@@ -66,11 +81,38 @@ static uint8_t resp()
     return res;
 }
 
+static bool wait_start_block()
+{
+    absolute_time_t timeout = make_timeout_time_ms(SD_READ_TIMEOUT_MS);
+    while (resp() != 0xFE) {
+        if (absolute_time_diff_us(get_absolute_time(), timeout) < 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool wait_not_busy(uint32_t ms)
+{
+    absolute_time_t timeout = make_timeout_time_ms(ms);
+    while (resp() != 0xFF) {
+        if (absolute_time_diff_us(get_absolute_time(), timeout) < 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
 static uint8_t do_cmd(sd_cmd cmd, uint32_t arg)
 {
-    TRACE("SD send command %u\n", cmd);
+    TRACE("SD send command %u", cmd);
 
-    uint8_t res;
+    if (!wait_not_busy(SD_CMD_TIMEOUT_MS)) {
+        TRACE("SD command timeout");
+        return R1_NO_RESPONSE;
+    }
+
+    uint8_t status;
     uint8_t buf[PACKET_SIZE] = {
         0x40 | (cmd & 0x3F),
         (arg >> 24),
@@ -83,9 +125,13 @@ static uint8_t do_cmd(sd_cmd cmd, uint32_t arg)
 
     spi_write_blocking(sd.spi, buf, PACKET_SIZE);
 
-    for (int i = 0; ((res = resp()) & 0x80) && i < 0x10; i++)
-        ;
-    return res;
+    for (int i = 0; i < 0x10; i++) {
+        status = resp();
+        if (!(status & 0x80)) {
+            break;
+        }
+    }
+    return status;
 }
 
 static uint8_t do_acmd(sd_cmd cmd, uint32_t arg)
@@ -94,13 +140,63 @@ static uint8_t do_acmd(sd_cmd cmd, uint32_t arg)
     return do_cmd(cmd, arg);
 }
 
-static void ensure_connect()
+static sd_err read_single_block(uint8_t *buf, uint32_t size)
 {
-    if (sd.connected) {
-        return;
+    if (!wait_start_block()) {
+        return SD_ERR_NO_RESPONSE;
     }
 
-    TRACE("SD connecting...\n");
+    spi_read_blocking(sd.spi, 0xFF, buf, size);
+
+    uint16_t crc;
+    crc = (resp() << 8);
+    crc |= resp();
+
+    uint16_t checksum = crc16(buf, size);
+    if (checksum != crc) {
+        TRACE("SD bad crc recevied: 0x%" PRIx16 ". Computed: 0x%" PRIx16, crc, checksum);
+        return SD_ERR_CRC;
+    }
+    return SD_ERR_OK;
+}
+
+static uint64_t sd_sectors()
+{
+    uint64_t sectors = 0;
+    uint8_t status;
+
+    if ((status = do_cmd(CMD9_SEND_CSD, 0)) != R1_READY_STATE) {
+        TRACE("SD cold not execute csd command. Status: %u", status);
+        return 0;
+    }
+
+    uint8_t csd[16];
+    if (read_single_block(csd, 16) != SD_ERR_OK) {
+        TRACE("SD couldn't read csd response");
+        return 0;
+    }
+
+    if ((csd[0] & 0xC0) == 0x40) { // CSD version 2
+        sectors = (((csd[8] << 8) | csd[9]) + 1) * 1024;
+    } else if ((csd[0] & 0xC0) == 0x00) { // # CSD version 1
+        uint32_t c_size = (csd[6] & 0b11) | (csd[7] << 2) | ((csd[8] & 0b11000000) << 4);
+        uint32_t c_size_mult = ((csd[9] & 0b11) << 1) | csd[10] >> 7;
+        uint64_t capacity = (c_size + 1) * (1 << (c_size_mult + 2));
+        sectors = capacity / BLOCK_SIZE;
+    } else {
+        TRACE("SD unsupported csd");
+        return 0;
+    }
+    return sectors;
+}
+
+static sd_err ensure_connect()
+{
+    if (sd.connected) {
+        return SD_ERR_OK;
+    }
+
+    TRACE("SD connecting...");
 
     spi_set_baudrate(sd.spi, 400 * 1000);
 
@@ -113,101 +209,126 @@ static void ensure_connect()
 
     cs_select();
 
+    sd_err rc = SD_ERR_OK;
+
     absolute_time_t timeout = make_timeout_time_ms(SD_INIT_TIMEOUT_MS);
+    // switch to SPI mode
     while (do_cmd(CMD0_GO_IDLE_STATE, 0) != R1_IDLE_STATE) {
         if (absolute_time_diff_us(get_absolute_time(), timeout) < 0) {
+            TRACE("SD couldn't put card to iddle state");
+            rc = SD_ERR_NO_DEVICE;
             goto err;
         }
     }
 
     sd_type type;
-    uint8_t status;
+    uint8_t status = 0;
+    // check SD version and supply voltage
     if ((do_cmd(CMD8_SEND_IF_COND, 0x1AA) & R1_ILLEGAL_COMMAND)) {
         type = SD_CARD_TYPE_SD1;
     } else {
         for (int i = 0; i < 4; i++) {
             status = resp();
         }
-        if (status != 0XAA) {
+        if (status != 0xAA) {
+            TRACE("SD card unusable. Status: %u", status);
+            rc = SD_ERR_UNSUPPORTED;
             goto err;
         }
         type = SD_CARD_TYPE_SD2;
     }
 
-    if (do_cmd(CMD59_CRC_ON_OFF, 1) != R1_IDLE_STATE) {
+    // enable crc check
+    if ((status = do_cmd(CMD59_CRC_ON_OFF, 1)) != R1_IDLE_STATE) {
+        TRACE("SD couldn't enable crc mode. Status: %u", status);
+        rc = SD_ERR_UNSUPPORTED;
         goto err;
     }
 
     uint32_t arg = type == SD_CARD_TYPE_SD2 ? 0X40000000 : 0;
     timeout = make_timeout_time_ms(SD_INIT_TIMEOUT_MS);
+    // initialize card
     while (do_acmd(ACMD41_SD_SEND_OP_COND, arg) != R1_READY_STATE) {
         if (absolute_time_diff_us(get_absolute_time(), timeout) < 0) {
+            TRACE("SD initialization timeout");
+            rc = SD_ERR_UNSUPPORTED;
             goto err;
         }
     }
     if (type == SD_CARD_TYPE_SD2) {
-        if (do_cmd(CMD58_READ_OCR, 0) != R1_READY_STATE) {
+        if ((status = do_cmd(CMD58_READ_OCR, 0)) != R1_READY_STATE) {
+            TRACE("SD couldn't get card capacity. Status: %u", status);
+            rc = SD_ERR_UNSUPPORTED;
             goto err;
         }
         if ((resp() & 0xC0) == 0xC0) {
             type = SD_CARD_TYPE_SDHC;
+            TRACE("SD card initialized. HC");
+        } else {
+            TRACE("SD card initialized. V2");
         }
         for (int i = 0; i < 3; i++) {
             resp();
         }
+    } else {
+        TRACE("SD card initialized. V1");
     }
 
-    if (do_cmd(CMD16_SET_BLOCKLEN, BLOCK_SIZE) != R1_READY_STATE) {
+    sd.sectors = sd_sectors();
+    if (sd.sectors == 0) {
+        rc = SD_ERR_UNSUPPORTED;
+        goto err;
+    }
+
+    if ((status = do_cmd(CMD16_SET_BLOCKLEN, BLOCK_SIZE)) != R1_READY_STATE) {
+        TRACE("SD couldn't set block size. Status: %u", status);
+        rc = SD_ERR_UNSUPPORTED;
         goto err;
     }
 
     cs_deselect();
+    // set clock speed for data transfer
     spi_set_baudrate(sd.spi, 25 * 1000 * 1000);
     sd.connected = true;
     sd.type = type;
-    TRACE("SD connected\n");
-    return;
+    return SD_ERR_OK;
 err:
     cs_deselect();
     sd.connected = false;
     sd.type = SD_CARD_TYPE_UNKNOWN;
-    TRACE("SD connect fail\n");
+    return rc;
 }
 
-static bool wait_start_block()
+static sd_err sd_status2err(uint8_t status)
 {
-    absolute_time_t timeout = make_timeout_time_ms(SD_READ_TIMEOUT_MS);
-    while (resp() != 0xFE) {
-        if (absolute_time_diff_us(get_absolute_time(), timeout) < 0) {
-            return false;
-        }
+    if (status == R1_NO_RESPONSE) {
+        return SD_ERR_NO_DEVICE;
     }
-    return true;
+    if (status & R1_COM_CRC_ERROR) {
+        return SD_ERR_CRC;
+    }
+    if (status & R1_ILLEGAL_COMMAND) {
+        return SD_ERR_UNSUPPORTED;
+    }
+    return SD_ERR_PARAM;
 }
 
-static int read_single_block(uint8_t *buf, uint32_t size)
+static sd_err read_blocks(uint8_t *buf, uint64_t sectorNum, uint32_t sectorCnt)
 {
-    if (!wait_start_block()) {
-        return 0;
+    TRACE("SD reading sector. Num: %llu, Cnt: %lu", sectorNum, sectorCnt);
+    if (sectorNum + sectorCnt > sd.sectors) {
+        TRACE("SD invalid sector");
+        return SD_ERR_PARAM;
+    }
+    if (!sd.connected) {
+        TRACE("SD device is not initialized");
+        return SD_ERR_NO_INIT;
     }
 
-    int r = spi_read_blocking(sd.spi, 0xFF, buf, size);
-
-    uint16_t crc;
-    crc = (resp() << 8);
-    crc |= resp();
-
-    uint16_t checksum = crc16(buf, size);
-    if (checksum != crc) {
-        return crc;
-    }
-    return r;
-}
-
-static void read_blocks(uint8_t *buf, uint64_t sectorNum, uint32_t sectorCnt)
-{
     uint32_t blockCnt = sectorCnt;
     uint64_t addr;
+    uint8_t status;
+    sd_err rc = SD_ERR_OK;
     if (sd.type == SD_CARD_TYPE_SDHC) {
         addr = sectorNum;
     } else {
@@ -217,22 +338,55 @@ static void read_blocks(uint8_t *buf, uint64_t sectorNum, uint32_t sectorCnt)
     cs_select();
 
     if (blockCnt > 1) {
-        do_cmd(CMD18_READ_MULTIPLE_BLOCK, addr);
+        status = do_cmd(CMD18_READ_MULTIPLE_BLOCK, addr);
     } else {
-        do_cmd(CMD17_READ_SINGLE_BLOCK, addr);
+        status = do_cmd(CMD17_READ_SINGLE_BLOCK, addr);
+    }
+    if (status != R1_READY_STATE) {
+        TRACE("SD error while reading. Status: %u", status);
+        rc = sd_status2err(status);
+        goto out;
     }
 
     while (blockCnt) {
-        read_single_block(buf, BLOCK_SIZE);
+        rc = read_single_block(buf, BLOCK_SIZE);
+        if (rc != SD_ERR_OK) {
+            goto out;
+        }
         buf += BLOCK_SIZE;
         --blockCnt;
     }
 
     if (sectorCnt > 1) {
-        do_cmd(CMD12_STOP_TRANSMISSION, 0);
+        status = do_cmd(CMD12_STOP_TRANSMISSION, 0);
+        if (status != R1_READY_STATE) {
+            TRACE("SD error while stop transmission. Status: %u", status);
+            rc = sd_status2err(status);
+            goto out;
+        }
     }
-
+out:
     cs_deselect();
+    return rc;
+}
+
+static DSTATUS sd_err2ff(sd_err rc)
+{
+    switch (rc) {
+    case SD_ERR_OK:
+        return RES_OK;
+    case SD_ERR_NO_DEVICE:
+    case SD_ERR_NO_RESPONSE:
+    case SD_ERR_NO_INIT:
+        return RES_NOTRDY;
+    case SD_ERR_PARAM:
+    case SD_ERR_UNSUPPORTED:
+        return RES_PARERR;
+    // case SD_BLOCK_DEVICE_ERROR_WRITE_PROTECTED:
+    //     return RES_WRPRT;
+    default:
+        return RES_ERROR;
+    }
 }
 
 DSTATUS disk_status(BYTE pdrv)
@@ -242,14 +396,14 @@ DSTATUS disk_status(BYTE pdrv)
 
 DSTATUS disk_initialize(BYTE pdrv)
 {
-    ensure_connect();
-    return 0;
+    sd_err rc = ensure_connect();
+    return sd_err2ff(rc);
 }
 
 DRESULT disk_read(BYTE pdrv, BYTE *buff, LBA_t sector, UINT count)
 {
-    read_blocks(buff, sector, count);
-    return RES_OK;
+    sd_err rc = read_blocks(buff, sector, count);
+    return sd_err2ff(rc);
 }
 
 DRESULT disk_write(BYTE pdrv, const BYTE *buff, LBA_t sector, UINT count)
@@ -259,7 +413,23 @@ DRESULT disk_write(BYTE pdrv, const BYTE *buff, LBA_t sector, UINT count)
 
 DRESULT disk_ioctl(BYTE pdrv, BYTE cmd, void *buff)
 {
-    return RES_PARERR;
+    switch (cmd) {
+    case GET_SECTOR_COUNT: {
+        if (sd.sectors == 0) {
+            return RES_ERROR;
+        }
+        *(LBA_t *)buff = sd.sectors;
+        return RES_OK;
+    }
+    case GET_BLOCK_SIZE: {
+        *(DWORD *)buff = 1;
+        return RES_OK;
+    }
+    case CTRL_SYNC:
+        return RES_OK;
+    default:
+        return RES_PARERR;
+    }
 }
 
 void sdcard_init(uint port, uint miso, uint mosi, uint sck, uint cs)

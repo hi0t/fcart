@@ -3,7 +3,11 @@
 #include <stdio.h>
 
 #ifdef ENABLE_TRACE
-#define TRACE printf
+#define TRACE(...)           \
+    do {                     \
+        printf(__VA_ARGS__); \
+        printf("\n");        \
+    } while (0)
 #else
-#define TRACE(fmt, args...)
+#define TRACE(...)
 #endif
