@@ -48,13 +48,13 @@ int main()
     f_write(&fp, txt, sizeof(txt) - 1, &bw);
     f_close(&fp);
 
-    gpio_init(PICO_DEFAULT_LED_PIN);
-    gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
+    gpio_init(25);
+    gpio_set_dir(25, GPIO_OUT);
 
     while (true) {
-        gpio_put(PICO_DEFAULT_LED_PIN, 1);
+        gpio_put(25, 1);
         sleep_ms(1000);
-        gpio_put(PICO_DEFAULT_LED_PIN, 0);
+        gpio_put(25, 0);
         sleep_ms(1000);
     }
 }
