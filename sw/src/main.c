@@ -1,19 +1,25 @@
 #include "ff.h"
-#include "pico/stdlib.h"
 #include "sdcard.h"
+#include "sdio.h"
+#include <pico/stdlib.h>
 #include <stdio.h>
 
 #define SD_SPI_PORT 0
-#define SD_PIN_SCK 2
-#define SD_PIN_MOSI 3
-#define SD_PIN_MISO 4
-#define SD_PIN_CS 5
+#define SD_PIN_SCK 18
+#define SD_PIN_MOSI 19
+#define SD_PIN_MISO 20
+#define SD_PIN_CS 23
+
+#define SDIO_SCK 18
+#define SDIO_CMD 19
+#define SDIO_D0 20
 
 int main()
 {
     stdio_init_all();
 
-    sdcard_init(SD_SPI_PORT, SD_PIN_MISO, SD_PIN_MOSI, SD_PIN_SCK, SD_PIN_CS);
+    sdcard_init(SDIO_SCK, SDIO_CMD, SDIO_D0);
+    // ssdcard_init(SD_SPI_PORT, SD_PIN_MISO, SD_PIN_MOSI, SD_PIN_SCK, SD_PIN_CS);
 
     FRESULT res;
     DIR dir;
@@ -41,20 +47,13 @@ int main()
         printf("%d dirs, %d files.\n", ndir, nfile);
     }
 
-    const char txt[] = "Hello World!\n";
-    FIL fp;
-    UINT bw;
-    f_open(&fp, "0:/test.txt", FA_OPEN_ALWAYS | FA_WRITE);
-    f_write(&fp, txt, sizeof(txt) - 1, &bw);
-    f_close(&fp);
-
     gpio_init(25);
     gpio_set_dir(25, GPIO_OUT);
 
     while (true) {
-        gpio_put(25, 1);
+        // gpio_put(25, 1);
         sleep_ms(1000);
-        gpio_put(25, 0);
-        sleep_ms(1000);
+        // gpio_put(25, 0);
+        // sleep_ms(1000);
     }
 }

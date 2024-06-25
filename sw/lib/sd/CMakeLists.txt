@@ -2,14 +2,14 @@ file(GLOB SRC "fatfs/*.c")
 
 set(SRC
     ${SRC}
-    "crc.c"
     "rtc.c"
+    "sdcard_priv.c"
 )
 
-if(USE_SDIO)
-    set(SRC ${SRC} "sdcard_sdio.c")
-else()
+if(SDCARD_SPI)
     set(SRC ${SRC} "sdcard_spi.c")
+else()
+    set(SRC ${SRC} "sdcard_sdio.c")
 endif()
 
 add_library(sd INTERFACE)
@@ -19,8 +19,12 @@ target_link_libraries(sd INTERFACE
     pico_stdlib
     hardware_rtc
     hardware_spi
+    sdio
 )
 target_include_directories(sd INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}
     ${CMAKE_CURRENT_LIST_DIR}/fatfs
 )
+if(SDCARD_SPI)
+    target_compile_definitions(sd INTERFACE SDCARD_SPI)
+endif()

@@ -1,56 +1,13 @@
 #include "crc.h"
-#include "diskio.h"
-#include "hardware/rtc.h"
-#include "hardware/spi.h"
-#include "pico/stdlib.h"
 #include "sdcard.h"
+#include "sdcard_priv.h"
 #include "trace.h"
+#include <hardware/rtc.h>
+#include <hardware/spi.h>
 #include <inttypes.h>
+#include <pico/stdlib.h>
 
 #define PACKET_SIZE 6
-#define SD_INIT_TIMEOUT_MS 1000
-#define SD_READ_TIMEOUT_MS 500
-#define SD_WRITE_TIMEOUT_MS 1000
-#define SD_CMD_TIMEOUT_MS 500
-#define BLOCK_SIZE 512
-
-typedef enum {
-    CMD0_GO_IDLE_STATE = 0,
-    CMD8_SEND_IF_COND = 8,
-    CMD9_SEND_CSD = 9,
-    CMD12_STOP_TRANSMISSION = 12,
-    CMD13_SEND_STATUS = 13,
-    CMD16_SET_BLOCKLEN = 16,
-    CMD17_READ_SINGLE_BLOCK = 17,
-    CMD18_READ_MULTIPLE_BLOCK = 18,
-    CMD24_WRITE_BLOCK = 24,
-    CMD25_WRITE_MULTIPLE_BLOCK = 25,
-    CMD55_APP_CMD = 55,
-    CMD58_READ_OCR = 58,
-    CMD59_CRC_ON_OFF = 59,
-
-    ACMD23_SET_WR_BLK_ERASE_COUNT = 23,
-    ACMD41_SD_SEND_OP_COND = 41
-} sd_cmd;
-
-typedef enum {
-    SD_CARD_TYPE_UNKNOWN = 0,
-    SD_CARD_TYPE_SD1,
-    SD_CARD_TYPE_SD2,
-    SD_CARD_TYPE_SDHC
-} sd_type;
-
-typedef enum {
-    SD_ERR_OK = 0,
-    SD_ERR_NO_DEVICE = -1,
-    SD_ERR_UNSUPPORTED = -2,
-    SD_ERR_NO_RESPONSE = -3,
-    SD_ERR_CRC = -4,
-    SD_ERR_PARAM = -5,
-    SD_ERR_NO_INIT = -6,
-    SD_ERR_WRITE = -7,
-    SD_ERR_WRITE_PROTECTED = -8
-} sd_err;
 
 #define R1_READY_STATE 0
 #define R1_IDLE_STATE (1 << 0)
@@ -63,15 +20,13 @@ typedef enum {
 #define R1_NO_RESPONSE 0xFF
 #define SD_START_BLOCK 0xFE
 
-struct sdcard {
+static struct sdcard {
     spi_inst_t *spi;
     uint cs;
     bool connected;
     sd_type type;
-    uint64_t sectors;
-};
-
-static struct sdcard sd;
+    uint32_t sectors;
+} sd;
 
 static void cs_select()
 {
@@ -169,36 +124,6 @@ static sd_err read_single_block(uint8_t *buf, uint32_t size)
     return SD_ERR_OK;
 }
 
-static uint64_t sd_sectors()
-{
-    uint64_t sectors = 0;
-    uint8_t status;
-
-    if ((status = do_cmd(CMD9_SEND_CSD, 0)) != R1_READY_STATE) {
-        TRACE("SD cold not execute csd command. Status: %u", status);
-        return 0;
-    }
-
-    uint8_t csd[16];
-    if (read_single_block(csd, 16) != SD_ERR_OK) {
-        TRACE("SD couldn't read csd response");
-        return 0;
-    }
-
-    if ((csd[0] & 0xC0) == 0x40) { // CSD version 2
-        sectors = (((csd[8] << 8) | csd[9]) + 1) * 1024;
-    } else if ((csd[0] & 0xC0) == 0x00) { // # CSD version 1
-        uint32_t c_size = (csd[6] & 0b11) | (csd[7] << 2) | ((csd[8] & 0b11000000) << 4);
-        uint32_t c_size_mult = ((csd[9] & 0b11) << 1) | csd[10] >> 7;
-        uint64_t capacity = (c_size + 1) * (1 << (c_size_mult + 2));
-        sectors = capacity / BLOCK_SIZE;
-    } else {
-        TRACE("SD unsupported csd");
-        return 0;
-    }
-    return sectors;
-}
-
 static sd_err ensure_connect()
 {
     if (sd.connected) {
@@ -283,8 +208,20 @@ static sd_err ensure_connect()
         TRACE("SD card initialized. V1");
     }
 
-    sd.sectors = sd_sectors();
+    if ((status = do_cmd(CMD9_SEND_CSD, 0)) != R1_READY_STATE) {
+        TRACE("SD cold not execute CSD command. Status: %u", status);
+        rc = SD_ERR_UNSUPPORTED;
+        goto err;
+    }
+    CSD csd;
+    if (read_single_block(csd, sizeof csd) != SD_ERR_OK) {
+        TRACE("SD couldn't read CSD response");
+        rc = SD_ERR_UNSUPPORTED;
+        goto err;
+    }
+    sd.sectors = sd_sectors(csd);
     if (sd.sectors == 0) {
+        TRACE("SD unsupported CSD");
         rc = SD_ERR_UNSUPPORTED;
         goto err;
     }
@@ -473,34 +410,15 @@ out:
     return rc;
 }
 
-static DSTATUS sd_err2ff(sd_err rc)
+DSTATUS disk_initialize(BYTE pdrv)
 {
-    switch (rc) {
-    case SD_ERR_OK:
-        return RES_OK;
-    case SD_ERR_NO_DEVICE:
-    case SD_ERR_NO_RESPONSE:
-    case SD_ERR_NO_INIT:
-        return RES_NOTRDY;
-    case SD_ERR_PARAM:
-    case SD_ERR_UNSUPPORTED:
-        return RES_PARERR;
-    case SD_ERR_WRITE_PROTECTED:
-        return RES_WRPRT;
-    default:
-        return RES_ERROR;
-    }
+    sd_err rc = ensure_connect();
+    return sd_err2ff(rc);
 }
 
 DSTATUS disk_status(BYTE pdrv)
 {
     return sd.connected ? 0 : STA_NOINIT;
-}
-
-DSTATUS disk_initialize(BYTE pdrv)
-{
-    sd_err rc = ensure_connect();
-    return sd_err2ff(rc);
 }
 
 DRESULT disk_read(BYTE pdrv, BYTE *buff, LBA_t sector, UINT count)
@@ -538,10 +456,6 @@ DRESULT disk_ioctl(BYTE pdrv, BYTE cmd, void *buff)
 
 void sdcard_init(uint port, uint miso, uint mosi, uint sck, uint cs)
 {
-    if (sd.connected) {
-        return;
-    }
-
     if (port == 0) {
         sd.spi = spi0;
     } else {

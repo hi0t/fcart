@@ -1,6 +1,6 @@
 #include "ff.h"
-#include "pico/stdlib.h"
 #include "sdcard.h"
+#include <pico/stdlib.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -9,6 +9,10 @@
 #define SD_PIN_MOSI 3
 #define SD_PIN_MISO 4
 #define SD_PIN_CS 5
+
+#define SDIO_SCK 18
+#define SDIO_CMD 19
+#define SDIO_D0 20
 
 #define error(...)           \
     do {                     \
@@ -24,7 +28,8 @@ int main()
 {
     stdio_init_all();
 
-    sdcard_init(SD_SPI_PORT, SD_PIN_MISO, SD_PIN_MOSI, SD_PIN_SCK, SD_PIN_CS);
+    sdcard_init(SDIO_SCK, SDIO_CMD, SDIO_D0);
+    // sdcard_init(SD_SPI_PORT, SD_PIN_MISO, SD_PIN_MOSI, SD_PIN_SCK, SD_PIN_CS);
 
     FATFS fs;
     FIL fp;

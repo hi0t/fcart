@@ -1,0 +1,54 @@
+; State machine that generates clock
+.define SDIO_IRQ 0
+.program sdio_clk
+.side_set 1
+
+.wrap_target
+    irq SDIO_IRQ        side 1
+    irq clear SDIO_IRQ  side 0
+.wrap
+
+; Sends a request and wait a response
+.program sdio_tx
+
+.wrap_target
+public send_cmd:
+    in NULL, 1              ; We will skip the start bit. Let's first shift the ISR
+    wait 0 irq SDIO_IRQ     ; Waiting for a whole clock cycle
+send_loop1:
+    out PINS, 1
+    jmp X-- send_loop1
+    jmp recv
+
+public send_dat:
+    wait 0 irq SDIO_IRQ     ; Waiting for a whole clock cycle
+send_loop4:
+    out PINS, 4
+    jmp X-- send_loop4
+
+recv:
+    set PINDIRS, 0          ; Switch to receive
+    jmp !Y stop             ; Skip empty response
+    wait 0 pin 0            ; Wait start bit
+    wait 0 irq SDIO_IRQ     ; Waiting for a whole clock cycle
+recv_loop:
+    in PINS, 1
+    jmp Y-- recv_loop
+
+stop:
+    wait 1 pin 0            ; Wait for idle state
+    push                    ; Push out unaligned part. Is also a recive completion flag.
+.wrap
+
+; Receive data in 4 bits
+.program sdio_rx
+
+.wrap_target
+    mov X, Y                ; Length is preset in the Y register
+    wait 0 pin 0            ; Wait start bit
+    wait 0 irq SDIO_IRQ     ; Waiting for a whole clock cycle
+
+recv:
+    in PINS, 4
+    jmp X--, recv
+.wrap
