@@ -19,7 +19,7 @@ int main()
     stdio_init_all();
 
     sdcard_init(SDIO_SCK, SDIO_CMD, SDIO_D0);
-    // ssdcard_init(SD_SPI_PORT, SD_PIN_MISO, SD_PIN_MOSI, SD_PIN_SCK, SD_PIN_CS);
+    // sdcard_init(SD_SPI_PORT, SD_PIN_MISO, SD_PIN_MOSI, SD_PIN_SCK, SD_PIN_CS);
 
     FRESULT res;
     DIR dir;

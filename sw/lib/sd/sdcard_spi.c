@@ -71,9 +71,11 @@ static uint8_t do_cmd(sd_cmd cmd, uint32_t arg)
 {
     TRACE("SD send command %u", cmd);
 
-    if (!wait_not_busy(SD_CMD_TIMEOUT_MS)) {
-        TRACE("SD command timeout");
-        return R1_NO_RESPONSE;
+    if (cmd != CMD12_STOP_TRANSMISSION) {
+        if (!wait_not_busy(SD_CMD_TIMEOUT_MS)) {
+            TRACE("SD command timeout");
+            return R1_NO_RESPONSE;
+        }
     }
 
     uint8_t status;
