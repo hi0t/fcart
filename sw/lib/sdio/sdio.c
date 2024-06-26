@@ -371,28 +371,17 @@ static void calc_outgoing_crc()
 
 static void start_send_next_block()
 {
+    assert(sdio.wr_curr_block < sdio.nblocks);
+
     sdio.wr_crc_buf[0] = (uint32_t)(sdio.wr_next_crc >> 32);
     sdio.wr_crc_buf[1] = (uint32_t)(sdio.wr_next_crc >> 0);
-    sdio.wr_crc_buf[2] = 0xFFFFFFFF;
-
-    // Configure TX DMA channel to send data
-    dma_channel_config dma = dma_channel_get_default_config(SDIO_DMA0);
-    channel_config_set_read_increment(&dma, true);
-    channel_config_set_write_increment(&dma, false);
-    channel_config_set_dreq(&dma, pio_get_dreq(SDIO_PIO, SDIO_DAT_SM, true));
-    channel_config_set_bswap(&dma, true);
-    channel_config_set_chain_to(&dma, SDIO_DMA1);
-    dma_channel_configure(SDIO_DMA0, &dma, &SDIO_PIO->txf[SDIO_DAT_SM], sdio.wr_buf + sdio.wr_curr_block * sdio.block_size, sdio.block_size / 4, false);
-
-    // DMA channel to send the CRC
-    channel_config_set_bswap(&dma, false);
-    dma_channel_configure(SDIO_DMA1, &dma, &SDIO_PIO->txf[SDIO_DAT_SM], sdio.wr_crc_buf, 3, false);
+    sdio.wr_crc_buf[2] = 0xFFFFFFFF; // End token
 
     pio_sm_init(SDIO_PIO, SDIO_DAT_SM, sdio.pio_offset_tx + sdio_tx_offset_send_dat, &sdio.pio_cfg_send);
     // Set request and response length
     pio_sm_put(SDIO_PIO, SDIO_DAT_SM, 8 + sdio.block_size * 2 + 16 + 1 - 1);
     pio_sm_exec(SDIO_PIO, SDIO_DAT_SM, pio_encode_out(pio_x, 32));
-    pio_sm_put(SDIO_PIO, SDIO_DAT_SM, 7 - 1);
+    pio_sm_put(SDIO_PIO, SDIO_DAT_SM, 4 - 1);
     pio_sm_exec(SDIO_PIO, SDIO_DAT_SM, pio_encode_out(pio_y, 32));
     // Set pins to output
     pio_sm_exec(SDIO_PIO, SDIO_DAT_SM, pio_encode_set(pio_pins, 0b1111));
@@ -400,7 +389,8 @@ static void start_send_next_block()
     // Push start token
     pio_sm_put(SDIO_PIO, SDIO_DAT_SM, 0xFFFFFFF0);
 
-    dma_channel_start(SDIO_DMA0);
+    dma_channel_set_read_addr(SDIO_DMA1, sdio.wr_crc_buf, false);
+    dma_channel_set_read_addr(SDIO_DMA0, sdio.wr_buf + sdio.wr_curr_block * sdio.block_size, true);
     pio_sm_set_enabled(SDIO_PIO, SDIO_DAT_SM, true);
 }
 
@@ -415,6 +405,19 @@ void sdio_start_send(const uint8_t *buf, uint32_t block_size, uint32_t nblocks)
     sdio.checksumed = 0;
 
     calc_outgoing_crc();
+
+    // Configure TX DMA channel to send data
+    dma_channel_config dma = dma_channel_get_default_config(SDIO_DMA0);
+    channel_config_set_read_increment(&dma, true);
+    channel_config_set_write_increment(&dma, false);
+    channel_config_set_dreq(&dma, pio_get_dreq(SDIO_PIO, SDIO_DAT_SM, true));
+    channel_config_set_bswap(&dma, true);
+    channel_config_set_chain_to(&dma, SDIO_DMA1);
+    dma_channel_configure(SDIO_DMA0, &dma, &SDIO_PIO->txf[SDIO_DAT_SM], NULL, sdio.block_size / 4, false);
+
+    // DMA channel to send the CRC
+    channel_config_set_bswap(&dma, false);
+    dma_channel_configure(SDIO_DMA1, &dma, &SDIO_PIO->txf[SDIO_DAT_SM], NULL, 3, false);
 
     start_send_next_block();
 }
@@ -436,20 +439,14 @@ sdio_err sdio_poll_send(uint32_t *blocks_complete)
     }
     pio_sm_set_enabled(SDIO_PIO, SDIO_DAT_SM, false);
     uint32_t status = pio_sm_get(SDIO_PIO, SDIO_DAT_SM);
-    rc = SDIO_ERR_WRITE;
-    // Trying to find the result of a block write. Format: x|x|x|0|status|1
+    // Response status format: x|x|x|0|status|1
     // The status takes 3 bytes. Can take values: 010, 101, 110
-    for (int i = 0; i < 4; i++) {
-        if ((status & 0x0F) == 0x05) {
-            rc = SDIO_ERR_OK;
-            break;
-        } else if ((status & 0x0F) == 0x0B) {
-            rc = SDIO_ERR_CRC;
-            break;
-        }
-        status >>= 1;
-    }
-    if (rc != SDIO_ERR_OK) {
+    status >>= 1;
+    if (status == 5) {
+        rc = SDIO_ERR_CRC;
+        goto out;
+    } else if (status != 2) {
+        rc = SDIO_ERR_WRITE;
         goto out;
     }
 
@@ -458,10 +455,6 @@ sdio_err sdio_poll_send(uint32_t *blocks_complete)
         rc = SDIO_ERR_EOF;
         goto out;
     }
-
-    // Set the dma channel pointer to the next block
-    // dma_channel_set_trans_count(SDIO_DMA0, sdio.block_size / 4, false);
-    // dma_channel_set_trans_count(SDIO_DMA1, 3, false);
     start_send_next_block();
 out:
     if (rc == SDIO_ERR_EOF) {
