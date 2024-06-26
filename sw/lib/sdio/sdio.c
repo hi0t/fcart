@@ -1,3 +1,6 @@
+// For the reference used the implementation SDIO communication
+// from the ZuluSCSI™ firmware https://github.com/ZuluSCSI/ZuluSCSI-firmware
+
 #include "sdio.h"
 #include "crc.h"
 #include <hardware/clocks.h>
@@ -10,8 +13,9 @@
 #define SDIO_CLK_SM 0
 #define SDIO_CMD_SM 1
 #define SDIO_DAT_SM 2
-#define SDIO_DMA0 0
-#define SDIO_DMA1 1
+#define SDIO_CMD_DMA 0
+#define SDIO_DAT_DMA0 1
+#define SDIO_DAT_DMA1 2
 
 #define INITIAL_CLOCK_DIV 100 // 1.25MHz
 #define RECV_BUF_CNT 256
@@ -49,8 +53,9 @@ void sdio_init(uint sck, uint cmd, uint d0, uint32_t cmd_timeout_ms)
         pio_sm_claim(SDIO_PIO, SDIO_CLK_SM);
         pio_sm_claim(SDIO_PIO, SDIO_CMD_SM);
         pio_sm_claim(SDIO_PIO, SDIO_DAT_SM);
-        dma_channel_claim(SDIO_DMA0);
-        dma_channel_claim(SDIO_DMA1);
+        dma_channel_claim(SDIO_CMD_DMA);
+        dma_channel_claim(SDIO_DAT_DMA0);
+        dma_channel_claim(SDIO_DAT_DMA1);
         sdio.resources_claimed = true;
     }
 
@@ -90,6 +95,14 @@ void sdio_init(uint sck, uint cmd, uint d0, uint32_t cmd_timeout_ms)
     sm_config_set_out_shift(&sdio.pio_cfg_cmd, false, true, 32);
     sm_config_set_in_shift(&sdio.pio_cfg_cmd, false, true, 32);
     sm_config_set_clkdiv_int_frac(&sdio.pio_cfg_cmd, INITIAL_CLOCK_DIV, 0);
+
+    // DMA channel for receiving response to commands
+    dma_channel_config dma = dma_channel_get_default_config(SDIO_CMD_DMA);
+    channel_config_set_bswap(&dma, true);
+    channel_config_set_dreq(&dma, pio_get_dreq(SDIO_PIO, SDIO_CMD_SM, false));
+    channel_config_set_read_increment(&dma, false);
+    channel_config_set_write_increment(&dma, true);
+    dma_channel_configure(SDIO_CMD_DMA, &dma, NULL, &SDIO_PIO->rxf[SDIO_CMD_SM], 0, false);
 
     // State machine configuration for receiving data blocks
     sdio.pio_cfg_recv = sdio_rx_program_get_default_config(sdio.pio_offset_rx);
@@ -158,35 +171,38 @@ static sdio_err sdio_cmd(uint8_t cmd, uint32_t arg, uint8_t *resp_buf, uint8_t b
     pio_sm_put(SDIO_PIO, SDIO_CMD_SM, reqw1);
     pio_sm_put(SDIO_PIO, SDIO_CMD_SM, reqw2);
 
-    absolute_time_t timeout = make_timeout_time_ms(sdio.cmd_timeout_ms);
-    // The state machine sends an empty response if the response is empty
-    // or the size of the response is aligned to 4 bytes.
-    uint to_read = buf_size + ((resp_bits % 32) == 0) * 4;
-    uint bits_left = resp_bits;
-
+    if (resp_buf != NULL) {
+        dma_channel_transfer_to_buffer_now(SDIO_CMD_DMA, resp_buf, buf_size / 4);
+    }
     pio_sm_set_enabled(SDIO_PIO, SDIO_CMD_SM, true);
 
-    for (int i = 0; i < to_read;) {
+    absolute_time_t timeout = make_timeout_time_ms(sdio.cmd_timeout_ms);
+    while (dma_channel_is_busy(SDIO_CMD_DMA)) {
         if (absolute_time_diff_us(get_absolute_time(), timeout) < 0) {
             rc = SDIO_ERR_TIMEOUT;
             goto out;
         }
-        if (pio_sm_is_rx_fifo_empty(SDIO_PIO, SDIO_CMD_SM)) {
-            continue;
-        }
-        uint32_t w = pio_sm_get(SDIO_PIO, SDIO_CMD_SM);
-        // Do not read empty response
-        if (i < buf_size) {
-            if (bits_left < 32) {
-                w <<= 32 - bits_left;
+    }
+    // If the response is empty or the buffer is aligned, we must wait for an empty reply.
+    if (resp_bits % 32 == 0) {
+        timeout = make_timeout_time_ms(sdio.cmd_timeout_ms);
+        while (pio_sm_is_rx_fifo_empty(SDIO_PIO, SDIO_CMD_SM)) {
+            if (absolute_time_diff_us(get_absolute_time(), timeout) < 0) {
+                rc = SDIO_ERR_TIMEOUT;
+                goto out;
             }
-            resp_buf[i + 0] = (w >> 24u);
-            resp_buf[i + 1] = (w >> 16u);
-            resp_buf[i + 2] = (w >> 8u);
-            resp_buf[i + 3] = (w >> 0u);
-            bits_left -= 32;
         }
-        i += 4;
+        pio_sm_get(SDIO_PIO, SDIO_CMD_SM);
+    }
+
+    if (resp_buf != NULL) {
+        // Swap the unaligned bytes.
+        uint8_t rest = (resp_bits % 32) / 8;
+        uint8_t shift = (32 - resp_bits % 32) / 8;
+        for (uint8_t i = buf_size - 1; i >= buf_size - rest; i--) {
+            resp_buf[i - shift] = resp_buf[i];
+            resp_buf[i] = 0;
+        }
     }
 out:
     pio_sm_set_enabled(SDIO_PIO, SDIO_CMD_SM, false);
@@ -254,8 +270,8 @@ sdio_err sdio_cmd_R3(uint8_t cmd, uint32_t arg, uint32_t *resp)
 
 void sdio_stop_transfer()
 {
-    dma_channel_abort(SDIO_DMA0);
-    dma_channel_abort(SDIO_DMA1);
+    dma_channel_abort(SDIO_DAT_DMA0);
+    dma_channel_abort(SDIO_DAT_DMA1);
     pio_sm_set_enabled(SDIO_PIO, SDIO_DAT_SM, false);
 }
 
@@ -302,21 +318,21 @@ void sdio_start_recv(uint8_t *buf, uint32_t block_size, uint32_t nblocks)
     sdio.control_blocks[nblocks * 2].len = 0;
 
     // Configure RX DMA channel to receive data
-    dma_channel_config dma = dma_channel_get_default_config(SDIO_DMA0);
+    dma_channel_config dma = dma_channel_get_default_config(SDIO_DAT_DMA0);
     channel_config_set_bswap(&dma, true);
     channel_config_set_dreq(&dma, pio_get_dreq(SDIO_PIO, SDIO_DAT_SM, false));
     channel_config_set_read_increment(&dma, false);
     channel_config_set_write_increment(&dma, true);
-    channel_config_set_chain_to(&dma, SDIO_DMA1);
-    dma_channel_configure(SDIO_DMA0, &dma, NULL, &SDIO_PIO->rxf[SDIO_DAT_SM], 0, false);
+    channel_config_set_chain_to(&dma, SDIO_DAT_DMA1);
+    dma_channel_configure(SDIO_DAT_DMA0, &dma, NULL, &SDIO_PIO->rxf[SDIO_DAT_SM], 0, false);
 
     // Control channel transfers two words into the data channel's control
     // registers, then halts.
-    dma = dma_channel_get_default_config(SDIO_DMA1);
+    dma = dma_channel_get_default_config(SDIO_DAT_DMA1);
     channel_config_set_read_increment(&dma, true);
     channel_config_set_write_increment(&dma, true);
     channel_config_set_ring(&dma, true, 3);
-    dma_channel_configure(SDIO_DMA1, &dma, &dma_hw->ch[SDIO_DMA0].al1_write_addr, sdio.control_blocks, 2, false);
+    dma_channel_configure(SDIO_DAT_DMA1, &dma, &dma_hw->ch[SDIO_DAT_DMA0].al1_write_addr, sdio.control_blocks, 2, false);
 
     pio_sm_init(SDIO_PIO, SDIO_DAT_SM, sdio.pio_offset_rx, &sdio.pio_cfg_recv);
     pio_sm_exec(SDIO_PIO, SDIO_DAT_SM, pio_encode_set(pio_pindirs, 0b0000));
@@ -328,13 +344,13 @@ void sdio_start_recv(uint8_t *buf, uint32_t block_size, uint32_t nblocks)
     // Deeper RX FIFO. Must be set after out Y
     SDIO_PIO->sm[SDIO_DAT_SM].shiftctrl |= PIO_SM0_SHIFTCTRL_FJOIN_RX_BITS;
 
-    dma_channel_start(SDIO_DMA1);
+    dma_channel_start(SDIO_DAT_DMA1);
     pio_sm_set_enabled(SDIO_PIO, SDIO_DAT_SM, true);
 }
 
 sdio_err sdio_poll_recv(uint32_t *blocks_complete)
 {
-    uint32_t blocks_count = (dma_hw->ch[SDIO_DMA1].read_addr - (uint32_t)&sdio.control_blocks);
+    uint32_t blocks_count = (dma_hw->ch[SDIO_DAT_DMA1].read_addr - (uint32_t)&sdio.control_blocks);
     blocks_count = (blocks_count / sizeof(sdio.control_blocks[0]) - 1) / 2;
 
     while (sdio.checksumed < blocks_count) {
@@ -389,8 +405,8 @@ static void start_send_next_block()
     // Push start token
     pio_sm_put(SDIO_PIO, SDIO_DAT_SM, 0xFFFFFFF0);
 
-    dma_channel_set_read_addr(SDIO_DMA1, sdio.wr_crc_buf, false);
-    dma_channel_set_read_addr(SDIO_DMA0, sdio.wr_buf + sdio.wr_curr_block * sdio.block_size, true);
+    dma_channel_set_read_addr(SDIO_DAT_DMA1, sdio.wr_crc_buf, false);
+    dma_channel_set_read_addr(SDIO_DAT_DMA0, sdio.wr_buf + sdio.wr_curr_block * sdio.block_size, true);
     pio_sm_set_enabled(SDIO_PIO, SDIO_DAT_SM, true);
 }
 
@@ -407,17 +423,17 @@ void sdio_start_send(const uint8_t *buf, uint32_t block_size, uint32_t nblocks)
     calc_outgoing_crc();
 
     // Configure TX DMA channel to send data
-    dma_channel_config dma = dma_channel_get_default_config(SDIO_DMA0);
+    dma_channel_config dma = dma_channel_get_default_config(SDIO_DAT_DMA0);
     channel_config_set_read_increment(&dma, true);
     channel_config_set_write_increment(&dma, false);
     channel_config_set_dreq(&dma, pio_get_dreq(SDIO_PIO, SDIO_DAT_SM, true));
     channel_config_set_bswap(&dma, true);
-    channel_config_set_chain_to(&dma, SDIO_DMA1);
-    dma_channel_configure(SDIO_DMA0, &dma, &SDIO_PIO->txf[SDIO_DAT_SM], NULL, sdio.block_size / 4, false);
+    channel_config_set_chain_to(&dma, SDIO_DAT_DMA1);
+    dma_channel_configure(SDIO_DAT_DMA0, &dma, &SDIO_PIO->txf[SDIO_DAT_SM], NULL, sdio.block_size / 4, false);
 
     // DMA channel to send the CRC
     channel_config_set_bswap(&dma, false);
-    dma_channel_configure(SDIO_DMA1, &dma, &SDIO_PIO->txf[SDIO_DAT_SM], NULL, 3, false);
+    dma_channel_configure(SDIO_DAT_DMA1, &dma, &SDIO_PIO->txf[SDIO_DAT_SM], NULL, 3, false);
 
     start_send_next_block();
 }

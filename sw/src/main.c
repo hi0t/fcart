@@ -3,6 +3,7 @@
 #include "sdio.h"
 #include <pico/stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #define SD_SPI_PORT 0
 #define SD_PIN_SCK 18
