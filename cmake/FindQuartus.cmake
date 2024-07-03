@@ -1,7 +1,7 @@
 include(FindPackageHandleStandardArgs)
 
 set(QUARTUS_HINTS
-    $ENV{QUARTUS_ROOTDIR}
+    ${QUARTUS_ROOTDIR}
 )
 
 find_program(QUARTUS_SH quartus_sh quartus_sh.exe
