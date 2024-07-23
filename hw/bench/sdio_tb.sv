@@ -32,6 +32,8 @@ module sdio_tb;
     );
 
     always_ff @(posedge clk) begin
+        resp_valid <= 1;
+
         if (req_valid) begin
             case (req_cmd)
                 'h3F: begin
@@ -40,7 +42,7 @@ module sdio_tb;
                 end
                 default: resp_valid <= 2;
             endcase
-        end else resp_valid <= 1;
+        end
     end
 
     // cmd = 0x3F, arg = 0xF0000F0F, crc = 0x05
@@ -57,6 +59,9 @@ module sdio_tb;
             resp[i] = 0;
             for (int j = 7; j >= 0; j--) #1 resp[i] = {resp[i][6:0], cmd};
         end
+
+        assert (req_arg == 'hF0000F0F)
+        else $fatal(1, "invalid req: %0h", req_arg);
 
         assert ((resp[0] & 'hC0) == 0)
         else $fatal(1, "invalid start bit: %0h", (resp[0] & 'hC0));

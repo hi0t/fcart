@@ -26,7 +26,7 @@ module sdio (
     logic [1:0] tx_delay;  // Queue to look ahead when calculating CRC response
     logic cmd_prev;
 
-    assign cmd_sdio = (state == STATE_REQ_IDLE || state == STATE_REQ_PAYLOAD) ? 1'bz : tx_delay[1];
+    assign cmd_sdio = (state == STATE_REQ_IDLE || state == STATE_REQ_PAYLOAD) ? 'z : tx_delay[1];
 
     crc7 crc7 (
         .clk(clk_sdio),
@@ -37,6 +37,8 @@ module sdio (
     );
 
     always_ff @(posedge clk_sdio) begin
+        req_valid <= 0;
+
         case (state)
             STATE_REQ_IDLE: begin
                 cmd_prev <= cmd_sdio;
@@ -54,8 +56,8 @@ module sdio (
                 bit_cnt <= bit_cnt + 6'd1;
 
                 if (bit_cnt >= 1 && bit_cnt < 7) req_cmd <= {req_cmd[CMD_LEN-2:0], cmd_sdio};
-                else if (bit_cnt >= 7 && bit_cnt < 38) req_arg <= {req_arg[ARG_LEN-2:0], cmd_sdio};
-                else if (bit_cnt >= 38 && bit_cnt < 46) crc_buf <= {crc_buf[CRC_LEN-2:0], cmd_sdio};
+                else if (bit_cnt >= 7 && bit_cnt < 39) req_arg <= {req_arg[ARG_LEN-2:0], cmd_sdio};
+                else if (bit_cnt >= 39 && bit_cnt < 46) crc_buf <= {crc_buf[CRC_LEN-2:0], cmd_sdio};
 
                 case (bit_cnt)
                     0:  if (cmd_sdio != 1'b1) state <= STATE_REQ_IDLE;  // Transmission bit
@@ -63,15 +65,14 @@ module sdio (
                     46:  // End bit
                     if (cmd_sdio && actual_crc == crc_buf) begin
                         tx_delay <= 'b11;  // Turn high when idle
+                        req_valid <= 1;
                         state <= STATE_RESP_IDLE;
                     end else state <= STATE_REQ_IDLE;
                 endcase
             end
 
             STATE_RESP_IDLE: begin
-                req_valid <= 1;
                 if (resp_valid == 0) begin
-                    req_valid <= 0;
                     bit_cnt <= 0;
                     tx_delay <= 'b00;  // Start bit and transmission bit
                     crc_enable <= 1;
