@@ -1,95 +1,42 @@
 module fcart (
     input logic CLK,
 
-    // SDIO interface
-    input logic SDIO_CLK,
-    inout wire  SDIO_CMD,
-
-    // SDRAM chip interface
-    inout wire [15:0] SDRAM_DQ,
-    output logic [12:0] SDRAM_ADDR,
-    output logic [1:0] SDRAM_BA,
-    output logic SDRAM_CLK,
-    output logic SDRAM_CKE,
-    output logic SDRAM_CS,
-    output logic SDRAM_RAS,
-    output logic SDRAM_CAS,
-    output logic SDRAM_WE,
-    output logic [1:0] SDRAM_DQM
+    //input logic M2,
+    input logic [14:0] CPU_ADDR,
+    inout wire [7:0] CPU_DATA,
+    input logic CPU_RW,
+    input logic ROM_CE,
+    //output logic IRQ,
+    input logic PPU_RD,
+    //input logic PPU_WR,
+    output logic CIRAM_A10,
+    output logic CIRAM_CE,
+    input logic [13:0] PPU_ADDR,
+    inout wire [7:0] PPU_DATA,
+    output logic CPU_DIR,
+    output logic PPU_DIR
 );
-    logic [ 5:0] req_cmd;
-    logic [31:0] req_arg;
-    logic        req_valid;
-    logic [31:0] resp_arg;
-    logic [ 1:0] resp_valid;
+    logic [7:0] prg_rom['h7FFF:0];
+    logic [7:0] chr_rom['h1FFF:0];
+    logic [7:0] cpu_tx;
+    logic [7:0] ppu_tx;
+    logic cpu_read;
+    logic ppu_read;
 
-    logic        read_cmd = 0;
-    logic        write_cmd = 0;
-    logic [23:0] address;
-    logic [15:0] read_data;
-    logic [15:0] write_data;
+    assign cpu_read  = !ROM_CE && CPU_RW;
+    assign ppu_read  = !PPU_ADDR[13] && !PPU_RD;
+    assign CPU_DATA  = cpu_read ? cpu_tx : 'z;
+    assign PPU_DATA  = ppu_read ? ppu_tx : 'z;
+    assign CPU_DIR   = cpu_read;
+    assign PPU_DIR   = ppu_read;
+    assign CIRAM_CE  = !PPU_ADDR[13];
+    assign CIRAM_A10 = PPU_ADDR[10];
 
-    assign SDRAM_CLK = CLK;
-
-    sdio sdio (
-        .clk_sdio(SDIO_CLK),
-        .cmd_sdio(SDIO_CMD),
-        .req_cmd(req_cmd),
-        .req_arg(req_arg),
-        .req_valid(req_valid),
-        .resp_arg(resp_arg),
-        .resp_valid(resp_valid)
-    );
-
-    sdram #(
-        .ADDR_BITS  (13),
-        .COLUMN_BITS(9)
-    ) ram (
-        .clk(CLK),
-        .read_req(read_cmd),
-        .write_req(write_cmd),
-        .address_req(address),
-        .data_in(write_data),
-        .data_out(read_data),
-        .busy(),
-        .cke(SDRAM_CKE),
-        .cs(SDRAM_CS),
-        .address(SDRAM_ADDR),
-        .bank(SDRAM_BA),
-        .dq(SDRAM_DQ),
-        .ras(SDRAM_RAS),
-        .cas(SDRAM_CAS),
-        .we(SDRAM_WE),
-        .dqm(SDRAM_DQM)
-    );
-
-
-    always_ff @(posedge SDIO_CLK) begin
-        resp_valid <= 1;
-
-        if (read_cmd) begin
-            resp_valid <= 0;
-            resp_arg   <= {16'b0, read_data};
-            read_cmd   <= 0;
-        end else if (write_cmd) begin
-            resp_valid <= 0;
-            resp_arg   <= 0;
-            write_cmd  <= 0;
-        end
-
-        if (req_valid) begin
-            case (req_cmd)
-                1: begin
-                    read_cmd <= 1;
-                    address  <= {8'b0, req_arg[15:0]};
-                end
-                2: begin
-                    write_cmd <= 1;
-                    address <= {8'b0, req_arg[15:0]};
-                    write_data <= req_arg[31:16];
-                end
-                default: resp_valid <= 2;
-            endcase
-        end
+    initial begin
+        $readmemh("../../rom/prg.mem", prg_rom);
+        $readmemh("../../rom/chr.mem", chr_rom);
     end
+
+    always_ff @(negedge ROM_CE) cpu_tx <= prg_rom[CPU_ADDR];
+    always_ff @(negedge PPU_RD) ppu_tx <= chr_rom[PPU_ADDR[12:0]];
 endmodule
