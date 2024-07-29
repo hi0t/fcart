@@ -11,23 +11,21 @@ module sdram_tb;
     logic clk = 0;
     always #(CYC / 2) clk <= !clk;
 
-    logic        read_cmd;
-    logic        write_cmd;
-    logic [21:0] address;
-    logic [15:0] read_data;
-    logic [15:0] write_data;
+    sdram_bus #(24, 16) bus16 ();
+    sdram_bus #(25, 8) bus8_0 ();
+    sdram_bus #(25, 8) bus8_1 ();
 
-    wire  [15:0] sdram_dq;
-    wire  [11:0] sdram_addr;
-    wire  [ 1:0] sdram_bank;
-    wire         sdram_cke;
-    wire  [ 3:0] sdram_commond;
-    wire  [ 1:0] sdram_dqm;
+    wire [15:0] sdram_dq;
+    wire [12:0] sdram_addr;
+    wire [ 1:0] sdram_bank;
+    wire        sdram_cke;
+    wire [ 3:0] sdram_commond;
+    wire [ 1:0] sdram_dqm;
 
-    mt48lc4m16a2 sdram_model (
+    W9825G6KH sdram_model (
         .Dq   (sdram_dq),
         .Addr (sdram_addr),
-        .Ba   (sdram_bank),
+        .Bs   (sdram_bank),
         .Clk  (clk),
         .Cke  (sdram_cke),
         .Cs_n (sdram_commond[3]),
@@ -39,17 +37,14 @@ module sdram_tb;
 
     sdram #(
         .CLK_FREQ(50_000_000),
-        .INITIAL_PAUSE_US(100),
-        .REFRESH_TIME_NS(66)
+        .ADDR_BITS(13),
+        .COLUMN_BITS(9),
+        .REFRESH_INTERVAL_US(7.81)
     ) ram (
         .clk(clk),
-
-        .read_req(read_cmd),
-        .write_req(write_cmd),
-        .address_req(address),
-        .data_in(write_data),
-        .data_out(read_data),
-        .busy(),
+        .ch_16bit(bus16),
+        .ch0_8bit(bus8_0),
+        .ch1_8bit(bus8_1),
 
         .cke(sdram_cke),
         .cs(sdram_commond[3]),
@@ -62,53 +57,99 @@ module sdram_tb;
         .dqm(sdram_dqm)
     );
 
+    task automatic test_ch16(int delay, ref logic read, write, ref logic [23:0] address,
+                             ref logic [15:0] data_write, ref logic [15:0] data_read);
+        // regular write
+        write = 1;
+        address = 'h00;
+        data_write = 'h0FF7;
+        #(CYC * delay) write = 0;
+        $display("start 16 with delay %d", delay);
+        #(CYC * 7);
+        // write to the last bank
+        write = 1;
+        address = 'b11_111111111_0000000000000;
+        data_write = 'h1FF7;
+        #(CYC) write = 0;
+        #(CYC * 7);
+        // test of writing two 8-bit value
+        write = 1;
+        address = 'h7FFC / 2;
+        data_write = 'h8000;
+        #(CYC * delay) write = 0;
+        #(CYC * 7);
+        // regular read
+        read = 1;
+        address = 'h00;
+        #(CYC) read = 0;
+        #(CYC * 8);
+        assert (data_read == 'h0FF7)
+        else $fatal(1, "0FF7 != %0h", data_read);
+        #(CYC * 500);
+        // read after auto-refresh
+        read = 1;
+        address = 'b11_111111111_0000000000000;
+        #(CYC) read = 0;
+        #(CYC * 8);
+        assert (data_read == 'h1FF7)
+        else $fatal(1, "1FF7 != %0h", data_read);
+    endtask
+
+    task automatic test_ch8(int delay, bit [7:0] diff, ref logic read, write,
+                            ref logic [24:0] address, ref logic [7:0] data_write,
+                            ref logic [7:0] data_read);
+        // regular write
+        write = 1;
+        address = 'h77 + $bits(address)'(diff);
+        data_write = 'h77 + diff;
+        #(CYC * delay) write = 0;
+        $display("start 8 with delay %d", delay);
+        #(CYC * 7);
+        read = 1;
+        #(CYC) read = 0;
+        #(CYC * 8);
+        assert (data_read == data_write)
+        else $fatal(1, "%0h != %0h", data_read, data_write);
+    endtask
+
     initial begin
-        read_cmd  = 0;
-        write_cmd = 0;
+        bus16.read   = 0;
+        bus16.write  = 0;
+        bus8_0.read  = 0;
+        bus8_0.write = 0;
+        bus8_1.read  = 0;
+        bus8_1.write = 0;
 
         // Waiting for sdram to initialize
-        #100_000 $dumpon;
-        #500
+        #200_000 $dumpon;
+        #500;
 
-        // regular write
-        write_cmd = 1;
-        address = 'h00;
-        write_data = 'h0FF7;
-        #(CYC) write_cmd = 0;
-        #(CYC * 4)
+        fork
+            test_ch16(30, bus16.read, bus16.write, bus16.address, bus16.data_write,
+                      bus16.data_read);
+            test_ch8(10, 0, bus8_0.read, bus8_0.write, bus8_0.address, bus8_0.data_write,
+                     bus8_0.data_read);
+            test_ch8(20, 1, bus8_1.read, bus8_1.write, bus8_1.address, bus8_1.data_write,
+                     bus8_1.data_read);
+        join
 
-        // write to the last bank
-        write_cmd = 1;
-        address = 'b1110000000000000000000;
-        write_data = 'h1FF7;
-        #(CYC) write_cmd = 0;
-        #(CYC * 4)
+        #(CYC * 1000);
 
-        // regular read
-        read_cmd = 1;
-        address = 'h00;
-        #(CYC) read_cmd = 0;
-        #(CYC * 5)
-        assert (read_data == 'h0FF7)
-        else $fatal(1, "0FF7 != %0h", read_data);
+        // test reading a previously written 16-bit value
+        bus8_0.read = 1;
+        bus8_0.address = 'h7FFC;
+        #(CYC) bus8_0.read = 0;
+        #(CYC * 8);
+        assert (bus8_0.data_read == 'h00)
+        else $fatal(1, "00 != %0h", bus8_0.data_read);
 
-        // read from the next bank
-        read_cmd = 1;
-        address  = 'b1110000000000000000000;
-        #(CYC) read_cmd = 0;
-        #(CYC * 5)
-        assert (read_data == 'h1FF7)
-        else $fatal(1, "1FF7 != %0h", read_data);
+        bus8_0.read = 1;
+        bus8_0.address = 'h7FFD;
+        #(CYC) bus8_0.read = 0;
+        #(CYC * 8);
+        assert (bus8_0.data_read == 'h80)
+        else $fatal(1, "80 != %0h", bus8_0.data_read);
 
-        #(CYC * 1000)
-        // read after auto-refresh
-        read_cmd = 1;
-        address = 'b1110000000000000000000;
-        #(CYC) read_cmd = 0;
-        #(CYC * 5)
-        assert (read_data == 'h1FF7)
-        else $fatal(1, "1FF7 != %0h", read_data);
-
-        #(CYC * 1000) $finish;
+        $finish;
     end
 endmodule

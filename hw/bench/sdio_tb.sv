@@ -16,31 +16,22 @@ module sdio_tb;
     wire  cmd;
     logic cmd_set;
     assign cmd = cmd_set;
-    logic [5:0] req_cmd;
-    logic [31:0] req_arg;
-    logic req_valid;
-    logic [31:0] resp_arg;
-    logic [1:0] resp_valid;
+    sdio_bus bus (.clk(clk));
     sdio sdio (
-        .clk_sdio(clk),
         .cmd_sdio(cmd),
-        .req_cmd(req_cmd),
-        .req_arg(req_arg),
-        .req_valid(req_valid),
-        .resp_arg(resp_arg),
-        .resp_valid(resp_valid)
+        .bus(bus)
     );
 
     always_ff @(posedge clk) begin
-        resp_valid <= 1;
+        bus.resp_valid <= 0;
 
-        if (req_valid) begin
-            case (req_cmd)
+        if (bus.req_valid) begin
+            case (bus.req_cmd)
                 'h3F: begin
-                    resp_arg   <= 'hF00FF00F;
-                    resp_valid <= 0;
+                    bus.resp_arg   <= 'hF00FF00F;
+                    bus.resp_valid <= 1;
                 end
-                default: resp_valid <= 2;
+                default: bus.resp_valid <= 2;
             endcase
         end
     end
@@ -60,8 +51,8 @@ module sdio_tb;
             for (int j = 7; j >= 0; j--) #1 resp[i] = {resp[i][6:0], cmd};
         end
 
-        assert (req_arg == 'hF0000F0F)
-        else $fatal(1, "invalid req: %0h", req_arg);
+        assert (bus.req_arg == 'hF0000F0F)
+        else $fatal(1, "invalid req: %0h", bus.req_arg);
 
         assert ((resp[0] & 'hC0) == 0)
         else $fatal(1, "invalid start bit: %0h", (resp[0] & 'hC0));

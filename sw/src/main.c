@@ -1,45 +1,48 @@
+#include "ff.h"
+#include "fpga.h"
+#include "rom.h"
+#include "sdcard.h"
 #include "sdio.h"
-#include <hardware/clocks.h>
 #include <pico/stdlib.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <string.h>
+
+#define SD_SPI_PORT 0
+#define SD_PIN_SCK 2
+#define SD_PIN_MOSI 3
+#define SD_PIN_MISO 4
+#define SD_PIN_CS 5
 
 int main()
 {
     stdio_init_all();
-    clock_gpio_init_int_frac(25, CLOCKS_CLK_GPOUT3_CTRL_AUXSRC_VALUE_CLK_SYS, 2, 0); // 62.5 MHz FPGA clock
+    sdcard_init(SD_SPI_PORT, SD_PIN_MISO, SD_PIN_MOSI, SD_PIN_SCK, SD_PIN_CS);
+    fpga_init();
 
-    sdio_init(10, 11, 12, 100);
+    FATFS fs;
+    FRESULT res;
+    DIR dir;
+    FILINFO fno;
 
-    sleep_ms(5000);
+    f_mount(&fs, "0:", 1);
 
-    printf("sending...\n");
-    uint32_t reply;
-    uint8_t buf[1024];
-    for (int i = 0; i < sizeof(buf); i += 2) {
-        buf[i] = rand() >> 16;
-        buf[i + 1] = rand() >> 16;
-        uint16_t addr = i / 2;
-        uint16_t data = buf[i + 1] << 8u | buf[i];
-        printf("0x%04x: 0x%04x\n", addr, data);
-        sdio_cmd_R1(2, data << 16u | addr, &reply);
-    }
-
-    sleep_ms(5000);
-
-    printf("receiving...\n");
-    bool valid = true;
-    for (int i = 0; i < sizeof(buf); i += 2) {
-        uint16_t addr = i / 2;
-        sdio_cmd_R1(1, addr, &reply);
-        uint16_t data = buf[i + 1] << 8u | buf[i];
-        if (reply != data) {
-            valid = false;
-            break;
+    res = f_opendir(&dir, "0:/");
+    if (res == FR_OK) {
+        for (;;) {
+            res = f_readdir(&dir, &fno);
+            if (res != FR_OK || fno.fname[0] == 0)
+                break;
+            if (!(fno.fattrib & AM_DIR)) {
+                char *ext = strrchr(fno.fname, '.');
+                if (ext != NULL && strcmp(ext, ".nes") == 0) {
+                    rom_push(fno.fname);
+                    break;
+                }
+            }
         }
-        printf("0x%04x: 0x%04x\n", addr, data);
+        f_closedir(&dir);
     }
-    printf("\n\nvalid: %d\n", valid);
+
+    f_unmount("0:");
 
     while (true) {
         sleep_ms(100);

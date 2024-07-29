@@ -232,7 +232,9 @@ sdio_err sdio_cmd_R1(uint8_t cmd, uint32_t arg, uint32_t *resp)
         return SDIO_ERR_RESPONSE_CMD;
     }
 
-    *resp = buf[1] << 24u | buf[2] << 16u | buf[3] << 8u | buf[4] << 0u;
+    if (resp != NULL) {
+        *resp = buf[1] << 24u | buf[2] << 16u | buf[3] << 8u | buf[4] << 0u;
+    }
     return SDIO_ERR_OK;
 }
 
