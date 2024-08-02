@@ -43,6 +43,18 @@ void rom_push(const char *path)
     fpga_write_prg(0, prg_size, file_reader, &fp);
     fpga_write_chr(prg_size, chr_size, file_reader, &fp);
     fpga_launch();
+
+    /*f_lseek(&fp, 16);
+    for (int i = 0; i < 32768; i++) {
+        uint32_t resp;
+        sdio_cmd_R1(5, i, &resp);
+
+        uint8_t orig;
+        f_read(&fp, &orig, 1, &sz);
+        if (orig != resp) {
+            printf("fail %d\n", i);
+        }
+    }*/
 out:
     f_close(&fp);
 }

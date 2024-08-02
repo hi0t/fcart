@@ -3,7 +3,7 @@
 module sdio_tb;
     initial begin
         $dumpfile("sdio.vcd");
-        $dumpvars(0, sdio);
+        $dumpvars(0, sdio_tb);
         #128
         assert (has_response)
         else $fatal(1, "no response");

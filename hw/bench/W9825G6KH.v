@@ -1,4 +1,6 @@
 // Blackbox for the memory model
+// verilator lint_off UNUSEDSIGNAL
+// verilator lint_off UNDRIVEN
 module W9825G6KH (
     Dq,
     Addr,

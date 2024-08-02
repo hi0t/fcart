@@ -1,20 +1,11 @@
 module sdram #(
-    parameter CLK_FREQ = 62_500_000,
     parameter ADDR_BITS = 12,
     parameter COLUMN_BITS = 8,
     parameter BANK_BITS = 2,
-    // Mode settings
-    parameter CAS_LATENCY = 2,  // 2 or 3 allowed. 3 for >133MHz
-    // Timings
-    parameter INITIAL_PAUSE_US = 200,
-    parameter PRECHARGE_TIME_NS = 15,  // tRP
-    parameter REGISTER_SET_CYCLES = 2,  // tRSC
-    parameter REFRESH_TIME_NS = 60,  // tRC
-    parameter REFRESH_INTERVAL_US = 15.6,  // tREF 4K / refresh cycles
-    parameter RAS_TO_CAS_TIME_NS = 15,  // tRCD
-    parameter WRITE_TIME_CYCLES = 2  // tWR
+    parameter REFRESH_INTERVAL = 1950  // tREF / 4K(8K) 15.6E-6 * FREQ
 ) (
     input logic clk,
+    input logic init,
     sdram_bus.host ch_16bit,
     sdram_bus.host ch0_8bit,
     sdram_bus.host ch1_8bit,
@@ -30,31 +21,42 @@ module sdram #(
     output logic we,
     output logic [1:0] dqm
 );
-    typedef int unsigned uint;
+    typedef byte unsigned uint8;
+    typedef shortint unsigned uint16;
 
-    enum logic [3:0] {
-        STATE_INIT = 4'd0,
-        STATE_PRECHARGE_ALL = 4'd1,
-        STATE_SET_MODE = 4'd2,
-        STATE_INIT_REFRESH = 4'd3,
-        STATE_IDLE = 4'd4,
-        STATE_READ = 4'd5,
-        STATE_READ_COMPLETE = 4'd6,
-        STATE_WRITE = 4'd7,
-        STATE_DELAY = 4'd8
-    }
-        state = STATE_INIT, next_state;
+    localparam uint16 INITIAL_PAUSE = 25_000;  // 200E-6 * FREQ
+    localparam uint8 PRECHARGE_PERIOD = 2;  // tRP 15E-9 * FREQ
+    localparam uint8 REGISTER_SET = 2;  // tRSC clocks
+    localparam uint8 CAS_LATENCY = 2;  // 2 or 3 clocks allowed. 3 for >133MHz
+    localparam uint8 ACTIVE_TO_RW = 2;  // tRCD 15E-9 * FREQ
+    localparam uint8 READ_PERIOD = 8;  // tRAS + tRP
+    localparam uint8 WRITE_PERIOD = 9;  // tRAS + tRP + tWR
 
-    // Bank width + row width + column width
-    localparam RAM_ADDR_BITS = BANK_BITS + ADDR_BITS + COLUMN_BITS;
-    localparam INITIAL_PAUSE_CYCLES = uint'(INITIAL_PAUSE_US / 1e6 * CLK_FREQ);
-    // The initial pause has the longest delay
-    localparam DELAY_WIDTH = $clog2(INITIAL_PAUSE_CYCLES + 1);
-    localparam PRECHARGE_CYCLES = uint'(PRECHARGE_TIME_NS / 1e9 * CLK_FREQ);
-    localparam REFRESH_CYCLES = uint'(REFRESH_TIME_NS / 1e9 * CLK_FREQ);
-    localparam REFRESH_INTERVAL_CYCLES = uint'(REFRESH_INTERVAL_US / 1e6 * CLK_FREQ);
-    localparam REFRESH_INTERVAL_WIDTH = $clog2(REFRESH_INTERVAL_CYCLES + 1);
-    localparam RAS_TO_CAS_CYCLES = uint'(RAS_TO_CAS_TIME_NS / 1e9 * CLK_FREQ);
+    // configure steps
+    localparam CONFIGURE_PRECHARGE = 0;
+    localparam CONFIGURE_SET_MODE = CONFIGURE_PRECHARGE + PRECHARGE_PERIOD;
+    localparam CONFIGURE_REFRESH_1 = CONFIGURE_SET_MODE + REGISTER_SET;
+    // READ_PERIOD cover the refresh period
+    localparam CONFIGURE_REFRESH_2 = CONFIGURE_REFRESH_1 + READ_PERIOD;
+    localparam CONFIGURE_END = CONFIGURE_REFRESH_2 + READ_PERIOD;
+
+    // active steps
+    localparam ACTIVE_START = uint8'(1);
+    localparam ACTIVE_RW = ACTIVE_START + ACTIVE_TO_RW;
+    localparam ACTIVE_READY = ACTIVE_RW + CAS_LATENCY + uint8'(1);
+
+    enum bit [1:0] {
+        STATE_POWERUP = 2'd0,
+        STATE_CONFIGURE = 2'd1,
+        STATE_IDLE = 2'd2,
+        STATE_ACTIVE = 2'd3
+    } state = STATE_POWERUP;
+
+    enum bit [1:0] {
+        OP_REFRESH = 2'd0,
+        OP_READ = 2'd1,
+        OP_WRITE = 2'd2
+    } op;
 
     localparam CMD_NOOP = 3'b111;
     localparam CMD_ACTIVATE = 3'b011;
@@ -64,177 +66,170 @@ module sdram #(
     localparam CMD_WRITE = 3'b100;
     localparam CMD_PRECHARGE = 3'b010;
 
-    logic [DELAY_WIDTH-1:0] delay;
-    logic [REFRESH_INTERVAL_WIDTH-1:0] refresh_timer;
+    logic [2:0] cmd;
+    logic [COLUMN_BITS-1:0] col_save;
+    logic [1:0] mask;
+    logic low_bit;
     logic [15:0] data_tx;
     logic [2:0] read_ch, write_ch, read_prev_ch, write_prev_ch;
-    logic [1:0][2:0] read_ch_buffered, write_ch_buffered;
-    logic [COLUMN_BITS-1:0] col;
-    logic [2:0] cmd;
+    logic  force_refresh;
+    uint8  step = 0;
+    uint16 timer = 0;
 
     assign cke = 1;
     assign {ras, cas, we} = cmd;
     assign cs = (cmd == CMD_NOOP);
     assign dq = (cmd == CMD_WRITE) ? data_tx : 'z;
-    assign read_ch = read_ch_buffered[1];
-    assign write_ch = write_ch_buffered[1];
+    assign read_ch = {ch1_8bit.read_buf, ch0_8bit.read_buf, ch_16bit.read_buf};
+    assign write_ch = {ch1_8bit.write_buf, ch0_8bit.write_buf, ch_16bit.write_buf};
+    assign force_refresh = ch1_8bit.refresh_buf || ch0_8bit.refresh_buf || ch_16bit.refresh_buf;
 
     always_ff @(posedge clk) begin
-        // Synchronization of signals from other clock domains.
-        read_ch_buffered <= {read_ch_buffered[0], {ch1_8bit.read, ch0_8bit.read, ch_16bit.read}};
-        write_ch_buffered <= {
-            write_ch_buffered[0], {ch1_8bit.write, ch0_8bit.write, ch_16bit.write}
-        };
+        timer <= timer + 1'd1;
 
         read_prev_ch <= read_prev_ch & read_ch;
         write_prev_ch <= write_prev_ch & write_ch;
 
-        if (refresh_timer > 0) refresh_timer <= refresh_timer - 1'd1;
-
         case (state)
-            STATE_INIT: begin
-                refresh_timer <= 0;
-                address <= 'x;
-                bank <= 'x;
-                cmd <= CMD_NOOP;
-                delay <= DELAY_WIDTH'(INITIAL_PAUSE_CYCLES - 1);
-                next_state <= STATE_PRECHARGE_ALL;
-                state <= STATE_DELAY;
+            STATE_POWERUP: begin
+                case (timer)
+                    0: begin
+                        address <= 'x;
+                        bank <= 'x;
+                        cmd <= CMD_NOOP;
+                    end
+                    INITIAL_PAUSE: begin
+                        if (init) begin
+                            step  <= 0;
+                            state <= STATE_CONFIGURE;
+                        end else timer <= INITIAL_PAUSE;
+                    end
+                endcase
             end
+            STATE_CONFIGURE: begin
+                step <= step + 1'd1;
 
-            STATE_PRECHARGE_ALL: begin
-                address[10] <= 1'b1;  // precharge all banks
-                cmd <= CMD_PRECHARGE;
-                delay <= DELAY_WIDTH'(PRECHARGE_CYCLES - 1);
-                next_state <= STATE_SET_MODE;
-                state <= STATE_DELAY;
+                case (step)
+                    CONFIGURE_PRECHARGE: begin
+                        address[10] <= 1'b1;  // precharge all banks
+                        cmd <= CMD_PRECHARGE;
+                    end
+                    CONFIGURE_SET_MODE: begin
+                        address <= {
+                            {ADDR_BITS - 10{1'b0}},
+                            1'd1,  // write mode - burst read and single write
+                            2'b00,
+                            3'(CAS_LATENCY),
+                            1'd0,  // sequential addressing mode
+                            3'd0  // burst length
+                        };
+                        bank <= '0;
+                        cmd <= CMD_MODE_REGISTER_SET;
+                    end
+                    CONFIGURE_REFRESH_1, CONFIGURE_REFRESH_2: begin
+                        address <= 'x;
+                        bank <= 'x;
+                        cmd <= CMD_AUTO_REFRESH;
+                    end
+                    CONFIGURE_END: begin
+                        timer <= 0;
+                        state <= STATE_IDLE;
+                    end
+                    default: cmd <= CMD_NOOP;
+                endcase
             end
-
-            STATE_SET_MODE: begin
-                address <= {
-                    {ADDR_BITS - 10{1'b0}},
-                    1'd1,  // write mode - burst read and single write
-                    2'b00,
-                    3'(CAS_LATENCY),
-                    1'd0,  // sequential addressing mode
-                    3'd0  // burst length
-                };
-                bank <= '0;
-                cmd <= CMD_MODE_REGISTER_SET;
-                delay <= DELAY_WIDTH'(REGISTER_SET_CYCLES - 1);
-                next_state <= STATE_INIT_REFRESH;
-                state <= STATE_DELAY;
-            end
-
-            STATE_INIT_REFRESH: begin
-                address <= 'x;
-                bank <= 'x;
-                cmd <= CMD_AUTO_REFRESH;
-                delay <= DELAY_WIDTH'(REFRESH_CYCLES - 1);
-                next_state <= STATE_IDLE;
-                state <= STATE_DELAY;
-                // The second auto-refresh cycle will happen in idle status, because timer is zero.
-            end
-
             STATE_IDLE: begin
-                ch_16bit.busy <= 0;
-                ch0_8bit.busy <= 0;
-                ch1_8bit.busy <= 0;
-                dqm <= 2'b11;
+                step <= ACTIVE_START;
+                dqm  <= 2'b11;
+                cmd  <= CMD_NOOP;
 
-                if (refresh_timer == 0) begin
-                    refresh_timer <= REFRESH_INTERVAL_WIDTH'(REFRESH_INTERVAL_CYCLES);
+                if (timer >= REFRESH_INTERVAL || (force_refresh && (timer >= REFRESH_INTERVAL / 2))) begin
+                    timer <= 0;
                     address <= 'x;
                     bank <= 'x;
                     cmd <= CMD_AUTO_REFRESH;
-                    delay <= DELAY_WIDTH'(REFRESH_CYCLES - 1);
-                    next_state <= STATE_IDLE;
-                    state <= STATE_DELAY;
+                    op <= OP_REFRESH;
+                    state <= STATE_ACTIVE;
                 end else if ((read_ch[0] && !read_prev_ch[0]) || (write_ch[0] && !write_prev_ch[0])) begin
                     read_prev_ch[0] <= read_ch[0];
                     write_prev_ch[0] <= write_ch[0];
                     ch_16bit.busy <= 1;
 
                     address <= ch_16bit.address[0+:ADDR_BITS];  // Row
-                    col <= ch_16bit.address[ADDR_BITS+:COLUMN_BITS];  //Column
-                    bank <= ch_16bit.address[RAM_ADDR_BITS-1-:BANK_BITS];
+                    col_save <= ch_16bit.address[ADDR_BITS+:COLUMN_BITS];  //Column
+                    bank <= ch_16bit.address[$bits(ch_16bit.address)-1-:BANK_BITS];
                     data_tx <= ch_16bit.data_write;
-                    dqm <= 2'b00;
+                    mask <= 2'b00;
 
                     cmd <= CMD_ACTIVATE;
-                    delay <= DELAY_WIDTH'(RAS_TO_CAS_CYCLES - 1);
-                    state <= STATE_DELAY;
-                    next_state <= read_ch[0] ? STATE_READ : STATE_WRITE;
+                    state <= STATE_ACTIVE;
+                    op <= read_ch[0] ? OP_READ : OP_WRITE;
                 end else if ((read_ch[1] && !read_prev_ch[1]) || (write_ch[1] && !write_prev_ch[1])) begin
                     read_prev_ch[1] <= read_ch[1];
                     write_prev_ch[1] <= write_ch[1];
                     ch0_8bit.busy <= 1;
 
                     address <= ch0_8bit.address[1+:ADDR_BITS];
-                    col <= ch0_8bit.address[1+ADDR_BITS+:COLUMN_BITS];
-                    bank <= ch0_8bit.address[RAM_ADDR_BITS-:BANK_BITS];
+                    col_save <= ch0_8bit.address[1+ADDR_BITS+:COLUMN_BITS];
+                    bank <= ch0_8bit.address[$bits(ch0_8bit.address)-1-:BANK_BITS];
                     data_tx <= {ch0_8bit.data_write, ch0_8bit.data_write};
-                    dqm <= {write_ch[1] & ~ch0_8bit.address[0], write_ch[1] & ch0_8bit.address[0]};
+                    mask <= {write_ch[1] & !ch0_8bit.address[0], write_ch[1] & ch0_8bit.address[0]};
+                    low_bit <= ch0_8bit.address[0];
 
                     cmd <= CMD_ACTIVATE;
-                    delay <= DELAY_WIDTH'(RAS_TO_CAS_CYCLES - 1);
-                    state <= STATE_DELAY;
-                    next_state <= read_ch[1] ? STATE_READ : STATE_WRITE;
+                    state <= STATE_ACTIVE;
+                    op <= read_ch[1] ? OP_READ : OP_WRITE;
                 end else if ((read_ch[2] && !read_prev_ch[2]) || (write_ch[2] && !write_prev_ch[2])) begin
                     read_prev_ch[2] <= read_ch[2];
                     write_prev_ch[2] <= write_ch[2];
                     ch1_8bit.busy <= 1;
 
                     address <= ch1_8bit.address[1+:ADDR_BITS];
-                    col <= ch1_8bit.address[1+ADDR_BITS+:COLUMN_BITS];
-                    bank <= ch1_8bit.address[RAM_ADDR_BITS-:BANK_BITS];
+                    col_save <= ch1_8bit.address[1+ADDR_BITS+:COLUMN_BITS];
+                    bank <= ch1_8bit.address[$bits(ch1_8bit.address)-1-:BANK_BITS];
                     data_tx <= {ch1_8bit.data_write, ch1_8bit.data_write};
-                    dqm <= {write_ch[2] & ~ch1_8bit.address[0], write_ch[2] & ch1_8bit.address[0]};
+                    mask <= {write_ch[2] & !ch1_8bit.address[0], write_ch[2] & ch1_8bit.address[0]};
+                    low_bit <= ch1_8bit.address[0];
 
                     cmd <= CMD_ACTIVATE;
-                    delay <= DELAY_WIDTH'(RAS_TO_CAS_CYCLES - 1);
-                    state <= STATE_DELAY;
-                    next_state <= read_ch[2] ? STATE_READ : STATE_WRITE;
-                end else begin
-                    cmd   <= CMD_NOOP;
-                    state <= STATE_IDLE;
+                    state <= STATE_ACTIVE;
+                    op <= read_ch[2] ? OP_READ : OP_WRITE;
                 end
             end
+            STATE_ACTIVE: begin
+                step <= step + 1'd1;
 
-            STATE_READ: begin
-                address <= {{ADDR_BITS - COLUMN_BITS{1'b0}}, col};
-                address[10] <= 1;  // Auto-precharge
-                cmd <= CMD_READ;
-                delay <= DELAY_WIDTH'(CAS_LATENCY - 1);
-                next_state <= STATE_READ_COMPLETE;
-                state <= STATE_DELAY;
+                if (step == ACTIVE_RW && op != OP_REFRESH) begin
+                    address <= {{ADDR_BITS - COLUMN_BITS{1'b0}}, col_save};
+                    address[10] <= 1;  // Auto-precharge
+                    dqm <= mask;
+                end
+
+                // verilog_format: off
+                case ({step, op})
+                    {ACTIVE_RW, OP_READ} : cmd <= CMD_READ;
+                    {ACTIVE_RW, OP_WRITE} : cmd <= CMD_WRITE;
+                    {ACTIVE_READY, OP_READ} : begin
+                        if (ch_16bit.busy) ch_16bit.data_read <= dq;
+                        else if (ch0_8bit.busy)
+                            ch0_8bit.data_read <= low_bit ? dq[15:8] : dq[7:0];
+                        else if (ch1_8bit.busy)
+                            ch1_8bit.data_read <= low_bit ? dq[15:8] : dq[7:0];
+                    end
+                    {READ_PERIOD, OP_READ}, {WRITE_PERIOD, OP_WRITE} : begin
+                        state <= STATE_IDLE;
+                        ch_16bit.busy <= 0;
+                        ch0_8bit.busy <= 0;
+                        ch1_8bit.busy <= 0;
+                    end
+                    {READ_PERIOD, OP_REFRESH} : state <= STATE_IDLE;
+                    default: begin
+                        address <= 'x;
+                        cmd <= CMD_NOOP;
+                    end
+                endcase
+                // verilog_format: on
             end
-
-            STATE_READ_COMPLETE: begin
-                if (ch_16bit.busy) ch_16bit.data_read <= dq;
-                else if (ch0_8bit.busy)
-                    ch0_8bit.data_read <= ch0_8bit.address[0] ? dq[15:8] : dq[7:0];
-                else if (ch1_8bit.busy)
-                    ch1_8bit.data_read <= ch1_8bit.address[0] ? dq[15:8] : dq[7:0];
-                state <= STATE_IDLE;
-            end
-
-            STATE_WRITE: begin
-                address <= {{ADDR_BITS - COLUMN_BITS{1'b0}}, col};
-                address[10] <= 1;  // Auto-precharge
-                cmd <= CMD_WRITE;
-                delay <= DELAY_WIDTH'(WRITE_TIME_CYCLES - 1);
-                next_state <= STATE_IDLE;
-                state <= STATE_DELAY;
-            end
-
-            STATE_DELAY: begin
-                if (delay > 0) delay <= delay - 1'd1;
-                else state <= next_state;
-                cmd <= CMD_NOOP;
-            end
-
-            default: state <= STATE_INIT;
         endcase
     end
 endmodule

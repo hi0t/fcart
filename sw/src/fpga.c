@@ -14,7 +14,7 @@ void fpga_write_prg(uint32_t address, uint32_t size, fpga_reader_cb cb, void *ar
         if (!cb(&data, arg)) {
             return;
         }
-        uint32_t off = (address > 0) ? (1 << (address - 1)) : 0;
+        uint32_t off = (address == 0) ? 0 : (1 << (address - 1));
         sdio_cmd_R1(4, (i | off) << 16u | data, NULL);
     }
 }
@@ -27,7 +27,7 @@ void fpga_write_chr(uint32_t address, uint32_t size, fpga_reader_cb cb, void *ar
         if (!cb(&data, arg)) {
             return;
         }
-        uint32_t off = (address > 0) ? (1 << (address - 1)) : 0;
+        uint32_t off = (address == 0) ? 0 : (1 << (address - 1));
         sdio_cmd_R1(4, (i | off) << 16u | data, NULL);
     }
 }
