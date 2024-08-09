@@ -4,23 +4,26 @@ module sdram_tb;
     initial begin
         $dumpfile("sdram.vcd");
         $dumpvars(0, sdram_tb);
+        $dumpvars(0, bus0);
+        $dumpvars(0, bus1);
+        $dumpvars(0, bus2);
         $dumpoff;
     end
 
-    // 125 MHz
-    localparam CYC = 8;
+    // 133.33333 MHz
+    localparam CYC = 7.5;
     logic clk = 0;
     always #(CYC / 2) clk <= !clk;
 
-    sdram_bus #(24, 16) bus16 (clk);
-    sdram_bus #(25, 8) bus8_0 (clk);
-    sdram_bus #(25, 8) bus8_1 (clk);
+    sdram_bus #(.ADDR_BITS(24)) bus0 ();
+    sdram_bus #(.ADDR_BITS(24)) bus1 ();
+    sdram_bus #(.ADDR_BITS(24)) bus2 ();
 
     wire  [15:0] sdram_dq;
     wire  [12:0] sdram_addr;
     wire  [ 1:0] sdram_bank;
     wire         sdram_cke;
-    wire  [ 3:0] sdram_commond;
+    wire  [ 3:0] sdram_command;
     wire  [ 1:0] sdram_dqm;
     logic        init;
 
@@ -30,117 +33,94 @@ module sdram_tb;
         .Bs   (sdram_bank),
         .Clk  (clk),
         .Cke  (sdram_cke),
-        .Cs_n (sdram_commond[3]),
-        .Ras_n(sdram_commond[2]),
-        .Cas_n(sdram_commond[1]),
-        .We_n (sdram_commond[0]),
+        .Cs_n (sdram_command[3]),
+        .Ras_n(sdram_command[2]),
+        .Cas_n(sdram_command[1]),
+        .We_n (sdram_command[0]),
         .Dqm  (sdram_dqm)
     );
 
     sdram #(
         .ADDR_BITS(13),
         .COLUMN_BITS(9),
-        .REFRESH_INTERVAL(975)
+        .REFRESH_INTERVAL(1040)
     ) ram (
-        .clk(clk),
-        .ch_16bit(bus16),
-        .ch0_8bit(bus8_0),
-        .ch1_8bit(bus8_1),
+        .clk (clk),
+        .ch0 (bus0),
+        .ch1 (bus1),
+        .ch2 (bus2),
         .init(init),
-        .cke(sdram_cke),
-        .cs(sdram_commond[3]),
-        .address(sdram_addr),
-        .bank(sdram_bank),
-        .dq(sdram_dq),
-        .ras(sdram_commond[2]),
-        .cas(sdram_commond[1]),
-        .we(sdram_commond[0]),
-        .dqm(sdram_dqm)
+
+        .SDRAM_CKE (sdram_cke),
+        .SDRAM_CS  (sdram_command[3]),
+        .SDRAM_ADDR(sdram_addr),
+        .SDRAM_BA  (sdram_bank),
+        .SDRAM_DQ  (sdram_dq),
+        .SDRAM_RAS (sdram_command[2]),
+        .SDRAM_CAS (sdram_command[1]),
+        .SDRAM_WE  (sdram_command[0]),
+        .SDRAM_DQM (sdram_dqm)
     );
 
-    task automatic test_ch16(int delay, ref logic read, write, ref logic [23:0] address,
-                             ref logic [15:0] data_write, ref logic [15:0] data_read);
-        // regular write
-        write = 1;
-        address = 'h00;
-        data_write = 'h0FF7;
-        #(CYC * delay) write = 0;
-        // write to the last bank
-        #(CYC) write = 1;
-        address = 'b11_111111111_0000000000000;
-        data_write = 'h1FF7;
-        #(CYC * (ram.WRITE_PERIOD + 2)) write = 0;
-        // test of writing two 8-bit value
-        #(CYC) write = 1;
-        address = 'h7FFC / 2;
-        data_write = 'h8000;
-        #(CYC * (ram.WRITE_PERIOD + 2)) write = 0;
-        // regular read
-        #(CYC) read = 1;
-        address = 'h00;
-        #(CYC * (ram.READ_PERIOD + 2)) read = 0;
-        assert (data_read == 'h0FF7)
-        else $fatal(1, "0FF7 != %0h", data_read);
-        #(CYC * 500);
-        // read after auto-refresh
-        #(CYC) read = 1;
-        address = 'b11_111111111_0000000000000;
-        #(CYC * (ram.READ_PERIOD + 2)) read = 0;
-        assert (data_read == 'h1FF7)
-        else $fatal(1, "1FF7 != %0h", data_read);
-    endtask
-
-    task automatic test_ch8(int delay, ref logic read, write, ref logic [24:0] address,
-                            ref logic [7:0] data_write, ref logic [7:0] data_read);
-        // regular write
-        write = 1;
-        address = 25'(delay);
-        data_write = 8'(delay);
-        #(CYC * delay) write = 0;
-        // regular read
-        #(CYC) read = 1;
-        #(CYC * (ram.READ_PERIOD + 2)) read = 0;
-        assert (data_write == data_read)
-        else $fatal(1, "%0h != %0h", data_write, data_read);
-    endtask
-
     initial begin
-        bus16.read   = 0;
-        bus16.write  = 0;
-        bus8_0.read  = 0;
-        bus8_0.write = 0;
-        bus8_1.read  = 0;
-        bus8_1.write = 0;
-        // Waiting for sdram to initialize
-        #201_000;
-        $dumpon;
         init = 1;
+        // Waiting for sdram to initialize
+        #200_000;
+        $dumpon;
         #500;
 
-        fork
-            test_ch16(50, bus16.read, bus16.write, bus16.address, bus16.data_write,
-                      bus16.data_read);
-            test_ch8(100, bus8_0.read, bus8_0.write, bus8_0.address, bus8_0.data_write,
-                     bus8_0.data_read);
-            test_ch8(150, bus8_1.read, bus8_1.write, bus8_1.address, bus8_1.data_write,
-                     bus8_1.data_read);
-        join
+        // parallel write
+        bus0.req = ~bus0.req;
+        bus1.req = ~bus1.req;
+        bus0.we = 1;
+        bus1.we = 1;
+        bus0.address = 'h00;
+        bus1.address = 'h01;
+        bus0.data_write = 'hF7F8;
+        bus1.data_write = 'hA7F8;
+        #(CYC * (ram.WRITE_PERIOD + 1));
+        #(CYC * (ram.WRITE_PERIOD + 1));
+        #(CYC)
 
-        #(CYC * 1000);
+        // parallel read
+        bus0.req = ~bus0.req;
+        bus1.req = ~bus1.req;
+        bus0.we = 0;
+        bus1.we = 0;
+        bus0.address = 'h00;
+        bus1.address = 'h01;
+        wait (bus0.req == bus0.ack);
+        assert (bus0.data_read == 'hF7F8)
+        else $fatal(1, "hF7F8 != %0h", bus0.data_read);
+        wait (bus1.req == bus1.ack);
+        assert (bus1.data_read == 'hA7F8)
+        else $fatal(1, "hA7F8 != %0h", bus1.data_read);
+        #(CYC * ram.READ_PERIOD)
 
-        // test reading a previously written 16-bit value
-        #(CYC) bus8_0.read = 1;
-        bus8_0.address = 'h7FFC;
-        #(CYC * (ram.READ_PERIOD + 2)) bus8_0.read = 0;
-        assert (bus8_0.data_read == 'h00)
-        else $fatal(1, "00 != %0h", bus8_0.data_read);
+        // write to the last bank
+        bus0.req = ~bus0.req;
+        bus1.req = ~bus1.req;
+        bus0.we = 1;
+        bus1.we = 1;
+        bus0.address = 'b11_111111111_0000000000000;
+        bus1.address = 'b11_111111111_0000000000001;
+        bus0.data_write = 'hF7F9;
+        bus1.data_write = 'hA7FA;
+        #(CYC * (ram.WRITE_PERIOD + 1));
+        #(CYC * (ram.WRITE_PERIOD + 1));
 
-        #(CYC) bus8_1.read = 1;
-        bus8_1.address = 'h7FFD;
-        #(CYC * (ram.READ_PERIOD + 2)) bus8_1.read = 0;
-        assert (bus8_1.data_read == 'h80)
-        else $fatal(1, "80 != %0h", bus8_1.data_read);
+        #(CYC * ram.REFRESH_INTERVAL / 2);
+        bus0.refresh = 1;
+        #(CYC) bus0.refresh = 0;
 
-        $finish;
+        // Read from the third channel
+        bus2.req = ~bus2.req;
+        bus2.we = 0;
+        bus2.address = 'b11_111111111_0000000000001;
+        wait (bus2.req == bus2.ack);
+        assert (bus2.data_read == 'hA7FA)
+        else $fatal(1, "hA7FA != %0h", bus2.data_read);
+
+        #(CYC * 1000) $finish;
     end
 endmodule

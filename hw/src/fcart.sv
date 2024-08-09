@@ -40,31 +40,24 @@ module fcart (
     logic ppu_read;
     logic load_state;
     logic [1:0] load_state_buffered;
+    logic loading;
     logic sdram_pll;
     logic pll_locked;
+    logic [7:0] cpu_data, ppu_data;
 
-    sdram_bus #(RAM_ADDR_BITS - 1, 16) ram_api (sdram_pll);
-    sdram_bus #(RAM_ADDR_BITS, 8) ram_prg (sdram_pll);
-    sdram_bus #(RAM_ADDR_BITS, 8) ram_chr (sdram_pll);
+    sdram_bus #(.ADDR_BITS(RAM_ADDR_BITS - 1)) ram_prg ();
+    sdram_bus #(.ADDR_BITS(RAM_ADDR_BITS - 1)) ram_chr ();
+    sdram_bus #(.ADDR_BITS(RAM_ADDR_BITS - 1)) ram_api ();
 
-    assign cpu_read = !load_state_buffered[1] && !ROM_CE && CPU_RW;
-    assign ppu_read = !load_state_buffered[1] && !PPU_ADDR[13] && !PPU_RD;
-    assign CPU_DATA = cpu_read ? ram_prg.data_read : 'z;
-    assign PPU_DATA = ppu_read ? ram_chr.data_read : 'z;
-    assign CPU_DIR = cpu_read;
-    assign PPU_DIR = ppu_read;
-    assign CIRAM_CE = !PPU_ADDR[13];
+    assign loading   = load_state_buffered[1];
+    assign cpu_read  = !loading && !ROM_CE && CPU_RW && M2;
+    assign ppu_read  = !loading && CIRAM_CE && !PPU_RD;
+    assign CPU_DATA  = cpu_read ? cpu_data : 'z;
+    assign PPU_DATA  = ppu_read ? ppu_data : 'z;
+    assign CPU_DIR   = cpu_read;
+    assign PPU_DIR   = ppu_read;
+    assign CIRAM_CE  = !PPU_ADDR[13];
     assign CIRAM_A10 = PPU_ADDR[10];
-    assign ram_prg.read = cpu_read;
-    assign ram_prg.write = 0;
-    assign ram_prg.address = {10'b0, CPU_ADDR} | prg_offset;
-    assign ram_prg.data_write = 'x;
-    assign ram_prg.refresh = 0;
-    assign ram_chr.read = ppu_read;
-    assign ram_chr.write = 0;
-    assign ram_chr.address = {12'b0, PPU_ADDR[12:0]} | chr_offset;
-    assign ram_chr.data_write = 'x;
-    assign ram_chr.refresh = ppu_read;
 
     always_ff @(posedge M2) load_state_buffered <= {load_state_buffered[0], load_state};
 
@@ -74,31 +67,51 @@ module fcart (
         .locked(pll_locked)
     );
 
+    mux8bit #(
+        .ADDR_BITS(RAM_ADDR_BITS)
+    ) mux_prg (
+        .clk(sdram_pll),
+        .ram(ram_prg),
+        .read(cpu_read),
+        .address({{RAM_ADDR_BITS - 15{1'b0}}, CPU_ADDR} | prg_offset),
+        .data_read(cpu_data)
+    );
+
+    mux8bit #(
+        .ADDR_BITS(RAM_ADDR_BITS)
+    ) mux_chr (
+        .clk(sdram_pll),
+        .ram(ram_chr),
+        .read(ppu_read),
+        .address({{RAM_ADDR_BITS - 13{1'b0}}, PPU_ADDR[12:0]} | chr_offset),
+        .data_read(ppu_data)
+    );
+
     sdram #(
         .ADDR_BITS(13),
         .COLUMN_BITS(9),
-        .REFRESH_INTERVAL(975)
+        .REFRESH_INTERVAL(1040)
     ) ram (
         .clk(sdram_pll),
-        .ch_16bit(ram_api),
-        .ch0_8bit(ram_prg),
-        .ch1_8bit(ram_chr),
+        .ch0(ram_chr),
+        .ch1(ram_prg),
+        .ch2(ram_api),
         .init(pll_locked),
-        .cke(SDRAM_CKE),
-        .cs(SDRAM_CS),
-        .address(SDRAM_ADDR),
-        .bank(SDRAM_BA),
-        .dq(SDRAM_DQ),
-        .ras(SDRAM_RAS),
-        .cas(SDRAM_CAS),
-        .we(SDRAM_WE),
-        .dqm(SDRAM_DQM)
+        .SDRAM_CKE(SDRAM_CKE),
+        .SDRAM_CS(SDRAM_CS),
+        .SDRAM_ADDR(SDRAM_ADDR),
+        .SDRAM_BA(SDRAM_BA),
+        .SDRAM_DQ(SDRAM_DQ),
+        .SDRAM_RAS(SDRAM_RAS),
+        .SDRAM_CAS(SDRAM_CAS),
+        .SDRAM_WE(SDRAM_WE),
+        .SDRAM_DQM(SDRAM_DQM)
     );
 
     // TODO connect SDRAM_CLK directly to PLL pin
     altddio_out #(
         .extend_oe_disable("OFF"),
-        .intended_device_family("Cyclone V"),
+        .intended_device_family("Cyclone 10"),
         .invert_output("OFF"),
         .lpm_hint("UNUSED"),
         .lpm_type("altddio_out"),
@@ -127,11 +140,20 @@ module fcart (
     api #(
         .ADDR_BITS(RAM_ADDR_BITS)
     ) api (
-        .ram (ram_api),
+        .clk(sdram_pll),
         .sdio(sbus),
-
+        .ram(ram_api),
         .prg_offset(prg_offset),
         .chr_offset(chr_offset),
         .load_state(load_state)
     );
+
+    /*logic [7:0] prg_rom['h7FFF:0];
+    logic [7:0] chr_rom['h1FFF:0];
+    initial begin
+        $readmemh("../../rom/prg.mem", prg_rom);
+        $readmemh("../../rom/chr.mem", chr_rom);
+    end
+    always_ff @(negedge ROM_CE) cpu_data <= prg_rom[CPU_ADDR];
+    always_ff @(negedge PPU_RD) ppu_data <= chr_rom[PPU_ADDR[12:0]];*/
 endmodule

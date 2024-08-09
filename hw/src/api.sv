@@ -1,16 +1,27 @@
 module api #(
     parameter ADDR_BITS
 ) (
-    sdram_bus.device ram,
+    input logic clk,
+
     sdio_bus.device  sdio,
+    sdram_bus.device ram,
 
     output logic [ADDR_BITS-1:0] prg_offset = 0,
     output logic [ADDR_BITS-1:0] chr_offset = 0,
+
     output logic load_state = 1
 );
     logic write_cmd = 0;
-    assign ram.read = 0;
-    assign ram.refresh = !write_cmd;
+    logic [1:0] write_sync;
+
+    always_ff @(posedge clk) begin
+        write_sync <= {write_sync[0], write_cmd};
+        if (write_sync[1]) begin
+            ram.refresh <= 0;
+            ram.we <= 1;
+            ram.req <= ~ram.req;
+        end else ram.refresh <= 1;
+    end
 
     always_ff @(posedge sdio.clk) begin
         sdio.resp_valid <= 0;
@@ -19,7 +30,6 @@ module api #(
             sdio.resp_valid <= 1;
             sdio.resp_arg <= 0;
             write_cmd <= 0;
-            ram.write <= 1;
         end
 
         if (sdio.req_valid) begin
@@ -43,7 +53,6 @@ module api #(
                 end
                 4: begin
                     write_cmd <= 1;
-                    ram.write <= 0;
                     ram.address <= {{ADDR_BITS - 17{1'b0}}, sdio.req_arg[31:16]};
                     ram.data_write <= sdio.req_arg[15:0];
                 end
