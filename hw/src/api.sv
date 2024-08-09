@@ -1,16 +1,17 @@
 module api #(
     parameter ADDR_BITS
 ) (
-    sdram_bus.device ram,
     sdio_bus.device  sdio,
+    sdram_bus.device ram,
 
     output logic [ADDR_BITS-1:0] prg_offset = 0,
     output logic [ADDR_BITS-1:0] chr_offset = 0,
+
     output logic load_state = 1
 );
     logic write_cmd = 0;
     assign ram.read = 0;
-    assign ram.refresh = !write_cmd;
+    assign ram.refresh = 0;
 
     always_ff @(posedge sdio.clk) begin
         sdio.resp_valid <= 0;

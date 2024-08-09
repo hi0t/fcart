@@ -40,15 +40,27 @@ module fcart (
     logic ppu_read;
     logic load_state;
     logic [1:0] load_state_buffered;
+    logic loading;
     logic sdram_pll;
     logic pll_locked;
 
-    sdram_bus #(RAM_ADDR_BITS - 1, 16) ram_api (sdram_pll);
-    sdram_bus #(RAM_ADDR_BITS, 8) ram_prg (sdram_pll);
-    sdram_bus #(RAM_ADDR_BITS, 8) ram_chr (sdram_pll);
+    sdram_bus #(.ADDR_BITS(RAM_ADDR_BITS)) ram_prg (sdram_pll);
+    sdram_bus #(
+        .ADDR_BITS(RAM_ADDR_BITS),
+        .FILTER(1)
+    ) ram_chr (
+        sdram_pll
+    );
+    sdram_bus #(
+        .ADDR_BITS(RAM_ADDR_BITS),
+        .WIDE(1)
+    ) ram_api (
+        sdram_pll
+    );
 
-    assign cpu_read = !load_state_buffered[1] && !ROM_CE && CPU_RW;
-    assign ppu_read = !load_state_buffered[1] && !PPU_ADDR[13] && !PPU_RD;
+    assign loading = load_state_buffered[1];
+    assign cpu_read = !loading && !ROM_CE && CPU_RW;
+    assign ppu_read = !loading && !PPU_ADDR[13] && !PPU_RD;
     assign CPU_DATA = cpu_read ? ram_prg.data_read : 'z;
     assign PPU_DATA = ppu_read ? ram_chr.data_read : 'z;
     assign CPU_DIR = cpu_read;
@@ -57,14 +69,14 @@ module fcart (
     assign CIRAM_A10 = PPU_ADDR[10];
     assign ram_prg.read = cpu_read;
     assign ram_prg.write = 0;
-    assign ram_prg.address = {10'b0, CPU_ADDR} | prg_offset;
+    assign ram_prg.address = {{RAM_ADDR_BITS - 15{1'b0}}, CPU_ADDR} | prg_offset;
+    assign ram_prg.refresh = !M2;
     assign ram_prg.data_write = 'x;
-    assign ram_prg.refresh = 0;
     assign ram_chr.read = ppu_read;
     assign ram_chr.write = 0;
-    assign ram_chr.address = {12'b0, PPU_ADDR[12:0]} | chr_offset;
+    assign ram_chr.address = {{RAM_ADDR_BITS - 13{1'b0}}, PPU_ADDR[12:0]} | chr_offset;
+    assign ram_chr.refresh = 0;
     assign ram_chr.data_write = 'x;
-    assign ram_chr.refresh = ppu_read;
 
     always_ff @(posedge M2) load_state_buffered <= {load_state_buffered[0], load_state};
 
@@ -77,12 +89,12 @@ module fcart (
     sdram #(
         .ADDR_BITS(13),
         .COLUMN_BITS(9),
-        .REFRESH_INTERVAL(975)
+        .REFRESH_INTERVAL(1040)
     ) ram (
         .clk(sdram_pll),
-        .ch_16bit(ram_api),
-        .ch0_8bit(ram_prg),
-        .ch1_8bit(ram_chr),
+        .ch0(ram_chr),
+        .ch1(ram_prg),
+        .ch2(ram_api),
         .init(pll_locked),
         .cke(SDRAM_CKE),
         .cs(SDRAM_CS),
@@ -98,7 +110,7 @@ module fcart (
     // TODO connect SDRAM_CLK directly to PLL pin
     altddio_out #(
         .extend_oe_disable("OFF"),
-        .intended_device_family("Cyclone V"),
+        .intended_device_family("Cyclone 10"),
         .invert_output("OFF"),
         .lpm_hint("UNUSED"),
         .lpm_type("altddio_out"),
@@ -127,9 +139,8 @@ module fcart (
     api #(
         .ADDR_BITS(RAM_ADDR_BITS)
     ) api (
-        .ram (ram_api),
         .sdio(sbus),
-
+        .ram(ram_api),
         .prg_offset(prg_offset),
         .chr_offset(chr_offset),
         .load_state(load_state)
