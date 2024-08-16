@@ -10,12 +10,13 @@ module mux8bit #(
     output logic [7:0] data_read
 );
     enum bit [1:0] {
-        STATE_CAPTURE,
-        STATE_READING,
-        STATE_REFRESH
-    } state = STATE_CAPTURE;
+        STATE_READ_START,
+        STATE_READ_END,
+        STATE_POSEDGE
+    } state = STATE_READ_START;
 
-    logic [2:0] read_sync;
+    logic [1:0] read_sync;
+    logic [ADDR_BITS-1:0] addr_in;
     logic [ADDR_BITS-2:0] addr_cache;
     logic [15:0] data_cache;
     logic low_bit;
@@ -25,41 +26,31 @@ module mux8bit #(
 
     always_ff @(posedge clk) begin
         // Synchronization of signals from m2
-        read_sync <= {read_sync[1:0], read};
+        read_sync <= {read_sync[0], read};
+        addr_in   <= address;
 
         case (state)
-            STATE_CAPTURE:
-            if (read_sync[2:1] == 2'b01) begin
-                ram.refresh <= 0;
-                low_bit <= address[0];
-                if (addr_cache != address[ADDR_BITS-1:1]) begin
-                    addr_cache <= address[ADDR_BITS-1:1];
-                    ram.address <= address[ADDR_BITS-1:1];
+            STATE_READ_START:
+            if (read_sync[1]) begin
+                low_bit <= addr_in[0];
+                if (addr_cache != addr_in[ADDR_BITS-1:1]) begin
+                    addr_cache <= addr_in[ADDR_BITS-1:1];
+                    ram.address <= addr_in[ADDR_BITS-1:1];
                     ram.we <= 0;
                     ram.req <= ~ram.req;
-                    state <= STATE_READING;
-                end else state <= STATE_REFRESH;
+                    state <= STATE_READ_END;
+                end else state <= STATE_POSEDGE;
             end
-            STATE_READING:
+            STATE_READ_END:
             if (ram.req == ram.ack) begin
                 data_cache <= ram.data_read;
-                state <= STATE_REFRESH;
+                state <= STATE_POSEDGE;
             end
-            STATE_REFRESH:
-            if (read_sync[2:1] == 2'b10) begin
-                ram.refresh <= 1;
-                state <= STATE_CAPTURE;
+            STATE_POSEDGE:
+            if (~read_sync[1]) begin
+                state <= STATE_READ_START;
             end
             default;
         endcase
     end
-
-    //(* noprune *) logic trigger;
-    /*logic [7:0] chr_rom['h1FFF:0];
-
-    logic [12:0] test_addr;
-
-    initial begin
-        $readmemh("../../rom/chr.mem", chr_rom);
-    end*/
 endmodule
