@@ -9,18 +9,23 @@ module api #(
     output logic [ADDR_BITS-1:0] prg_offset = 0,
     output logic [ADDR_BITS-1:0] chr_offset = 0,
 
-    output logic load_state = 1
+    output logic write_active
 );
     logic write_cmd = 0;
     logic [1:0] write_sync;
+    logic load_state = 1;
+    logic [1:0] load_state_sync;
+
+    assign write_active = load_state_sync[1];
 
     always_ff @(posedge clk) begin
         write_sync <= {write_sync[0], write_cmd};
         if (write_sync[1]) begin
-            ram.refresh <= 0;
-            ram.we <= 1;
+            ram.we  <= 1;
             ram.req <= ~ram.req;
-        end else ram.refresh <= 1;
+        end
+
+        load_state_sync <= {load_state_sync[0], load_state};
     end
 
     always_ff @(posedge sdio.clk) begin

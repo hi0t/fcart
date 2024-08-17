@@ -38,20 +38,16 @@ module fcart (
     logic [RAM_ADDR_BITS-1:0] chr_offset;
     logic cpu_read;
     logic ppu_read;
-    logic load_state;
-    logic [1:0] load_state_buffered;
     logic loading;
+    logic refresh;
     logic sdram_pll;
     logic pll_locked;
     logic [7:0] cpu_data, ppu_data;
 
-    sdram_bus #(.ADDR_BITS(RAM_ADDR_BITS - 1)) ram_prg ();
-    sdram_bus #(.ADDR_BITS(RAM_ADDR_BITS - 1)) ram_chr ();
-    sdram_bus #(.ADDR_BITS(RAM_ADDR_BITS - 1)) ram_api ();
+    sdram_bus #(.ADDR_BITS(RAM_ADDR_BITS - 1)) ram_prg (), ram_chr (), ram_api ();
 
-    assign loading   = load_state_buffered[1];
-    assign cpu_read  = !loading && !ROM_CE && CPU_RW && M2;
-    assign ppu_read  = !loading && CIRAM_CE && !PPU_RD;
+    assign cpu_read  = !ROM_CE && CPU_RW && M2;
+    assign ppu_read  = CIRAM_CE && !PPU_RD;
     assign CPU_DATA  = cpu_read ? cpu_data : 'z;
     assign PPU_DATA  = ppu_read ? ppu_data : 'z;
     assign CPU_DIR   = cpu_read;
@@ -59,32 +55,38 @@ module fcart (
     assign CIRAM_CE  = !PPU_ADDR[13];
     assign CIRAM_A10 = PPU_ADDR[10];
 
-    always_ff @(posedge M2) load_state_buffered <= {load_state_buffered[0], load_state};
+    prg_rom #(
+        .ADDR_BITS(RAM_ADDR_BITS)
+    ) prg_rom (
+        .clk(sdram_pll),
+        .enable(!loading),
+        .refresh(refresh),
+        .ram(ram_prg.device),
+        .offset(prg_offset),
+        .m2(M2),
+        .cpu_rw(CPU_RW),
+        .rom_ce(ROM_CE),
+        .addr(CPU_ADDR),
+        .data(cpu_data)
+    );
+
+    chr_rom #(
+        .ADDR_BITS(RAM_ADDR_BITS)
+    ) chr_rom (
+        .clk(sdram_pll),
+        .enable(!loading),
+        .ram(ram_chr.device),
+        .offset(chr_offset),
+        .ppu_rd(PPU_RD),
+        .ciram_ce(CIRAM_CE),
+        .addr(PPU_ADDR[12:0]),
+        .data(ppu_data)
+    );
 
     pll pll (
         .inclk0(CLK),
         .c0(sdram_pll),
         .locked(pll_locked)
-    );
-
-    mux8bit #(
-        .ADDR_BITS(RAM_ADDR_BITS)
-    ) mux_prg (
-        .clk(sdram_pll),
-        .ram(ram_prg),
-        .read(cpu_read),
-        .address({{RAM_ADDR_BITS - 15{1'b0}}, CPU_ADDR} | prg_offset),
-        .data_read(cpu_data)
-    );
-
-    mux8bit #(
-        .ADDR_BITS(RAM_ADDR_BITS)
-    ) mux_chr (
-        .clk(sdram_pll),
-        .ram(ram_chr),
-        .read(ppu_read),
-        .address({{RAM_ADDR_BITS - 13{1'b0}}, PPU_ADDR[12:0]} | chr_offset),
-        .data_read(ppu_data)
     );
 
     sdram #(
@@ -93,10 +95,11 @@ module fcart (
         .REFRESH_INTERVAL(1040)
     ) ram (
         .clk(sdram_pll),
-        .ch0(ram_chr),
-        .ch1(ram_prg),
-        .ch2(ram_api),
+        .ch0(ram_chr.host),
+        .ch1(ram_prg.host),
+        .ch2(ram_api.host),
         .init(pll_locked),
+        .refresh(refresh),
         .SDRAM_CKE(SDRAM_CKE),
         .SDRAM_CS(SDRAM_CS),
         .SDRAM_ADDR(SDRAM_ADDR),
@@ -142,18 +145,9 @@ module fcart (
     ) api (
         .clk(sdram_pll),
         .sdio(sbus),
-        .ram(ram_api),
+        .ram(ram_api.device),
         .prg_offset(prg_offset),
         .chr_offset(chr_offset),
-        .load_state(load_state)
+        .write_active(loading)
     );
-
-    /*logic [7:0] prg_rom['h7FFF:0];
-    logic [7:0] chr_rom['h1FFF:0];
-    initial begin
-        $readmemh("../../rom/prg.mem", prg_rom);
-        $readmemh("../../rom/chr.mem", chr_rom);
-    end
-    always_ff @(negedge ROM_CE) cpu_data <= prg_rom[CPU_ADDR];
-    always_ff @(negedge PPU_RD) ppu_data <= chr_rom[PPU_ADDR[12:0]];*/
 endmodule

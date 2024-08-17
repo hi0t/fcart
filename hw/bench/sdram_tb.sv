@@ -26,6 +26,7 @@ module sdram_tb;
     wire  [ 3:0] sdram_command;
     wire  [ 1:0] sdram_dqm;
     logic        init;
+    logic        refresh;
 
     W9825G6KH sdram_model (
         .Dq   (sdram_dq),
@@ -45,11 +46,12 @@ module sdram_tb;
         .COLUMN_BITS(9),
         .REFRESH_INTERVAL(1040)
     ) ram (
-        .clk (clk),
-        .ch0 (bus0),
-        .ch1 (bus1),
-        .ch2 (bus2),
+        .clk(clk),
+        .ch0(bus0),
+        .ch1(bus1),
+        .ch2(bus2),
         .init(init),
+        .refresh(refresh),
 
         .SDRAM_CKE (sdram_cke),
         .SDRAM_CS  (sdram_command[3]),
@@ -109,9 +111,8 @@ module sdram_tb;
         #(CYC * (ram.WRITE_PERIOD + 1));
         #(CYC * (ram.WRITE_PERIOD + 1));
 
-        #(CYC * ram.REFRESH_INTERVAL / 2);
-        bus0.refresh = 1;
-        #(CYC) bus0.refresh = 0;
+        refresh = 1;
+        #(CYC) refresh = 0;
 
         // Read from the third channel
         bus2.req = ~bus2.req;

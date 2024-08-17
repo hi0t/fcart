@@ -5,6 +5,7 @@ module sdram #(
 ) (
     input logic clk,
     input logic init,
+    input logic refresh,
     sdram_bus.host ch0,
     sdram_bus.host ch1,
     sdram_bus.host ch2,
@@ -69,7 +70,7 @@ module sdram #(
     logic [COLUMN_BITS-1:0] col_save;
     logic [15:0] data_save;
     logic we;
-    logic refresh;
+    logic pending_refresh;
     bit [3:0] step = 0;
     uint16 timer = 0;
 
@@ -77,13 +78,14 @@ module sdram #(
     assign SDRAM_CS = (cmd == CMD_NOOP);
     assign SDRAM_DQ = (cmd == CMD_WRITE) ? data_save : 'z;
     assign SDRAM_CKE = 1;
-    assign refresh = (ch0.refresh | ch1.refresh | ch2.refresh);
     assign ch0.data_read = SDRAM_DQ;
     assign ch1.data_read = SDRAM_DQ;
     assign ch2.data_read = SDRAM_DQ;
 
     always_ff @(posedge clk) begin
         timer <= timer + 1'd1;
+
+        if (timer == REFRESH_INTERVAL || refresh) pending_refresh <= 1;
 
         case (state)
             STATE_POWERUP: begin
@@ -139,9 +141,10 @@ module sdram #(
                 cmd <= CMD_NOOP;
                 step <= 4'(ACTIVE_START);
 
-                if (timer >= REFRESH_INTERVAL || ((timer >= REFRESH_INTERVAL / 2) && refresh)) begin
+                if (pending_refresh) begin
+                    pending_refresh <= 0;
                     timer <= 0;
-                    cmd   <= CMD_AUTO_REFRESH;
+                    cmd <= CMD_AUTO_REFRESH;
                     state <= STATE_REFRESH;
                 end else if (ch0.req != ch0.ack) begin
                     bank_save <= ch0.address[USER_ADDR_BITS-1-:2];
