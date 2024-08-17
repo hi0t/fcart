@@ -22,4 +22,10 @@ find_program(QUARTUS_STA quartus_sta quartus_sta.exe
     DOC "Path to the Quartus sta executable"
 )
 
-find_package_handle_standard_args(Quartus REQUIRED_VARS QUARTUS_SH QUARTUS_PGM QUARTUS_STA)
+find_program(QUARTUS_CPF quartus_cpf quartus_cpf.exe
+    HINTS ${QUARTUS_HINTS}
+    PATH_SUFFIXES bin bin64
+    DOC "Path to the Quartus cpf executable"
+)
+
+find_package_handle_standard_args(Quartus REQUIRED_VARS QUARTUS_SH QUARTUS_PGM QUARTUS_STA QUARTUS_CPF)

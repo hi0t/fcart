@@ -1,17 +1,18 @@
 find_package(Quartus REQUIRED)
+set(QUARTUS_PROJECT_DIR "${CMAKE_BINARY_DIR}/quartus")
 
 function(add_quartus_project target)
-    set(project_dir "${CMAKE_BINARY_DIR}/quartus")
-    set(qsf_file "${project_dir}/${target}.qsf")
-    set(bitstream_file "${project_dir}/${target}.sof")
+
+    set(qsf_file "${QUARTUS_PROJECT_DIR}/${target}.qsf")
+    set(bitstream_file "${QUARTUS_PROJECT_DIR}/${target}.sof")
     set(depends ${qsf_file})
     set(cmake_dir "${CMAKE_SOURCE_DIR}/cmake")
 
-    file(MAKE_DIRECTORY "${project_dir}")
+    file(MAKE_DIRECTORY "${QUARTUS_PROJECT_DIR}")
 
     execute_process(
         COMMAND ${QUARTUS_SH} --tcl_eval project_new -family "${FAMILY}" -overwrite -part "${DEVICE}" ${target}
-        WORKING_DIRECTORY ${project_dir}
+        WORKING_DIRECTORY ${QUARTUS_PROJECT_DIR}
     )
 
     set_property(
@@ -48,14 +49,14 @@ function(add_quartus_project target)
         OUTPUT ${bitstream_file}
         COMMAND ${QUARTUS_SH} --flow compile ${target}
         DEPENDS ${depends}
-        WORKING_DIRECTORY ${project_dir}
+        WORKING_DIRECTORY ${QUARTUS_PROJECT_DIR}
     )
 
     add_custom_command(
         OUTPUT __program__
         COMMAND ${QUARTUS_PGM} --mode=jtag -o \"P\;${bitstream_file}\"
         DEPENDS ${bitstream_file}
-        WORKING_DIRECTORY ${project_dir}
+        WORKING_DIRECTORY ${QUARTUS_PROJECT_DIR}
     )
 
     add_custom_target(quartus-compile DEPENDS "${bitstream_file}")
@@ -63,7 +64,7 @@ function(add_quartus_project target)
 
     set_property(
         TARGET quartus-compile APPEND
-        PROPERTY ADDITIONAL_CLEAN_FILES ${project_dir}
+        PROPERTY ADDITIONAL_CLEAN_FILES ${QUARTUS_PROJECT_DIR}
     )
 
     if (WIN32)
@@ -75,6 +76,6 @@ function(add_quartus_project target)
         COMMAND ${CMAKE_COMMAND} -E echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
         COMMAND ${QUARTUS_SH} -t ${cmake_dir}/QuartusReport.tcl ${target} > ${DEVNUL}
         COMMAND ${QUARTUS_STA} -t ${cmake_dir}/QuartusTimings.tcl ${target} > ${DEVNUL}
-        WORKING_DIRECTORY ${project_dir}
+        WORKING_DIRECTORY ${QUARTUS_PROJECT_DIR}
     )
 endfunction()

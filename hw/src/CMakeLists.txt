@@ -9,4 +9,20 @@ file(GLOB_RECURSE SDC *.sdc)
 
 add_quartus_project(${CMAKE_PROJECT_NAME})
 
-add_custom_target(hw ALL DEPENDS quartus-compile)
+file(RELATIVE_PATH cof_path ${QUARTUS_PROJECT_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/fcart.cof)
+
+add_custom_command(
+    OUTPUT ${QUARTUS_PROJECT_DIR}/fcart.jic
+    DEPENDS ${QUARTUS_PROJECT_DIR}/fcart.sof
+    COMMAND ${QUARTUS_CPF} -c ${cof_path}
+    WORKING_DIRECTORY ${QUARTUS_PROJECT_DIR}
+)
+
+add_custom_command(
+    OUTPUT ${QUARTUS_PROJECT_DIR}/fcart.svf
+    DEPENDS ${QUARTUS_PROJECT_DIR}/fcart.jic
+    COMMAND ${QUARTUS_CPF} -c -q 33MHz -g 3.3 -n p fcart.jic fcart.svf
+    WORKING_DIRECTORY ${QUARTUS_PROJECT_DIR}
+)
+
+add_custom_target(serial-flash ALL DEPENDS ${QUARTUS_PROJECT_DIR}/fcart.svf)
