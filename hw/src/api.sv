@@ -15,8 +15,10 @@ module api #(
     logic [1:0] write_sync;
     logic load_state = 1;
     logic [1:0] load_state_sync;
+    logic [ADDR_BITS-1:0] offset;
 
     assign write_active = load_state_sync[1];
+    assign offset = sdio.req_arg == 0 ? '0 : ADDR_BITS'(1) << sdio.req_arg;
 
     always_ff @(posedge clk) begin
         write_sync <= {write_sync[0], write_cmd};
@@ -42,13 +44,13 @@ module api #(
                 1: begin
                     sdio.resp_arg <= 0;
                     sdio.resp_valid <= 1;
-                    prg_offset <= sdio.req_arg == 0 ? '0 : ADDR_BITS'(1) << sdio.req_arg;
+                    prg_offset <= offset;
                     load_state <= 1;
                 end
                 2: begin
                     sdio.resp_arg <= 0;
                     sdio.resp_valid <= 1;
-                    chr_offset <= sdio.req_arg == 0 ? '0 : ADDR_BITS'(1) << sdio.req_arg;
+                    chr_offset <= offset;
                     load_state <= 1;
                 end
                 3: begin
