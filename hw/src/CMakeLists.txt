@@ -9,20 +9,10 @@ file(GLOB_RECURSE SDC *.sdc)
 
 add_quartus_project(${CMAKE_PROJECT_NAME})
 
-file(RELATIVE_PATH cof_path ${QUARTUS_PROJECT_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/fcart.cof)
-
 add_custom_command(
-    OUTPUT ${QUARTUS_PROJECT_DIR}/fcart.jic
+    OUTPUT ${QUARTUS_PROJECT_DIR}/fcart.rbf.gz
+    COMMAND gzip -c fcart.rbf > fcart.rbf.gz
     DEPENDS ${QUARTUS_PROJECT_DIR}/fcart.sof
-    COMMAND ${QUARTUS_CPF} -c ${cof_path}
     WORKING_DIRECTORY ${QUARTUS_PROJECT_DIR}
 )
-
-add_custom_command(
-    OUTPUT ${QUARTUS_PROJECT_DIR}/fcart.svf
-    DEPENDS ${QUARTUS_PROJECT_DIR}/fcart.jic
-    COMMAND ${QUARTUS_CPF} -c -q 33MHz -g 3.3 -n p fcart.jic fcart.svf
-    WORKING_DIRECTORY ${QUARTUS_PROJECT_DIR}
-)
-
-add_custom_target(serial-flash ALL DEPENDS ${QUARTUS_PROJECT_DIR}/fcart.svf)
+add_custom_target(fcart-archive ALL DEPENDS ${QUARTUS_PROJECT_DIR}/fcart.rbf.gz)

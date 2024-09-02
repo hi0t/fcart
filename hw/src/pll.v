@@ -3,6 +3,7 @@
 // verilator lint_off UNDRIVEN
 // verilator lint_off DECLFILENAME
 // verilator lint_off MULTITOP
+// verilator lint_off UNUSEDPARAM
 module pll (
     inclk0,
     c0,
@@ -16,14 +17,14 @@ module pll (
 endmodule
 
 module altddio_out #(
-    parameter extend_oe_disable,
-    parameter intended_device_family,
-    parameter invert_output,
-    parameter lpm_hint,
-    parameter lpm_type,
-    parameter oe_reg,
-    parameter power_up_high,
-    parameter width
+    parameter extend_oe_disable = 0,
+    parameter intended_device_family = 0,
+    parameter invert_output = 0,
+    parameter lpm_hint = 0,
+    parameter lpm_type = 0,
+    parameter oe_reg = 0,
+    parameter power_up_high = 0,
+    parameter width = 0
 ) (
     aclr,
     datain_h,

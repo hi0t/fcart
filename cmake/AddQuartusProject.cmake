@@ -1,8 +1,8 @@
 find_package(Quartus REQUIRED)
-set(QUARTUS_PROJECT_DIR "${CMAKE_BINARY_DIR}/quartus")
 
 function(add_quartus_project target)
-
+    set(QUARTUS_PROJECT_DIR "${CMAKE_BINARY_DIR}/quartus/${target}")
+    set(QUARTUS_PROJECT_DIR ${QUARTUS_PROJECT_DIR} PARENT_SCOPE)
     set(qsf_file "${QUARTUS_PROJECT_DIR}/${target}.qsf")
     set(bitstream_file "${QUARTUS_PROJECT_DIR}/${target}.sof")
     set(depends ${qsf_file})
@@ -59,11 +59,11 @@ function(add_quartus_project target)
         WORKING_DIRECTORY ${QUARTUS_PROJECT_DIR}
     )
 
-    add_custom_target(quartus-compile DEPENDS "${bitstream_file}")
-    add_custom_target(quartus-program DEPENDS __program__)
+    add_custom_target(${target}-compile DEPENDS "${bitstream_file}")
+    add_custom_target(${target}-program DEPENDS __program__)
 
     set_property(
-        TARGET quartus-compile APPEND
+        TARGET ${target}-compile APPEND
         PROPERTY ADDITIONAL_CLEAN_FILES ${QUARTUS_PROJECT_DIR}
     )
 
@@ -72,7 +72,7 @@ function(add_quartus_project target)
     else()
         set(DEVNUL /dev/null)
     endif()
-    add_custom_command(TARGET quartus-compile POST_BUILD
+    add_custom_command(TARGET ${target}-compile POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
         COMMAND ${QUARTUS_SH} -t ${cmake_dir}/QuartusReport.tcl ${target} > ${DEVNUL}
         COMMAND ${QUARTUS_STA} -t ${cmake_dir}/QuartusTimings.tcl ${target} > ${DEVNUL}

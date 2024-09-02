@@ -1,5 +1,6 @@
 option(SDCARD_SPI "use SPI connection to sdcard" OFF)
 option(ENABLE_TRACE "enable USB tracing" ON)
+option(ENABLE_FPGA_FLASH "flash fpga from mcu" OFF)
 
 add_compile_options(-Wall -Werror)
 

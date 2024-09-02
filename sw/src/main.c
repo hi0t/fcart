@@ -1,5 +1,6 @@
 #include "ff.h"
 #include "fpga.h"
+#include "fpga_flash.h"
 #include "rom.h"
 #include "sdcard.h"
 #include "sdio.h"
@@ -15,10 +16,15 @@
 int main()
 {
     stdio_init_all();
-    sdcard_init(SD_SPI_PORT, SD_PIN_MISO, SD_PIN_MOSI, SD_PIN_SCK, SD_PIN_CS);
-    fpga_init();
 
-    FATFS fs;
+    // sdcard_init(SD_SPI_PORT, SD_PIN_MISO, SD_PIN_MOSI, SD_PIN_SCK, SD_PIN_CS);
+    //  fpga_init();
+
+#ifdef ENABLE_FPGA_FLASH
+    fpga_flash();
+#endif
+
+    /*FATFS fs;
     FRESULT res;
     DIR dir;
     FILINFO fno;
@@ -34,7 +40,7 @@ int main()
             if (!(fno.fattrib & AM_DIR)) {
                 char *ext = strrchr(fno.fname, '.');
                 if (ext != NULL && strcmp(ext, ".nes") == 0) {
-                    rom_push(fno.fname);
+                    // rom_push(fno.fname);
                     break;
                 }
             }
@@ -42,7 +48,7 @@ int main()
         f_closedir(&dir);
     }
 
-    f_unmount("0:");
+    f_unmount("0:");*/
 
     while (true) {
         sleep_ms(100);
