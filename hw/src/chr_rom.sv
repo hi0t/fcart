@@ -2,60 +2,39 @@ module chr_rom #(
     parameter ADDR_BITS
 ) (
     input logic clk,
-    input logic enable,
 
     sdram_bus.device ram,
-    input logic [ADDR_BITS-1:0] offset,
+    output logic refresh,
 
     input logic ppu_rd,
     input logic ciram_ce,
     input logic [12:0] addr,
     output logic [7:0] data
 );
-
-    logic [1:0] ppu_rd_sync;
-    logic [1:0] ciram_ce_sync;
-    logic [6:0][12:0] addr_sync;
-    logic [12:0] addr_prev;
+    logic read;
+    logic ram_req = 0;
+    logic [1:0] ram_req_sync;
+    logic [2:0][12:0] addr_sync;
     logic [ADDR_BITS-1:0] addr_in;
-    logic addr_stable;
-    logic low_bit;
-    bit start_read = 1;
 
-    // Intermediate state filter during address switching
-    assign addr_stable = (addr_sync[0] == addr_sync[1] &&
-        addr_sync[0] == addr_sync[2] &&
-        addr_sync[0] == addr_sync[3] &&
-        addr_sync[0] == addr_sync[4] &&
-        addr_sync[0] == addr_sync[5] &&
-        addr_sync[0] == addr_sync[6]);
-    assign ram.data_write = 'x;
-    assign addr_in = {{ADDR_BITS - 13{1'b0}}, addr_sync[0]} | offset;
 
-    // Requests to ROM via PPU bus
+    assign read = !ppu_rd && ciram_ce;
+    assign ram.req = ram_req_sync[1];
+    assign ram.we = 0;
+    assign ram.address = addr_in[ADDR_BITS-1:1];
+    assign data = addr_in[0] ? ram.data_read[15:8] : ram.data_read[7:0];
+
+    always_ff @(posedge read) begin
+        ram_req <= !ram_req;
+        addr_in <= {{ADDR_BITS - 13{1'b0}}, addr};
+    end
+
     always_ff @(posedge clk) begin
-        ppu_rd_sync <= {ppu_rd_sync[0], ppu_rd};
-        ciram_ce_sync <= {ciram_ce_sync[0], ciram_ce};
-        addr_sync <= {addr_sync[5:0], addr};
-
-        if (!enable) start_read <= 1;
-        else begin
-            if (start_read) begin
-                // We prepare data before the PPU switches to reading mode
-                if (ppu_rd_sync[1] && ciram_ce_sync[1] && addr_stable && addr_sync[0] != addr_prev) begin
-                    low_bit <= addr_in[0];
-                    ram.address <= addr_in[ADDR_BITS-1:1];
-                    ram.we <= 0;
-                    ram.req <= ~ram.req;
-                    start_read <= 0;
-                    addr_prev <= addr_sync[0];
-                end
-            end else begin
-                if (ram.req == ram.ack) begin
-                    data <= low_bit ? ram.data_read[15:8] : ram.data_read[7:0];
-                    start_read <= 1;
-                end
-            end
-        end
+        ram_req_sync <= {ram_req_sync[0], ram_req};
+        addr_sync <= {addr_sync[1:0], addr};
+        // Before reading, the PPU sets a new address.
+        // This event will fall into the update window,
+        // which will ensure that it does not overlap with access to the PPU memory.
+        refresh <= addr_sync[2] != addr_sync[1];
     end
 endmodule

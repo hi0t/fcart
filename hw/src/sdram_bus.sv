@@ -1,8 +1,8 @@
 interface sdram_bus #(
     parameter ADDR_BITS
 );
-    logic req = 0;
-    logic ack = 0;
+    bit req;
+    bit ack;
     logic we;
     logic [ADDR_BITS-1:0] address;
     logic [15:0] data_read;

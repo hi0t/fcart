@@ -4,6 +4,9 @@
 #include "sdio.h"
 #include <stdbool.h>
 
+#define SIZE_8K 0x2000
+#define SIZE_16K 0x4000
+
 static bool file_reader(uint16_t *data, void *arg)
 {
     FIL *fp = arg;
@@ -36,12 +39,12 @@ void rom_push(const char *path)
         prg_size |= header[9] << 8u & 0xF00;
         chr_size |= header[9] << 4u & 0xF00;
     }
-    // Assume that the size will be a power of two. For more convenient addressing in fpga.
-    prg_size += 13;
-    chr_size += 12;
+    prg_size *= SIZE_16K;
+    chr_size *= SIZE_8K;
 
-    fpga_write_prg(0, prg_size, file_reader, &fp);
-    fpga_write_chr(prg_size, chr_size, file_reader, &fp);
+    fpga_load();
+    fpga_write_prg(prg_size, file_reader, &fp);
+    fpga_write_chr(chr_size, file_reader, &fp);
     fpga_launch();
 out:
     f_close(&fp);

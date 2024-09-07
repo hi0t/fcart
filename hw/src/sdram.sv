@@ -5,10 +5,9 @@ module sdram #(
 ) (
     input logic clk,
     input logic init,
-    input logic refresh,
     sdram_bus.host ch0,
     sdram_bus.host ch1,
-    sdram_bus.host ch2,
+    input logic refresh,
 
     // SDRAM chip interface
     output logic SDRAM_CKE,
@@ -40,9 +39,11 @@ module sdram #(
     localparam CONFIGURE_END = CONFIGURE_REFRESH_2 + READ_PERIOD;
 
     // active steps
+    localparam ACTIVE_IDLE = 0;
     localparam ACTIVE_START = 1;
     localparam ACTIVE_CMD = ACTIVE_TO_CMD;
     localparam ACTIVE_READY = ACTIVE_TO_CMD + CAS_LATENCY + 1;
+    localparam ACTIVE_LOW_Z = ACTIVE_READY + 1;  // Write permission while reading in parallel
     localparam ACTIVE_READ_END = READ_PERIOD;
     localparam ACTIVE_WRITE_END = WRITE_PERIOD;
 
@@ -54,38 +55,40 @@ module sdram #(
     localparam CMD_WRITE = 3'b100;
     localparam CMD_PRECHARGE = 3'b010;
 
-    localparam USER_ADDR_BITS = 2 + COLUMN_BITS + ADDR_BITS;
-
-    enum bit [2:0] {
-        STATE_POWERUP = 3'd0,
-        STATE_CONFIGURE = 3'd1,
-        STATE_IDLE = 3'd2,
-        STATE_ACTIVE = 3'd3,
-        STATE_REFRESH = 3'd4
+    enum bit [1:0] {
+        STATE_POWERUP = 2'd0,
+        STATE_CONFIGURE = 2'd1,
+        STATE_ACTIVE = 2'd2,
+        STATE_REFRESH = 2'd3
     } state = STATE_POWERUP;
 
+    typedef struct {
+        bit [3:0] step;
+        logic [1:0] bank;
+        logic [COLUMN_BITS-1:0] col;
+        logic [15:0] data;
+        logic we;
+    } bank_port;
+    bank_port port0, port1;
+
     logic [2:0] cmd;
-    logic [1:0] curr_ch;
-    logic [1:0] bank_save;
-    logic [COLUMN_BITS-1:0] col_save;
-    logic [15:0] data_save;
-    logic we;
+    logic [15:0] data_tx;
     logic pending_refresh;
-    bit [3:0] step = 0;
+    logic ba_allow;
+    logic write_allow;
     uint16 timer = 0;
 
     assign {SDRAM_RAS, SDRAM_CAS, SDRAM_WE} = cmd;
     assign SDRAM_CS = (cmd == CMD_NOOP);
-    assign SDRAM_DQ = (cmd == CMD_WRITE) ? data_save : 'z;
+    assign SDRAM_DQ = (cmd == CMD_WRITE) ? data_tx : 'z;
     assign SDRAM_CKE = 1;
-    assign ch0.data_read = SDRAM_DQ;
-    assign ch1.data_read = SDRAM_DQ;
-    assign ch2.data_read = SDRAM_DQ;
 
     always_ff @(posedge clk) begin
         timer <= timer + 1'd1;
 
-        if (timer == REFRESH_INTERVAL || refresh) pending_refresh <= 1;
+        if (timer >= REFRESH_INTERVAL || ((timer >= REFRESH_INTERVAL / 2) && refresh)) begin
+            pending_refresh <= 1;
+        end
 
         case (state)
             STATE_POWERUP: begin
@@ -129,84 +132,114 @@ module sdram #(
                     end
                     CONFIGURE_END: begin
                         timer <= 0;
-                        state <= STATE_IDLE;
+                        pending_refresh <= 0;
+                        write_allow <= 1;
+                        state <= STATE_ACTIVE;
                     end
                     default: cmd <= CMD_NOOP;
                 endcase
             end
-            STATE_IDLE: begin
+            STATE_ACTIVE: begin
                 SDRAM_BA <= 'x;
                 SDRAM_ADDR <= 'x;
                 SDRAM_DQM <= 'x;
                 cmd <= CMD_NOOP;
-                step <= 4'(ACTIVE_START);
+                ba_allow <= 1;
 
-                if (pending_refresh) begin
+                // RAS stage
+                if (port0.step == ACTIVE_IDLE && port1.step == ACTIVE_IDLE && pending_refresh) begin
                     pending_refresh <= 0;
                     timer <= 0;
                     cmd <= CMD_AUTO_REFRESH;
                     state <= STATE_REFRESH;
-                end else if (ch0.req != ch0.ack) begin
-                    bank_save <= ch0.address[USER_ADDR_BITS-1-:2];
-                    col_save <= ch0.address[ADDR_BITS+:COLUMN_BITS];
-                    data_save <= ch0.we ? ch0.data_write : 'x;
+                end else if (port0.step == ACTIVE_IDLE && !pending_refresh && ba_allow && ch0.req != ch0.ack) begin
+                    port0.step <= 4'(ACTIVE_START);
+                    port0.bank <= {1'b0, ch0.address[ch0.ADDR_BITS-1-:1]};
+                    port0.col <= ch0.address[ADDR_BITS+:COLUMN_BITS];
+                    port0.data <= ch0.we ? ch0.data_write : 'x;
+                    port0.we <= ch0.we;
 
-                    SDRAM_BA <= ch0.address[USER_ADDR_BITS-1-:2];
+                    SDRAM_BA <= {1'b0, ch0.address[ch0.ADDR_BITS-1-:1]};
                     SDRAM_ADDR <= ch0.address[ADDR_BITS-1:0];
+
                     cmd <= CMD_ACTIVATE;
+                    ba_allow <= 0;  // Skip bank activation next cycle to satisfy tRRD.
+                end else if (port1.step == ACTIVE_IDLE && !pending_refresh && ba_allow && ch1.req != ch1.ack) begin
+                    port1.step <= 4'(ACTIVE_START);
+                    port1.bank <= {1'b1, ch1.address[ch1.ADDR_BITS-1-:1]};
+                    port1.col <= ch1.address[ADDR_BITS+:COLUMN_BITS];
+                    port1.data <= ch1.we ? ch1.data_write : 'x;
+                    port1.we <= ch1.we;
 
-                    state <= STATE_ACTIVE;
-                    curr_ch <= 0;
-                    we <= ch0.we;
-                end else if (ch1.req != ch1.ack) begin
-                    bank_save <= ch1.address[USER_ADDR_BITS-1-:2];
-                    col_save <= ch1.address[ADDR_BITS+:COLUMN_BITS];
-                    data_save <= ch1.we ? ch1.data_write : 'x;
-
-                    SDRAM_BA <= ch1.address[USER_ADDR_BITS-1-:2];
+                    SDRAM_BA <= {1'b1, ch1.address[ch1.ADDR_BITS-1-:1]};
                     SDRAM_ADDR <= ch1.address[ADDR_BITS-1:0];
+
                     cmd <= CMD_ACTIVATE;
+                    ba_allow <= 0;
+                end else if (port0.step == ACTIVE_CMD && (!port0.we || write_allow)) begin  // CAS stage
+                    SDRAM_BA <= port0.bank;
+                    SDRAM_ADDR <= {{ADDR_BITS - COLUMN_BITS{1'b0}}, port0.col};
+                    SDRAM_ADDR[10] <= 1;  // Auto-precharge
+                    SDRAM_DQM <= 2'b00;
 
-                    state <= STATE_ACTIVE;
-                    curr_ch <= 1;
-                    we <= ch1.we;
-                end else if (ch2.req != ch2.ack) begin
-                    bank_save <= ch2.address[USER_ADDR_BITS-1-:2];
-                    col_save <= ch2.address[ADDR_BITS+:COLUMN_BITS];
-                    data_save <= ch2.we ? ch2.data_write : 'x;
+                    if (port0.we) begin
+                        cmd <= CMD_WRITE;
+                        data_tx <= port0.data;
+                    end else begin
+                        cmd <= CMD_READ;
+                        write_allow <= 0;
+                    end
 
-                    SDRAM_BA <= ch2.address[USER_ADDR_BITS-1-:2];
-                    SDRAM_ADDR <= ch2.address[ADDR_BITS-1:0];
-                    cmd <= CMD_ACTIVATE;
+                    port0.step <= port0.step + 1'd1;
+                end else if (port1.step == ACTIVE_CMD && (!port1.we || write_allow)) begin
+                    SDRAM_BA <= port1.bank;
+                    SDRAM_ADDR <= {{ADDR_BITS - COLUMN_BITS{1'b0}}, port1.col};
+                    SDRAM_ADDR[10] <= 1;  // Auto-precharge
+                    SDRAM_DQM <= 2'b00;
 
-                    state <= STATE_ACTIVE;
-                    curr_ch <= 2;
-                    we <= ch2.we;
+                    if (port1.we) begin
+                        cmd <= CMD_WRITE;
+                        data_tx <= port1.data;
+                    end else begin
+                        cmd <= CMD_READ;
+                        write_allow <= 0;
+                    end
+
+                    port1.step <= port1.step + 1'd1;
                 end
-            end
-            STATE_ACTIVE: begin
-                step <= step + 1'd1;
+
+                // The remaining stages are carried out in parallel
+                if (port0.step != ACTIVE_IDLE && port0.step != ACTIVE_CMD)
+                    port0.step <= port0.step + 1'd1;
+                if (port1.step != ACTIVE_IDLE && port1.step != ACTIVE_CMD)
+                    port1.step <= port1.step + 1'd1;
+
                 /* verilog_format: off */
-                casez ({step, we})
-                    {4'(ACTIVE_CMD), 1'b?} : begin
-                        SDRAM_BA <= bank_save;
-                        SDRAM_ADDR <= {{ADDR_BITS - COLUMN_BITS{1'b0}}, col_save};
-                        SDRAM_ADDR[10] <= 1;  // Auto-precharge
-                        SDRAM_DQM <= 2'b00;
-                        cmd <= we ? CMD_WRITE : CMD_READ;
+                case ({port0.step, port0.we})
+                    {4'(ACTIVE_READY), 1'b0}: begin
+                        ch0.data_read <= SDRAM_DQ;
+                        ch0.ack <= ch0.req;
                     end
-                    {4'(ACTIVE_READY), 1'b?}: begin
-                        if (curr_ch == 0) ch0.ack <= ch0.req;
-                        else if (curr_ch == 1) ch1.ack <= ch1.req;
-                        else if (curr_ch == 2) ch2.ack <= ch2.req;
+                    {4'(ACTIVE_LOW_Z), 1'b0}: write_allow <= 1;
+                    {4'(ACTIVE_READ_END), 1'b0}: port0.step <= 4'(ACTIVE_IDLE);
+                    {4'(ACTIVE_WRITE_END), 1'b1}: begin
+                        port0.step <= 4'(ACTIVE_IDLE);
+                        ch0.ack <= ch0.req;
                     end
-                    {4'(ACTIVE_READ_END), 1'b0}, {4'(ACTIVE_WRITE_END), 1'b1}: state <= STATE_IDLE;
-                    default: begin
-                        SDRAM_BA <= 'x;
-                        SDRAM_ADDR <= 'x;
-                        SDRAM_DQM <= 'x;
-                        cmd <= CMD_NOOP;
+                    default;
+                endcase
+                case ({port1.step, port1.we})
+                    {4'(ACTIVE_READY), 1'b0}: begin
+                        ch1.data_read <= SDRAM_DQ;
+                        ch1.ack <= ch1.req;
                     end
+                    {4'(ACTIVE_LOW_Z), 1'b0}: write_allow <= 1;
+                    {4'(ACTIVE_READ_END), 1'b0}: port1.step <= 4'(ACTIVE_IDLE);
+                    {4'(ACTIVE_WRITE_END), 1'b1}: begin
+                        port1.step <= 4'(ACTIVE_IDLE);
+                        ch1.ack <= ch1.req;
+                    end
+                    default;
                 endcase
                 /* verilog_format: on */
             end
@@ -214,10 +247,9 @@ module sdram #(
                 cmd <= CMD_NOOP;
                 if (timer == READ_PERIOD) begin
                     timer <= 0;
-                    state <= STATE_IDLE;
+                    state <= STATE_ACTIVE;
                 end
             end
-            default;
         endcase
     end
 endmodule

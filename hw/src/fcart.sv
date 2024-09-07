@@ -32,10 +32,8 @@ module fcart (
     output logic CPU_DIR,
     output logic PPU_DIR
 );
-    localparam RAM_ADDR_BITS = 25;
+    localparam RAM_ADDR_BITS = 24;
 
-    logic [RAM_ADDR_BITS-1:0] prg_offset;
-    logic [RAM_ADDR_BITS-1:0] chr_offset;
     logic cpu_read;
     logic ppu_read;
     logic loading;
@@ -44,7 +42,8 @@ module fcart (
     logic pll_locked;
     logic [7:0] cpu_data, ppu_data;
 
-    sdram_bus #(.ADDR_BITS(RAM_ADDR_BITS - 1)) ram_prg (), ram_chr (), ram_api ();
+    sdram_bus #(.ADDR_BITS(RAM_ADDR_BITS - 1))
+        fc_prg (), fc_chr (), api_prg (), api_chr (), ram_ch0 (), ram_ch1 ();
 
     assign cpu_read  = !ROM_CE && CPU_RW && M2;
     assign ppu_read  = CIRAM_CE && !PPU_RD;
@@ -59,10 +58,7 @@ module fcart (
         .ADDR_BITS(RAM_ADDR_BITS)
     ) prg_rom (
         .clk(sdram_pll),
-        .enable(!loading),
-        .refresh(refresh),
-        .ram(ram_prg.device),
-        .offset(prg_offset),
+        .ram(fc_prg.device),
         .m2(M2),
         .cpu_rw(CPU_RW),
         .rom_ce(ROM_CE),
@@ -74,9 +70,8 @@ module fcart (
         .ADDR_BITS(RAM_ADDR_BITS)
     ) chr_rom (
         .clk(sdram_pll),
-        .enable(!loading),
-        .ram(ram_chr.device),
-        .offset(chr_offset),
+        .ram(fc_chr.device),
+        .refresh(refresh),
         .ppu_rd(PPU_RD),
         .ciram_ce(CIRAM_CE),
         .addr(PPU_ADDR[12:0]),
@@ -89,15 +84,24 @@ module fcart (
         .locked(pll_locked)
     );
 
+    sdram_arbiter arbiter (
+        .api_active(loading),
+        .api_prg(api_prg.host),
+        .api_chr(api_chr.host),
+        .fc_prg(fc_prg.host),
+        .fc_chr(fc_chr.host),
+        .ch0(ram_ch0.device),
+        .ch1(ram_ch1.device)
+    );
+
     sdram #(
         .ADDR_BITS(13),
         .COLUMN_BITS(9),
         .REFRESH_INTERVAL(1040)
     ) ram (
         .clk(sdram_pll),
-        .ch0(ram_chr.host),
-        .ch1(ram_prg.host),
-        .ch2(ram_api.host),
+        .ch0(ram_ch0.host),
+        .ch1(ram_ch1.host),
         .init(pll_locked),
         .refresh(refresh),
         .SDRAM_CKE(SDRAM_CKE),
@@ -114,7 +118,7 @@ module fcart (
     // TODO connect SDRAM_CLK directly to PLL pin
     altddio_out #(
         .extend_oe_disable("OFF"),
-        .intended_device_family("Cyclone 10"),
+        .intended_device_family("Cyclone 10 LP"),
         .invert_output("OFF"),
         .lpm_hint("UNUSED"),
         .lpm_type("altddio_out"),
@@ -145,9 +149,8 @@ module fcart (
     ) api (
         .clk(sdram_pll),
         .sdio(sbus),
-        .ram(ram_api.device),
-        .prg_offset(prg_offset),
-        .chr_offset(chr_offset),
+        .prg(api_prg.device),
+        .chr(api_chr.device),
         .write_active(loading)
     );
 endmodule
