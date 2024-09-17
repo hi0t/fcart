@@ -44,6 +44,9 @@ function(add_quartus_project target)
         file(APPEND ${qsf_file} "set_global_assignment -name SDC_FILE ${sdc}\n")
         list(APPEND depends "${sdc}")
     endforeach()
+    foreach (def ${DEFINES})
+        file(APPEND ${qsf_file} "set_global_assignment -name VERILOG_MACRO \"${def}\"\n")
+    endforeach()
 
     add_custom_command(
         OUTPUT ${bitstream_file}

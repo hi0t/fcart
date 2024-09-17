@@ -1,3 +1,5 @@
+`include "mappers/map.svh"
+
 module fcart (
     input logic CLK,
 
@@ -24,7 +26,7 @@ module fcart (
     input logic ROM_CE,
     //output logic IRQ,
     input logic PPU_RD,
-    //input logic PPU_WR,
+    input logic PPU_WR,
     output logic CIRAM_A10,
     output logic CIRAM_CE,
     input logic [13:0] PPU_ADDR,
@@ -34,64 +36,47 @@ module fcart (
 );
     localparam RAM_ADDR_BITS = 24;
 
-    logic cpu_read;
-    logic ppu_read;
-    logic loading;
     logic refresh;
     logic sdram_pll;
     logic pll_locked;
-    logic [7:0] cpu_data, ppu_data;
+    map::in map_in;
+    map::out map_out;
+    logic [7:0] prg_data;
+    logic [7:0] chr_data;
+    sdram_bus #(.ADDR_BITS(RAM_ADDR_BITS - 1)) ram_ch0 (), ram_ch1 ();
+    sdio_bus sbus (.clk(SDIO_CLK));
 
-    sdram_bus #(.ADDR_BITS(RAM_ADDR_BITS - 1))
-        fc_prg (), fc_chr (), api_prg (), api_chr (), ram_ch0 (), ram_ch1 ();
+    assign CPU_DIR = !ROM_CE && CPU_RW;
+    assign PPU_DIR = map_out.ciram_ce && !PPU_RD;
+    assign CPU_DATA = CPU_DIR ? prg_data : 'z;
+    assign PPU_DATA = PPU_DIR ? chr_data : 'z;
+    assign map_in.m2 = M2;
+    assign map_in.cpu_addr = CPU_ADDR;
+    assign map_in.cpu_data = CPU_DATA;
+    assign map_in.cpu_rw = CPU_RW;
+    assign map_in.rom_ce = ROM_CE;
+    assign map_in.ppu_addr = PPU_ADDR;
+    assign map_in.ppu_data = PPU_DATA;
+    assign map_in.ppu_rd = PPU_RD;
+    assign map_in.ppu_wr = PPU_WR;
+    assign CIRAM_A10 = map_out.ciram_a10;
+    assign CIRAM_CE = map_out.ciram_ce;
 
-    assign cpu_read  = !ROM_CE && CPU_RW && M2;
-    assign ppu_read  = CIRAM_CE && !PPU_RD;
-    assign CPU_DATA  = cpu_read ? cpu_data : 'z;
-    assign PPU_DATA  = ppu_read ? ppu_data : 'z;
-    assign CPU_DIR   = cpu_read;
-    assign PPU_DIR   = ppu_read;
-    assign CIRAM_CE  = !PPU_ADDR[13];
-    assign CIRAM_A10 = PPU_ADDR[10];
-
-    prg_rom #(
-        .ADDR_BITS(RAM_ADDR_BITS)
-    ) prg_rom (
+    rom rom (
         .clk(sdram_pll),
-        .ram(fc_prg.device),
-        .m2(M2),
-        .cpu_rw(CPU_RW),
-        .rom_ce(ROM_CE),
-        .addr(CPU_ADDR),
-        .data(cpu_data)
-    );
-
-    chr_rom #(
-        .ADDR_BITS(RAM_ADDR_BITS)
-    ) chr_rom (
-        .clk(sdram_pll),
-        .ram(fc_chr.device),
-        .refresh(refresh),
-        .ppu_rd(PPU_RD),
-        .ciram_ce(CIRAM_CE),
-        .addr(PPU_ADDR[12:0]),
-        .data(ppu_data)
+        .in(map_in),
+        .out(map_out),
+        .prg_ram(ram_ch0.device),
+        .chr_ram(ram_ch1.device),
+        .sdio(sbus.device),
+        .prg_data(prg_data),
+        .chr_data(chr_data)
     );
 
     pll pll (
         .inclk0(CLK),
         .c0(sdram_pll),
         .locked(pll_locked)
-    );
-
-    sdram_arbiter arbiter (
-        .api_active(loading),
-        .api_prg(api_prg.host),
-        .api_chr(api_chr.host),
-        .fc_prg(fc_prg.host),
-        .fc_chr(fc_chr.host),
-        .ch0(ram_ch0.device),
-        .ch1(ram_ch1.device)
     );
 
     sdram #(
@@ -113,6 +98,11 @@ module fcart (
         .SDRAM_CAS(SDRAM_CAS),
         .SDRAM_WE(SDRAM_WE),
         .SDRAM_DQM(SDRAM_DQM)
+    );
+
+    sdio_cmd sdio (
+        .cmd(SDIO_CMD),
+        .bus(sbus)
     );
 
     // TODO connect SDRAM_CLK directly to PLL pin
@@ -138,19 +128,12 @@ module fcart (
         .sset(1'b0)
     );
 
-    sdio_bus sbus (.clk(SDIO_CLK));
-    sdio sdio (
-        .cmd_sdio(SDIO_CMD),
-        .bus(sbus)
-    );
-
-    api #(
-        .ADDR_BITS(RAM_ADDR_BITS)
-    ) api (
-        .clk(sdram_pll),
-        .sdio(sbus),
-        .prg(api_prg.device),
-        .chr(api_chr.device),
-        .write_active(loading)
-    );
+    logic [2:0][13:0] addr_sync;
+    always_ff @(posedge sdram_pll) begin
+        addr_sync <= {addr_sync[1:0], PPU_ADDR};
+        // Before reading, the PPU sets a new address.
+        // This event will fall into the update window,
+        // which will ensure that it does not overlap with access to the PPU memory.
+        refresh   <= addr_sync[2] != addr_sync[1];
+    end
 endmodule

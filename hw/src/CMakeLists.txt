@@ -1,13 +1,24 @@
 include(AddQuartusProject)
+include(ExternalProject)
+
+ExternalProject_add(nesrom
+    SOURCE_DIR ${PROJECT_SOURCE_DIR}/sw/nesrom
+    INSTALL_COMMAND ""
+)
 
 set(FAMILY "Cyclone 10 LP" CACHE STRING "FPGA family")
 set(DEVICE "10CL025YU256I7G" CACHE STRING "FPGA device")
 
-file(GLOB_RECURSE SRC *.sv ip/*.v)
+file(GLOB_RECURSE SRC *.sv mappers/*.sv ip/*.v)
 file(GLOB_RECURSE TCL *.tcl)
 file(GLOB_RECURSE SDC *.sdc)
 
+ExternalProject_Get_Property(nesrom BINARY_DIR)
+set(DEFINES "NESROM_PATH=\"${BINARY_DIR}/nesrom.hex\"")
+
 add_quartus_project(${CMAKE_PROJECT_NAME})
+
+add_dependencies(${CMAKE_PROJECT_NAME}-compile nesrom)
 
 add_custom_command(
     OUTPUT ${QUARTUS_PROJECT_DIR}/fcart.rbf.gz

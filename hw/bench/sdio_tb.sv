@@ -17,8 +17,8 @@ module sdio_tb;
     logic cmd_set;
     assign cmd = cmd_set;
     sdio_bus bus (.clk(clk));
-    sdio sdio (
-        .cmd_sdio(cmd),
+    sdio_cmd sdio (
+        .cmd(cmd),
         .bus(bus)
     );
 

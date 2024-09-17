@@ -88,6 +88,8 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ROM_CE
 set_location_assignment PIN_A15 -to ROM_CE
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to PPU_RD
 set_location_assignment PIN_D14 -to PPU_RD
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to PPU_WR
+set_location_assignment PIN_C14 -to PPU_WR
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CIRAM_A10
 set_location_assignment PIN_F14 -to CIRAM_A10
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CIRAM_CE

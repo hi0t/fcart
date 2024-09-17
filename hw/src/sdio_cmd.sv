@@ -1,5 +1,5 @@
-module sdio (
-    inout wire cmd_sdio,
+module sdio_cmd (
+    inout wire cmd,
 
     sdio_bus.host bus
 );
@@ -17,13 +17,13 @@ module sdio (
     logic [1:0] tx_delay;  // Queue to look ahead when calculating CRC response
     logic cmd_prev;
 
-    assign cmd_sdio = (state == STATE_REQ_IDLE || state == STATE_REQ_PAYLOAD) ? 'z : tx_delay[1];
+    assign cmd = (state == STATE_REQ_IDLE || state == STATE_REQ_PAYLOAD) ? 'z : tx_delay[1];
 
     crc7 crc7 (
         .clk(bus.clk),
         .clear(state == STATE_REQ_IDLE || state == STATE_RESP_IDLE),
         .enable(crc_enable),
-        .in((state == STATE_REQ_IDLE || state == STATE_REQ_PAYLOAD) ? cmd_sdio : tx_delay[0]),
+        .in((state == STATE_REQ_IDLE || state == STATE_REQ_PAYLOAD) ? cmd : tx_delay[0]),
         .crc(actual_crc)
     );
 
@@ -32,8 +32,8 @@ module sdio (
 
         case (state)
             STATE_REQ_IDLE: begin
-                cmd_prev <= cmd_sdio;
-                if (cmd_prev && !cmd_sdio) begin  // Falling edge detect
+                cmd_prev <= cmd;
+                if (cmd_prev && !cmd) begin  // Falling edge detect
                     crc_enable <= 1;
                     bit_cnt <= 0;
                     bus.req_cmd <= 0;
@@ -46,15 +46,15 @@ module sdio (
             STATE_REQ_PAYLOAD: begin
                 bit_cnt <= bit_cnt + 6'd1;
 
-                if (bit_cnt >= 1 && bit_cnt < 7) bus.req_cmd <= {bus.req_cmd[4:0], cmd_sdio};
-                else if (bit_cnt >= 7 && bit_cnt < 39) bus.req_arg <= {bus.req_arg[30:0], cmd_sdio};
-                else if (bit_cnt >= 39 && bit_cnt < 46) crc_buf <= {crc_buf[5:0], cmd_sdio};
+                if (bit_cnt >= 1 && bit_cnt < 7) bus.req_cmd <= {bus.req_cmd[4:0], cmd};
+                else if (bit_cnt >= 7 && bit_cnt < 39) bus.req_arg <= {bus.req_arg[30:0], cmd};
+                else if (bit_cnt >= 39 && bit_cnt < 46) crc_buf <= {crc_buf[5:0], cmd};
 
                 case (bit_cnt)
-                    0:  if (cmd_sdio != 1'b1) state <= STATE_REQ_IDLE;  // Transmission bit
+                    0:  if (cmd != 1'b1) state <= STATE_REQ_IDLE;  // Transmission bit
                     38: crc_enable <= 0;
                     46:  // End bit
-                    if (cmd_sdio && actual_crc == crc_buf) begin
+                    if (cmd && actual_crc == crc_buf) begin
                         tx_delay <= 'b11;  // Turn high when idle
                         bus.req_valid <= 1;
                         state <= STATE_RESP_IDLE;
