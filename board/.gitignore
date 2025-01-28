@@ -1,0 +1,9 @@
+*-backups/
+production/
+*.bak
+*.lck
+*.kicad_prl
+fabrication-toolkit-options.json
+fp-info-cache
+fp-lib-table
+sym-lib-table
