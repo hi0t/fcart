@@ -1,56 +1,29 @@
-#include "ff.h"
-#include "fpga.h"
-#include "fpga_flash.h"
-#include "rom.h"
-#include "sdcard.h"
-#include "sdio.h"
-#include <pico/stdlib.h>
-#include <string.h>
+#include <zephyr/drivers/gpio.h>
+#include <zephyr/kernel.h>
 
-#define SD_SPI_PORT 0
-#define SD_PIN_SCK 2
-#define SD_PIN_MOSI 3
-#define SD_PIN_MISO 4
-#define SD_PIN_CS 5
+#define LED_NODE DT_ALIAS(led)
+static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED_NODE, gpios);
 
-int main()
+int main(void)
 {
-    stdio_init_all();
+    int ret;
 
-    sdcard_init(SD_SPI_PORT, SD_PIN_MISO, SD_PIN_MOSI, SD_PIN_SCK, SD_PIN_CS);
-    fpga_init();
+    if (!gpio_is_ready_dt(&led)) {
+        return 0;
+    }
 
-#ifdef ENABLE_FPGA_FLASH
-    fpga_flash();
-#endif
+    ret = gpio_pin_configure_dt(&led, GPIO_OUTPUT_ACTIVE);
+    if (ret < 0) {
+        return 0;
+    }
 
-    FATFS fs;
-    FRESULT res;
-    DIR dir;
-    FILINFO fno;
-
-    f_mount(&fs, "0:", 1);
-
-    res = f_opendir(&dir, "0:/");
-    if (res == FR_OK) {
-        for (;;) {
-            res = f_readdir(&dir, &fno);
-            if (res != FR_OK || fno.fname[0] == 0)
-                break;
-            if (!(fno.fattrib & AM_DIR)) {
-                char *ext = strrchr(fno.fname, '.');
-                if (ext != NULL && strcmp(ext, ".nes") == 0) {
-                    rom_push(fno.fname);
-                    break;
-                }
-            }
+    for (;;) {
+        ret = gpio_pin_toggle_dt(&led);
+        if (ret < 0) {
+            return 0;
         }
-        f_closedir(&dir);
+        k_msleep(1000);
     }
 
-    f_unmount("0:");
-
-    while (true) {
-        sleep_ms(100);
-    }
+    return 0;
 }

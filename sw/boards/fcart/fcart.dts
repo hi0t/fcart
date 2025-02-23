@@ -1,0 +1,82 @@
+/dts-v1/;
+#include <st/f4/stm32f412Xe.dtsi>
+#include <st/f4/stm32f412r(e-g)tx-pinctrl.dtsi>
+
+/ {
+    model = "fcart Famicom cartridge";
+    compatible = "arm,fcart";
+
+    chosen {
+		zephyr,sram = &sram0;
+		zephyr,flash = &flash0;
+		zephyr,console = &usart1;
+	};
+
+    leds {
+        compatible = "gpio-leds";
+        user_led: led {
+            gpios = <&gpiob 2 GPIO_ACTIVE_LOW>;
+        };
+    };
+
+    aliases {
+		led = &user_led;
+	};
+};
+
+&clk_lsi {
+	status = "okay";
+};
+
+&clk_hse {
+	clock-frequency = <DT_FREQ_M(8)>;
+	status = "okay";
+};
+
+&pll {
+	div-m = <4>;
+	mul-n = <100>;
+	div-p = <2>;
+	div-q = <4>;
+	clocks = <&clk_hse>;
+	status = "okay";
+};
+
+&rcc {
+	clocks = <&pll>;
+	clock-frequency = <DT_FREQ_M(100)>;
+	ahb-prescaler = <1>;
+	apb1-prescaler = <2>;
+	apb2-prescaler = <1>;
+};
+
+&clk_lse {
+	status = "okay";
+};
+
+&rtc {
+	clocks = <&rcc STM32_CLOCK_BUS_APB1 0x10000000>,
+		 <&rcc STM32_SRC_LSI RTC_SEL(2)>;
+	status = "okay";
+};
+
+&usart1 {
+	pinctrl-0 = <&usart1_tx_pa9 &usart1_rx_pa10>;
+	pinctrl-names = "default";
+	current-speed = <115200>;
+	status = "okay";
+};
+
+&sdmmc1 {
+	clocks = <&rcc STM32_CLOCK_BUS_APB2 0x00000800>,
+		<&rcc STM32_SRC_PLL_Q SDIO_SEL(0)>;
+	status = "okay";
+	pinctrl-0 = <&sdio_d0_pc8
+		     &sdio_d1_pc9
+		     &sdio_d2_pc10
+		     &sdio_d3_pc11
+		     &sdio_ck_pc12
+		     &sdio_cmd_pd2>;
+	pinctrl-names = "default";
+	cd-gpios = <&gpioa 8 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
+};

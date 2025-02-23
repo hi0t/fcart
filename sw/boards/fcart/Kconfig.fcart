@@ -1,0 +1,2 @@
+config BOARD_FCART
+	select SOC_STM32F412RX
