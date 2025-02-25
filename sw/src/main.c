@@ -1,3 +1,4 @@
+#include "fpga_mgmt.h"
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
@@ -21,6 +22,8 @@ int main(void)
     }
 
     LOG_INF("Starting demo");
+
+    fpga_mgmt_load(0, NULL, 0);
 
     for (;;) {
         rc = gpio_pin_toggle_dt(&led);

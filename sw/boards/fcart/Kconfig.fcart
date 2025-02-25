@@ -1,2 +1,4 @@
 config BOARD_FCART
 	select SOC_STM32F412RX
+	select USE_STM32_HAL_QSPI
+	select USE_STM32_HAL_DMA

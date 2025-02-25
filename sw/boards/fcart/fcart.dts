@@ -87,6 +87,7 @@
 			&quadspi_bk2_io0_pa6 &quadspi_bk2_io1_pa7
 		    &quadspi_bk2_io2_pc4 &quadspi_bk2_io3_pc5>;
 	pinctrl-names = "default";
+	flash-id = <2>;
 	status = "okay";
 };
 

@@ -1,4 +1,4 @@
-#include "sensors.h"
+#include "sensor.h"
 #include <stdio.h>
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/logging/log.h>
