@@ -1,0 +1,6 @@
+option('stm32_heap_size', type: 'string', description: 'Heap size')
+option('stm32_stack_size', type: 'string', description: 'Stack size')
+option('stm32_ram_origin', type: 'string', description: 'RAM origin')
+option('stm32_ram_size', type: 'string', description: 'RAM size')
+option('stm32_flash_origin', type: 'string', description: 'Flash origin')
+option('stm32_flash_size', type: 'string', description: 'Flash size')

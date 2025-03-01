@@ -1,0 +1,6 @@
+[wrap-git]
+url = https://github.com/STMicroelectronics/STM32CubeF4.git
+revision = v1.28.1
+depth = 1
+clone-recursive = true
+patch_directory = stm32-cube-f4

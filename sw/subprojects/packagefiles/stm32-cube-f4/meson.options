@@ -1,0 +1,7 @@
+option('mcu_series', type: 'string', description: 'MCU series')
+option(
+    'hal_components',
+    type: 'array',
+    value: [],
+    description: 'HAL components to include',
+)

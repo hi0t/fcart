@@ -1,4 +1,0 @@
-board:
-  name: fcart
-  socs:
-    - name: stm32f412rx
