@@ -7,7 +7,7 @@ int main()
 
     for (;;) {
         led_toggle();
-        soc_delay(1000);
+        delay_ms(1000);
     }
 
     return 0;

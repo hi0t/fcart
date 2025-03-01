@@ -1,0 +1,5 @@
+[wrap-git]
+url = https://github.com/STMicroelectronics/cmsis-core.git
+revision = v5.9.0
+depth = 1
+patch_directory = stm32-cmsis

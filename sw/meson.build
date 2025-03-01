@@ -8,7 +8,7 @@ fs = import('fs')
 
 assert(
     meson.is_cross_build(),
-    'fcart-sw must be cross-compiled. Add --cross-file=cross.ini to meson command line',
+    'fcart-sw must be cross-compiled. Add --cross-file=build.ini to meson command line',
 )
 
 cc = meson.get_compiler('c')

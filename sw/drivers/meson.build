@@ -4,12 +4,12 @@ src = files(
 )
 
 cdata = configuration_data()
-cdata.set('HEAP_SIZE', get_option('stm32_heap_size'))
-cdata.set('STACK_SIZE', get_option('stm32_stack_size'))
-cdata.set('RAM_ORIGIN', get_option('stm32_ram_origin'))
-cdata.set('RAM_SIZE', get_option('stm32_ram_size'))
-cdata.set('FLASH_ORIGIN', get_option('stm32_flash_origin'))
-cdata.set('FLASH_SIZE', get_option('stm32_flash_size'))
+cdata.set('HEAP_SIZE', get_option('heap_size'))
+cdata.set('STACK_SIZE', get_option('stack_size'))
+cdata.set('RAM_ORIGIN', '0x20000000')
+cdata.set('RAM_SIZE', get_option('ram_size'))
+cdata.set('FLASH_ORIGIN', '0x8000000')
+cdata.set('FLASH_SIZE', get_option('flash_size'))
 # if mcu uses ccram need to add this section to .ld
 
 configure_file(
@@ -18,13 +18,19 @@ configure_file(
     configuration: cdata,
 )
 
-stm32_cube = subproject('stm32-cube-f4')
-cmsis_dep = stm32_cube.get_variable('cmsis_dep')
-hal_dep = stm32_cube.get_variable('hal_dep')
+hse_freq = get_option('hse_freq')
+pll_divm = get_option('pll_divm')
 
 drivers_dep = declare_dependency(
-    compile_args: ['-DHSE_VALUE=8000000U'],
-    dependencies: [cmsis_dep, hal_dep],
+    compile_args: [
+        f'-DHSE_VALUE=@hse_freq@',
+        f'-DRCC_PLL_DIVM=@pll_divm@',
+    ],
+    dependencies: [
+        dependency('stm32-cmsis'),
+        dependency('stm32-cmsis-f4'),
+        dependency('stm32-hal-f4'),
+    ],
     include_directories: include_directories('.'),
     link_args: ['-T', meson.current_build_dir() / 'flash.ld'],
     sources: src,

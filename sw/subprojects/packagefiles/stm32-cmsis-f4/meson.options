@@ -1,0 +1,1 @@
+option('mcu_series', type: 'string', description: 'MCU series')

@@ -1,0 +1,5 @@
+[wrap-git]
+url = https://github.com/STMicroelectronics/stm32f4xx-hal-driver
+revision = v1.8.3
+depth = 1
+patch_directory = stm32-hal-f4
