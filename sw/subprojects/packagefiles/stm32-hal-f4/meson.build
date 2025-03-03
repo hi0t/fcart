@@ -1,13 +1,12 @@
 project('stm32-hal-f4', version: '1.8.3')
 
 family = 'F4'
-hal_components = get_option('hal_components')
 
 hal_src = []
-hal_comp_prefix = 'stm32' + family.to_lower() + 'xx_hal'
-hal_src += 'Src' / hal_comp_prefix + '.c'
-foreach comp : hal_components
-    hal_src += 'Src' / hal_comp_prefix + '_' + comp + '.c'
+hal_comp_prefix = 'stm32' + family.to_lower() + 'xx_'
+hal_src += 'Src' / hal_comp_prefix + 'hal.c'
+foreach comp : get_option('hal_components')
+    hal_src += 'Src' / hal_comp_prefix + comp + '.c'
 endforeach
 
 hal_inc = [

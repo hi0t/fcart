@@ -1,4 +1,4 @@
-src = files(
+drivers_src = files(
     'assert.c',
     'hal_msp.c',
     'interrupts.c',
@@ -41,8 +41,10 @@ if get_option('enable_semihosting')
     compile_args += '-DENABLE_SEMIHOSTING'
     link_args += ['-specs=rdimon.specs', '-lrdimon']
 else
-    src += files('syscalls.c')
+    drivers_src += files('syscalls.c')
 endif
+
+subdir('fatfs')
 
 drivers_dep = declare_dependency(
     compile_args: compile_args,
@@ -50,8 +52,9 @@ drivers_dep = declare_dependency(
         dependency('stm32-cmsis'),
         dependency('stm32-cmsis-f4'),
         dependency('stm32-hal-f4'),
+        fatfs_dep,
     ],
     include_directories: include_directories('.'),
     link_args: link_args,
-    sources: src,
+    sources: drivers_src,
 )

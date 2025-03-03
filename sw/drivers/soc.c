@@ -5,15 +5,15 @@
 
 LOG_MODULE(soc);
 
-UART_HandleTypeDef handle_uart;
-DMA_HandleTypeDef hdma_quadspi;
-DMA_HandleTypeDef hdma_sdio_rx;
-DMA_HandleTypeDef hdma_sdio_tx;
+DMA_HandleTypeDef _hdma_quadspi;
+DMA_HandleTypeDef _hdma_sdio_tx;
+DMA_HandleTypeDef _hdma_sdio_rx;
+SD_HandleTypeDef _handler_sd;
 
 static void system_clock_init();
 static void gpio_init();
-
-static uint8_t *__sbrk_heap_end;
+static void dma_init();
+static void sdio_init();
 
 #ifdef ENABLE_SEMIHOSTING
 extern void initialise_monitor_handles();
@@ -28,6 +28,8 @@ void hw_init()
     HAL_Init();
     system_clock_init();
     gpio_init();
+    dma_init();
+    sdio_init();
 }
 
 void delay_ms(uint32_t ms)
@@ -49,16 +51,11 @@ static void system_clock_init()
     RCC_OscInitTypeDef RCC_OscInitStruct = { 0 };
     RCC_ClkInitTypeDef RCC_ClkInitStruct = { 0 };
 
-    __HAL_RCC_PWR_CLK_ENABLE();
     __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
 
-    RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI | RCC_OSCILLATORTYPE_LSI
-        | RCC_OSCILLATORTYPE_HSE;
+    RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE | RCC_OSCILLATORTYPE_LSE;
     RCC_OscInitStruct.HSEState = RCC_HSE_ON;
     RCC_OscInitStruct.LSEState = RCC_LSE_ON;
-    RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-    RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
-    RCC_OscInitStruct.LSIState = RCC_LSI_ON;
     RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
     RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
     RCC_OscInitStruct.PLL.PLLM = RCC_PLL_DIVM;
@@ -87,16 +84,6 @@ static void system_clock_init()
 
 static void gpio_init()
 {
-#ifdef GPIOA_CLK_ENABLE
-    __HAL_RCC_GPIOA_CLK_ENABLE();
-#endif
-#ifdef GPIOB_CLK_ENABLE
-    __HAL_RCC_GPIOB_CLK_ENABLE();
-#endif
-#ifdef GPIOC_CLK_ENABLE
-    __HAL_RCC_GPIOC_CLK_ENABLE();
-#endif
-
     GPIO_InitTypeDef gpio = { 0 };
 
     gpio.Mode = GPIO_MODE_OUTPUT_PP;
@@ -105,9 +92,39 @@ static void gpio_init()
     gpio.Pin = GPIO_LED_PIN;
     HAL_GPIO_Init(GPIO_LED_PORT, &gpio);
 
-    gpio = (const GPIO_InitTypeDef) { 0 };
+    gpio.Mode = GPIO_MODE_INPUT;
+    gpio.Pull = GPIO_PULLUP;
+    gpio.Speed = GPIO_SPEED_FREQ_LOW;
+    gpio.Pin = GPIO_SD_CD_PIN;
+    HAL_GPIO_Init(GPIO_SD_CD_PORT, &gpio);
 }
 
+static void dma_init()
+{
+    __HAL_RCC_DMA2_CLK_ENABLE();
+
+    HAL_NVIC_SetPriority(DMA2_Stream3_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(DMA2_Stream3_IRQn);
+
+    HAL_NVIC_SetPriority(DMA2_Stream6_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(DMA2_Stream6_IRQn);
+
+    HAL_NVIC_SetPriority(DMA2_Stream7_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(DMA2_Stream7_IRQn);
+}
+
+static void sdio_init()
+{
+    _handler_sd.Instance = SDIO;
+    _handler_sd.Init.ClockEdge = SDIO_CLOCK_EDGE_RISING;
+    _handler_sd.Init.ClockBypass = SDIO_CLOCK_BYPASS_DISABLE;
+    _handler_sd.Init.ClockPowerSave = SDIO_CLOCK_POWER_SAVE_DISABLE;
+    _handler_sd.Init.BusWide = SDIO_BUS_WIDE_1B;
+    _handler_sd.Init.HardwareFlowControl = SDIO_HARDWARE_FLOW_CONTROL_DISABLE;
+    _handler_sd.Init.ClockDiv = 0;
+}
+
+static uint8_t *__sbrk_heap_end;
 void *_sbrk(ptrdiff_t incr)
 {
     extern uint8_t _end;
