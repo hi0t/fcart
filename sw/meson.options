@@ -1,3 +1,4 @@
+option('pinctrl', type: 'array', description: ' Pin control')
 option('heap_size', type: 'string', description: 'Heap size')
 option('stack_size', type: 'string', description: 'Stack size')
 option('ram_origin', type: 'string', description: 'RAM origin')
@@ -6,3 +7,16 @@ option('flash_origin', type: 'string', description: 'Flash origin')
 option('flash_size', type: 'string', description: 'Flash size')
 option('hse_freq', type: 'string', description: 'HSE frequency')
 option('pll_divm', type: 'string', description: 'PLL M divider')
+option(
+    'default_log_level',
+    type: 'integer',
+    min: 0,
+    max: 3,
+    value: 0,
+    description: 'Default log level',
+)
+option(
+    'enable_semihosting',
+    type: 'boolean',
+    description: 'Enable semihosting',
+)

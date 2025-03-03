@@ -1,5 +1,8 @@
 src = files(
-    'led.c',
+    'assert.c',
+    'hal_msp.c',
+    'interrupts.c',
+    'log.c',
     'soc.c',
 )
 
@@ -18,20 +21,37 @@ configure_file(
     configuration: cdata,
 )
 
-hse_freq = get_option('hse_freq')
-pll_divm = get_option('pll_divm')
+compile_args = []
+compile_args += '-DUSE_FULL_ASSERT'
+compile_args += '-DDEFAULT_LOG_LEVEL=@0@'.format(get_option('default_log_level'))
+compile_args += '-DHSE_VALUE=@0@'.format(get_option('hse_freq'))
+compile_args += '-DRCC_PLL_DIVM=@0@'.format(get_option('pll_divm'))
+foreach ctrl : get_option('pinctrl')
+    p = ctrl.split('=')
+    compile_args += '-DGPIO_@0@_PORT=GPIO@1@'.format(p[0].to_upper(), p[1][1].to_upper())
+    compile_args += '-DGPIO_@0@_PIN=GPIO_PIN_@1@'.format(p[0].to_upper(), p[1].substring(2).to_upper())
+    compile_args += '-DGPIO@0@_CLK_ENABLE'.format(p[1][1].to_upper())
+endforeach
+
+link_args = []
+link_args += ['-T', meson.current_build_dir() / 'flash.ld']
+link_args += '-lc'
+
+if get_option('enable_semihosting')
+    compile_args += '-DENABLE_SEMIHOSTING'
+    link_args += ['-specs=rdimon.specs', '-lrdimon']
+else
+    src += files('syscalls.c')
+endif
 
 drivers_dep = declare_dependency(
-    compile_args: [
-        f'-DHSE_VALUE=@hse_freq@',
-        f'-DRCC_PLL_DIVM=@pll_divm@',
-    ],
+    compile_args: compile_args,
     dependencies: [
         dependency('stm32-cmsis'),
         dependency('stm32-cmsis-f4'),
         dependency('stm32-hal-f4'),
     ],
     include_directories: include_directories('.'),
-    link_args: ['-T', meson.current_build_dir() / 'flash.ld'],
+    link_args: link_args,
     sources: src,
 )

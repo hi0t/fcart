@@ -2,5 +2,6 @@
 
 #include <stdint.h>
 
-void soc_hw_init();
+void hw_init();
 void delay_ms(uint32_t ms);
+uint32_t uptime_ms();

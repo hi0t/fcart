@@ -2,6 +2,7 @@ project(
     'fcart-sw',
     'c',
     version: '0.1',
+    default_options: ['b_ndebug=if-release'],
 )
 
 fs = import('fs')
