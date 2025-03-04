@@ -47,27 +47,27 @@ void PendSV_Handler()
 {
 }
 
-void SysTick_Handler(void)
+void SysTick_Handler()
 {
     HAL_IncTick();
 }
 
-void SDIO_IRQHandler(void)
+void SDIO_IRQHandler()
 {
     HAL_SD_IRQHandler(&_handler_sd);
 }
 
-void DMA2_Stream3_IRQHandler(void)
+void DMA2_Stream3_IRQHandler()
 {
     HAL_DMA_IRQHandler(&_hdma_sdio_tx);
 }
 
-void DMA2_Stream6_IRQHandler(void)
+void DMA2_Stream6_IRQHandler()
 {
     HAL_DMA_IRQHandler(&_hdma_sdio_rx);
 }
 
-void DMA2_Stream7_IRQHandler(void)
+void DMA2_Stream7_IRQHandler()
 {
     HAL_DMA_IRQHandler(&_hdma_quadspi);
 }

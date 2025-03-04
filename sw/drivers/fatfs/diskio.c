@@ -29,11 +29,13 @@ static bool wait_transfer_state(uint32_t timeout)
 
 DSTATUS disk_status(BYTE pdrv)
 {
+    UNUSED(pdrv);
     return is_transfer_state() ? 0 : STA_NOINIT;
 }
 
 DSTATUS disk_initialize(BYTE pdrv)
 {
+    UNUSED(pdrv);
     HAL_StatusTypeDef rc;
 
     if (HAL_GPIO_ReadPin(GPIO_SD_CD_PORT, GPIO_SD_CD_PIN) == GPIO_PIN_RESET) {
@@ -55,6 +57,7 @@ DSTATUS disk_initialize(BYTE pdrv)
 
 DRESULT disk_read(BYTE pdrv, BYTE *buff, LBA_t sector, UINT count)
 {
+    UNUSED(pdrv);
     HAL_StatusTypeDef rc;
 
     if (!wait_transfer_state(SD_TIMEOUT)) {
@@ -93,6 +96,7 @@ DRESULT disk_read(BYTE pdrv, BYTE *buff, LBA_t sector, UINT count)
 
 DRESULT disk_write(BYTE pdrv, const BYTE *buff, LBA_t sector, UINT count)
 {
+    UNUSED(pdrv);
     HAL_StatusTypeDef rc;
 
     if (!wait_transfer_state(SD_TIMEOUT)) {
@@ -131,6 +135,7 @@ DRESULT disk_write(BYTE pdrv, const BYTE *buff, LBA_t sector, UINT count)
 
 DRESULT disk_ioctl(BYTE pdrv, BYTE cmd, void *buff)
 {
+    UNUSED(pdrv);
     HAL_SD_CardInfoTypeDef ci;
 
     if (!is_transfer_state()) {
@@ -173,15 +178,18 @@ DWORD get_fattime()
 
 void HAL_SD_RxCpltCallback(SD_HandleTypeDef *hsd)
 {
+    UNUSED(hsd);
     transmit = false;
 }
 
 void HAL_SD_TxCpltCallback(SD_HandleTypeDef *hsd)
 {
+    UNUSED(hsd);
     transmit = false;
 }
 
 void HAL_SD_ErrorCallback(SD_HandleTypeDef *hsd)
 {
+    UNUSED(hsd);
     transmit = false;
 }
