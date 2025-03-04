@@ -1,11 +1,7 @@
+#include "internal.h"
 #include "log.h"
-#include "stm32f4xx_hal.h"
 
 LOG_MODULE(hal_msp);
-
-extern DMA_HandleTypeDef _hdma_quadspi;
-extern DMA_HandleTypeDef _hdma_sdio_tx;
-extern DMA_HandleTypeDef _hdma_sdio_rx;
 
 void HAL_MspInit()
 {
@@ -28,6 +24,7 @@ void HAL_MspInit()
 
 void HAL_SD_MspInit(SD_HandleTypeDef *hsd)
 {
+    HAL_StatusTypeDef rc;
     GPIO_InitTypeDef gpio = {
         .Mode = GPIO_MODE_AF_PP,
         .Pull = GPIO_PULLUP,
@@ -39,7 +36,6 @@ void HAL_SD_MspInit(SD_HandleTypeDef *hsd)
         .Clk48ClockSelection = RCC_CLK48CLKSOURCE_PLLQ,
         .SdioClockSelection = RCC_SDIOCLKSOURCE_CLK48,
     };
-    HAL_StatusTypeDef rc;
 
     if (hsd->Instance != SDIO) {
         return;
@@ -66,44 +62,66 @@ void HAL_SD_MspInit(SD_HandleTypeDef *hsd)
     gpio.Pull = GPIO_NOPULL,
     HAL_GPIO_Init(GPIO_SD_CK_PORT, &gpio);
 
-    _hdma_sdio_tx.Instance = DMA2_Stream3;
-    _hdma_sdio_tx.Init.Channel = DMA_CHANNEL_4;
-    _hdma_sdio_tx.Init.Direction = DMA_MEMORY_TO_PERIPH;
-    _hdma_sdio_tx.Init.PeriphInc = DMA_PINC_DISABLE;
-    _hdma_sdio_tx.Init.MemInc = DMA_MINC_ENABLE;
-    _hdma_sdio_tx.Init.PeriphDataAlignment = DMA_PDATAALIGN_WORD;
-    _hdma_sdio_tx.Init.MemDataAlignment = DMA_MDATAALIGN_WORD;
-    _hdma_sdio_tx.Init.Mode = DMA_PFCTRL;
-    _hdma_sdio_tx.Init.Priority = DMA_PRIORITY_LOW;
-    _hdma_sdio_tx.Init.FIFOMode = DMA_FIFOMODE_ENABLE;
-    _hdma_sdio_tx.Init.FIFOThreshold = DMA_FIFO_THRESHOLD_FULL;
-    _hdma_sdio_tx.Init.MemBurst = DMA_MBURST_INC4;
-    _hdma_sdio_tx.Init.PeriphBurst = DMA_PBURST_INC4;
-    if ((rc = HAL_DMA_Init(&_hdma_sdio_tx)) != HAL_OK) {
-        LOG_ERR("HAL_DMA_Init() failed: %d", rc);
-        LOG_PANIC();
-    }
-    __HAL_LINKDMA(hsd, hdmatx, _hdma_sdio_tx);
+    struct peripherals *p = get_peripherals();
 
-    _hdma_sdio_rx.Instance = DMA2_Stream6;
-    _hdma_sdio_rx.Init.Channel = DMA_CHANNEL_4;
-    _hdma_sdio_rx.Init.Direction = DMA_PERIPH_TO_MEMORY;
-    _hdma_sdio_rx.Init.PeriphInc = DMA_PINC_DISABLE;
-    _hdma_sdio_rx.Init.MemInc = DMA_MINC_ENABLE;
-    _hdma_sdio_rx.Init.PeriphDataAlignment = DMA_PDATAALIGN_WORD;
-    _hdma_sdio_rx.Init.MemDataAlignment = DMA_MDATAALIGN_WORD;
-    _hdma_sdio_rx.Init.Mode = DMA_PFCTRL;
-    _hdma_sdio_rx.Init.Priority = DMA_PRIORITY_LOW;
-    _hdma_sdio_rx.Init.FIFOMode = DMA_FIFOMODE_ENABLE;
-    _hdma_sdio_rx.Init.FIFOThreshold = DMA_FIFO_THRESHOLD_FULL;
-    _hdma_sdio_rx.Init.MemBurst = DMA_MBURST_INC4;
-    _hdma_sdio_rx.Init.PeriphBurst = DMA_PBURST_INC4;
-    if ((rc = HAL_DMA_Init(&_hdma_sdio_rx)) != HAL_OK) {
+    p->hdma_sdio_tx.Instance = DMA2_Stream3;
+    p->hdma_sdio_tx.Init.Channel = DMA_CHANNEL_4;
+    p->hdma_sdio_tx.Init.Direction = DMA_MEMORY_TO_PERIPH;
+    p->hdma_sdio_tx.Init.PeriphInc = DMA_PINC_DISABLE;
+    p->hdma_sdio_tx.Init.MemInc = DMA_MINC_ENABLE;
+    p->hdma_sdio_tx.Init.PeriphDataAlignment = DMA_PDATAALIGN_WORD;
+    p->hdma_sdio_tx.Init.MemDataAlignment = DMA_MDATAALIGN_WORD;
+    p->hdma_sdio_tx.Init.Mode = DMA_PFCTRL;
+    p->hdma_sdio_tx.Init.Priority = DMA_PRIORITY_LOW;
+    p->hdma_sdio_tx.Init.FIFOMode = DMA_FIFOMODE_ENABLE;
+    p->hdma_sdio_tx.Init.FIFOThreshold = DMA_FIFO_THRESHOLD_FULL;
+    p->hdma_sdio_tx.Init.MemBurst = DMA_MBURST_INC4;
+    p->hdma_sdio_tx.Init.PeriphBurst = DMA_PBURST_INC4;
+    if ((rc = HAL_DMA_Init(&p->hdma_sdio_tx)) != HAL_OK) {
         LOG_ERR("HAL_DMA_Init() failed: %d", rc);
         LOG_PANIC();
     }
-    __HAL_LINKDMA(hsd, hdmarx, _hdma_sdio_rx);
+    __HAL_LINKDMA(hsd, hdmatx, p->hdma_sdio_tx);
+
+    p->hdma_sdio_rx.Instance = DMA2_Stream6;
+    p->hdma_sdio_rx.Init.Channel = DMA_CHANNEL_4;
+    p->hdma_sdio_rx.Init.Direction = DMA_PERIPH_TO_MEMORY;
+    p->hdma_sdio_rx.Init.PeriphInc = DMA_PINC_DISABLE;
+    p->hdma_sdio_rx.Init.MemInc = DMA_MINC_ENABLE;
+    p->hdma_sdio_rx.Init.PeriphDataAlignment = DMA_PDATAALIGN_WORD;
+    p->hdma_sdio_rx.Init.MemDataAlignment = DMA_MDATAALIGN_WORD;
+    p->hdma_sdio_rx.Init.Mode = DMA_PFCTRL;
+    p->hdma_sdio_rx.Init.Priority = DMA_PRIORITY_LOW;
+    p->hdma_sdio_rx.Init.FIFOMode = DMA_FIFOMODE_ENABLE;
+    p->hdma_sdio_rx.Init.FIFOThreshold = DMA_FIFO_THRESHOLD_FULL;
+    p->hdma_sdio_rx.Init.MemBurst = DMA_MBURST_INC4;
+    p->hdma_sdio_rx.Init.PeriphBurst = DMA_PBURST_INC4;
+    if ((rc = HAL_DMA_Init(&p->hdma_sdio_rx)) != HAL_OK) {
+        LOG_ERR("HAL_DMA_Init() failed: %d", rc);
+        LOG_PANIC();
+    }
+    __HAL_LINKDMA(hsd, hdmarx, p->hdma_sdio_rx);
 
     HAL_NVIC_SetPriority(SDIO_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(SDIO_IRQn);
+}
+
+void HAL_RTC_MspInit(RTC_HandleTypeDef *hrtc)
+{
+    HAL_StatusTypeDef rc;
+    RCC_PeriphCLKInitTypeDef clk = {
+        .PeriphClockSelection = RCC_PERIPHCLK_RTC,
+        .RTCClockSelection = RCC_RTCCLKSOURCE_LSE,
+    };
+
+    if (hrtc->Instance != RTC) {
+        return;
+    }
+
+    if ((rc = HAL_RCCEx_PeriphCLKConfig(&clk)) != HAL_OK) {
+        LOG_ERR("HAL_RCCEx_PeriphCLKConfig() failed: %d", rc);
+        LOG_PANIC();
+    }
+
+    __HAL_RCC_RTC_ENABLE();
 }

@@ -1,9 +1,4 @@
-#include <stm32f4xx_hal.h>
-
-extern DMA_HandleTypeDef _hdma_quadspi;
-extern DMA_HandleTypeDef _hdma_sdio_tx;
-extern DMA_HandleTypeDef _hdma_sdio_rx;
-extern SD_HandleTypeDef _handler_sd;
+#include "internal.h"
 
 void NMI_Handler()
 {
@@ -54,20 +49,24 @@ void SysTick_Handler()
 
 void SDIO_IRQHandler()
 {
-    HAL_SD_IRQHandler(&_handler_sd);
+    struct peripherals *p = get_peripherals();
+    HAL_SD_IRQHandler(&p->hsdio);
 }
 
 void DMA2_Stream3_IRQHandler()
 {
-    HAL_DMA_IRQHandler(&_hdma_sdio_tx);
+    struct peripherals *p = get_peripherals();
+    HAL_DMA_IRQHandler(&p->hdma_sdio_tx);
 }
 
 void DMA2_Stream6_IRQHandler()
 {
-    HAL_DMA_IRQHandler(&_hdma_sdio_rx);
+    struct peripherals *p = get_peripherals();
+    HAL_DMA_IRQHandler(&p->hdma_sdio_rx);
 }
 
 void DMA2_Stream7_IRQHandler()
 {
-    HAL_DMA_IRQHandler(&_hdma_quadspi);
+    struct peripherals *p = get_peripherals();
+    HAL_DMA_IRQHandler(&p->hdma_qspi);
 }

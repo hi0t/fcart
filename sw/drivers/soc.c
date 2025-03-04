@@ -1,19 +1,17 @@
 #include "soc.h"
+#include "internal.h"
 #include "log.h"
 #include <errno.h>
-#include <stm32f4xx_hal.h>
 
 LOG_MODULE(soc);
 
-DMA_HandleTypeDef _hdma_quadspi;
-DMA_HandleTypeDef _hdma_sdio_tx;
-DMA_HandleTypeDef _hdma_sdio_rx;
-SD_HandleTypeDef _handler_sd;
+static struct peripherals devs;
 
 static void system_clock_init();
 static void gpio_init();
 static void dma_init();
 static void sdio_init();
+static void rtc_init();
 
 #ifdef ENABLE_SEMIHOSTING
 extern void initialise_monitor_handles();
@@ -30,6 +28,7 @@ void hw_init()
     gpio_init();
     dma_init();
     sdio_init();
+    rtc_init();
 }
 
 void delay_ms(uint32_t ms)
@@ -48,34 +47,35 @@ uint32_t uptime_ms()
 static void system_clock_init()
 {
     HAL_StatusTypeDef rc;
-    RCC_OscInitTypeDef RCC_OscInitStruct = { 0 };
-    RCC_ClkInitTypeDef RCC_ClkInitStruct = { 0 };
+    RCC_OscInitTypeDef osc = {
+        .OscillatorType = RCC_OSCILLATORTYPE_HSE | RCC_OSCILLATORTYPE_LSE,
+        .HSEState = RCC_HSE_ON,
+        .LSEState = RCC_LSE_ON,
+        .PLL.PLLState = RCC_PLL_ON,
+        .PLL.PLLSource = RCC_PLLSOURCE_HSE,
+        .PLL.PLLM = RCC_PLL_DIVM,
+        .PLL.PLLN = 100,
+        .PLL.PLLP = RCC_PLLP_DIV2,
+        .PLL.PLLQ = 4,
+        .PLL.PLLR = 2,
+    };
+    RCC_ClkInitTypeDef clk = {
+        .ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK
+            | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2,
+        .SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK,
+        .AHBCLKDivider = RCC_SYSCLK_DIV1,
+        .APB1CLKDivider = RCC_HCLK_DIV2,
+        .APB2CLKDivider = RCC_HCLK_DIV1,
+    };
 
     __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
 
-    RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE | RCC_OSCILLATORTYPE_LSE;
-    RCC_OscInitStruct.HSEState = RCC_HSE_ON;
-    RCC_OscInitStruct.LSEState = RCC_LSE_ON;
-    RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-    RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-    RCC_OscInitStruct.PLL.PLLM = RCC_PLL_DIVM;
-    RCC_OscInitStruct.PLL.PLLN = 100;
-    RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
-    RCC_OscInitStruct.PLL.PLLQ = 4;
-    RCC_OscInitStruct.PLL.PLLR = 2;
-    if ((rc = HAL_RCC_OscConfig(&RCC_OscInitStruct)) != HAL_OK) {
+    if ((rc = HAL_RCC_OscConfig(&osc)) != HAL_OK) {
         LOG_ERR("HAL_RCC_OscConfig() failed: %d", rc);
         LOG_PANIC();
     }
 
-    RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK
-        | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
-    RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-    RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-    RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
-    RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
-
-    if ((rc = HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_3)) != HAL_OK) {
+    if ((rc = HAL_RCC_ClockConfig(&clk, FLASH_LATENCY_3)) != HAL_OK) {
         LOG_ERR("HAL_RCC_ClockConfig() failed: %d", rc);
         LOG_PANIC();
     }
@@ -115,13 +115,35 @@ static void dma_init()
 
 static void sdio_init()
 {
-    _handler_sd.Instance = SDIO;
-    _handler_sd.Init.ClockEdge = SDIO_CLOCK_EDGE_RISING;
-    _handler_sd.Init.ClockBypass = SDIO_CLOCK_BYPASS_DISABLE;
-    _handler_sd.Init.ClockPowerSave = SDIO_CLOCK_POWER_SAVE_DISABLE;
-    _handler_sd.Init.BusWide = SDIO_BUS_WIDE_1B;
-    _handler_sd.Init.HardwareFlowControl = SDIO_HARDWARE_FLOW_CONTROL_DISABLE;
-    _handler_sd.Init.ClockDiv = 0;
+    devs.hsdio.Instance = SDIO;
+    devs.hsdio.Init.ClockEdge = SDIO_CLOCK_EDGE_RISING;
+    devs.hsdio.Init.ClockBypass = SDIO_CLOCK_BYPASS_DISABLE;
+    devs.hsdio.Init.ClockPowerSave = SDIO_CLOCK_POWER_SAVE_DISABLE;
+    devs.hsdio.Init.BusWide = SDIO_BUS_WIDE_1B;
+    devs.hsdio.Init.HardwareFlowControl = SDIO_HARDWARE_FLOW_CONTROL_DISABLE;
+    devs.hsdio.Init.ClockDiv = 0;
+}
+
+static void rtc_init()
+{
+    HAL_StatusTypeDef rc;
+
+    devs.hrtc.Instance = RTC;
+    devs.hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
+    devs.hrtc.Init.AsynchPrediv = 127;
+    devs.hrtc.Init.SynchPrediv = 255;
+    devs.hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
+    devs.hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
+    devs.hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
+    if ((rc = HAL_RTC_Init(&devs.hrtc)) != HAL_OK) {
+        LOG_ERR("HAL_RTC_Init() failed: %d", rc);
+        LOG_PANIC();
+    }
+}
+
+struct peripherals *get_peripherals()
+{
+    return &devs;
 }
 
 static uint8_t *__sbrk_heap_end;
