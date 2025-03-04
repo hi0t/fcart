@@ -5,7 +5,7 @@
 
 LOG_MODULE(diskio);
 
-#define SD_TIMEOUT 10 * 1000
+#define SD_TIMEOUT 10 * 1000U
 #define SD_DEFAULT_BLOCK_SIZE 512
 
 static volatile bool transmit;
@@ -195,13 +195,13 @@ DWORD get_fattime()
     return attime;
 }
 
-void HAL_SD_RxCpltCallback(SD_HandleTypeDef *hsd)
+void HAL_SD_TxCpltCallback(SD_HandleTypeDef *hsd)
 {
     UNUSED(hsd);
     transmit = false;
 }
 
-void HAL_SD_TxCpltCallback(SD_HandleTypeDef *hsd)
+void HAL_SD_RxCpltCallback(SD_HandleTypeDef *hsd)
 {
     UNUSED(hsd);
     transmit = false;

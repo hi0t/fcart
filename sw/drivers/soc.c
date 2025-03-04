@@ -5,11 +5,12 @@
 
 LOG_MODULE(soc);
 
-static struct peripherals devs;
+static struct peripherals dev;
 
 static void system_clock_init();
 static void gpio_init();
 static void dma_init();
+static void qspi_init();
 static void sdio_init();
 static void rtc_init();
 
@@ -27,6 +28,7 @@ void hw_init()
     system_clock_init();
     gpio_init();
     dma_init();
+    qspi_init();
     sdio_init();
     rtc_init();
 }
@@ -113,29 +115,48 @@ static void dma_init()
     HAL_NVIC_EnableIRQ(DMA2_Stream7_IRQn);
 }
 
+static void qspi_init()
+{
+    HAL_StatusTypeDef rc;
+
+    dev.hqspi.Instance = QUADSPI;
+    dev.hqspi.Init.ClockPrescaler = 3; // QSPI_CLK = HCLK / (Prescaler + 1)
+    dev.hqspi.Init.FifoThreshold = 1;
+    dev.hqspi.Init.SampleShifting = QSPI_SAMPLE_SHIFTING_NONE;
+    dev.hqspi.Init.FlashSize = 30; // 2^(FlashSize+1) * 256 bytes
+    dev.hqspi.Init.ChipSelectHighTime = QSPI_CS_HIGH_TIME_1_CYCLE;
+    dev.hqspi.Init.ClockMode = QSPI_CLOCK_MODE_0;
+    dev.hqspi.Init.FlashID = QSPI_FLASH_ID_2;
+    dev.hqspi.Init.DualFlash = QSPI_DUALFLASH_DISABLE;
+    if ((rc = HAL_QSPI_Init(&dev.hqspi)) != HAL_OK) {
+        LOG_ERR("HAL_QSPI_Init() failed: %d", rc);
+        LOG_PANIC();
+    }
+}
+
 static void sdio_init()
 {
-    devs.hsdio.Instance = SDIO;
-    devs.hsdio.Init.ClockEdge = SDIO_CLOCK_EDGE_RISING;
-    devs.hsdio.Init.ClockBypass = SDIO_CLOCK_BYPASS_DISABLE;
-    devs.hsdio.Init.ClockPowerSave = SDIO_CLOCK_POWER_SAVE_DISABLE;
-    devs.hsdio.Init.BusWide = SDIO_BUS_WIDE_1B;
-    devs.hsdio.Init.HardwareFlowControl = SDIO_HARDWARE_FLOW_CONTROL_DISABLE;
-    devs.hsdio.Init.ClockDiv = 0;
+    dev.hsdio.Instance = SDIO;
+    dev.hsdio.Init.ClockEdge = SDIO_CLOCK_EDGE_RISING;
+    dev.hsdio.Init.ClockBypass = SDIO_CLOCK_BYPASS_DISABLE;
+    dev.hsdio.Init.ClockPowerSave = SDIO_CLOCK_POWER_SAVE_DISABLE;
+    dev.hsdio.Init.BusWide = SDIO_BUS_WIDE_1B;
+    dev.hsdio.Init.HardwareFlowControl = SDIO_HARDWARE_FLOW_CONTROL_DISABLE;
+    dev.hsdio.Init.ClockDiv = 0; // SDIO_CLK = SDIO_MUX / (ClockDiv + 2)
 }
 
 static void rtc_init()
 {
     HAL_StatusTypeDef rc;
 
-    devs.hrtc.Instance = RTC;
-    devs.hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
-    devs.hrtc.Init.AsynchPrediv = 127;
-    devs.hrtc.Init.SynchPrediv = 255;
-    devs.hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
-    devs.hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
-    devs.hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
-    if ((rc = HAL_RTC_Init(&devs.hrtc)) != HAL_OK) {
+    dev.hrtc.Instance = RTC;
+    dev.hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
+    dev.hrtc.Init.AsynchPrediv = 127;
+    dev.hrtc.Init.SynchPrediv = 255;
+    dev.hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
+    dev.hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
+    dev.hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
+    if ((rc = HAL_RTC_Init(&dev.hrtc)) != HAL_OK) {
         LOG_ERR("HAL_RTC_Init() failed: %d", rc);
         LOG_PANIC();
     }
@@ -143,7 +164,7 @@ static void rtc_init()
 
 struct peripherals *get_peripherals()
 {
-    return &devs;
+    return &dev;
 }
 
 static uint8_t *__sbrk_heap_end;

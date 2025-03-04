@@ -22,6 +22,6 @@ void __assert_func(const char *file, int line, const char *func, const char *exp
 void assert_failed(uint8_t *file, uint32_t line)
 {
 #ifndef NDEBUG
-    __assert_func((const char *)file, line, "HAL function", NULL);
+    __assert_func((const char *)file, line, "HAL function", "assert_failed()");
 #endif
 }

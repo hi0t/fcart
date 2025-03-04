@@ -6,6 +6,7 @@ struct peripherals {
     DMA_HandleTypeDef hdma_qspi;
     DMA_HandleTypeDef hdma_sdio_tx;
     DMA_HandleTypeDef hdma_sdio_rx;
+    QSPI_HandleTypeDef hqspi;
     SD_HandleTypeDef hsdio;
     RTC_HandleTypeDef hrtc;
 };
