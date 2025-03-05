@@ -1,2 +1,0 @@
-set_global_assignment -name GENERATE_RBF_FILE ON
-set_global_assignment -name ON_CHIP_BITSTREAM_DECOMPRESSION OFF
