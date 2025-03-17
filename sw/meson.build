@@ -3,6 +3,7 @@ project(
     'c',
     version: '0.1',
     default_options: ['b_ndebug=if-release'],
+    meson_version: '>=1.1',
 )
 
 fs = import('fs')

@@ -1,7 +1,8 @@
 FROM ubuntu:22.04
 
-ENV PATH="$PATH:/diamond/bin/lin64"
+ENV PATH="$PATH:/diamond/bin/lin64:/diamond/questasim/bin"
 ENV PIP_ROOT_USER_ACTION=ignore
+ENV LM_LICENSE_FILE=/diamond/license/license.dat
 
 ARG USER_ID=1000
 ARG GROUP_ID=1000
@@ -12,8 +13,8 @@ RUN DEBIAN_FRONTEND=noninteractive && \
     apt-get update -y && \
     apt-get install -y wget unzip libx11-6 libx11-xcb1 libfontconfig1 \
     libglibd-2.0-0 libsm6 libxrender1 libxext6 libgl1 libgstreamer-plugins-base1.0-0 \
-    libsqlite3-0 libxcomposite1 libgraphite2-3 lsb-release \
-    python3-pip
+    libsqlite3-0 libxcomposite1 libgraphite2-3 lsb-release libxft2 \
+    python3-pip ninja-build
 
 WORKDIR /dist
 
@@ -22,4 +23,4 @@ RUN wget --progress=bar:force:noscroll https://files.latticesemi.com/Diamond/3.1
 RUN ./3.14.0.75.2_Diamond_lin.run --console --prefix /diamond
 RUN rm 3.14.0.75.2_Diamond_lin.zip 3.14.0.75.2_Diamond_lin.run
 
-RUN pip install cocotb
+RUN pip install meson

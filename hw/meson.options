@@ -4,11 +4,6 @@ option(
     description: 'Path to Diamond binary',
 )
 option(
-    'diamond_build_script',
-    type: 'string',
-    description: 'Custom project build script',
-)
-option(
     'device',
     type: 'string',
     value: 'LCMXO2-4000HC-4TG144C',

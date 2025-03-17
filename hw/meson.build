@@ -1,33 +1,25 @@
 project(
-    'fcart-fw',
+    'fcart-hw',
     version: '0.1',
+    meson_version: '>=1.1',
 )
 
 diamond_prj = 'fcart'
 
+subdir('bench')
 subdir('src')
 
-build_script = get_option('diamond_build_script')
-
-if build_script != ''
-    diamond_tool = find_program(
-        build_script,
-        required: true,
-    )
-else
-    diamond_tool = find_program(
-        'pnmainc.exe',
-        'diamondc',
-        dirs: get_option('diamond_path'),
-        required: true,
-    )
-endif
+diamondc = find_program(
+    'pnmainc.exe',
+    'diamondc',
+    required: true,
+)
 
 bit = custom_target(
     f'@diamond_prj@.bit',
     input: tcl,
     output: f'@diamond_prj@.bit',
-    command: [diamond_tool, '@INPUT@'],
+    command: [diamondc, '@INPUT@'],
     depend_files: [src, lpf],
     console: true,
 )
