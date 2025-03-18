@@ -1,19 +1,19 @@
-tests = files('qspi_tb.sv')
+tests = files('qspi_tb.sv', 'sdram_tb.sv')
 
 vlog = find_program('vlog', required: true)
 vsim = find_program('vsim', required: true)
 
 fs = import('fs')
 
-src_dir = fs.parent(meson.current_source_dir()) / 'src'
 work = custom_target(
     'sim_work',
     build_always_stale: true,
     command: [
         vlog,
-        '-work', '@OUTPUT@',
         '+libext+.sv+.vp+.v',
-        '-y', src_dir,
+        '-work', '@OUTPUT@',
+        '-y', meson.project_source_root() / 'src',
+        '-y', meson.current_source_dir(),
         '@INPUT@',
     ],
     input: tests,
