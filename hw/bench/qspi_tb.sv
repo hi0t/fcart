@@ -11,52 +11,42 @@ module qspi_tb;
         $dumpvars(0, qspi_tb);
     end
 
-    logic clk = 0, qspi_clk = 0;
-    always #(0.25) clk <= !clk;
+    logic qspi_clk = 0;
     always #(0.5) qspi_clk <= !qspi_clk;
 
     logic qspi_ncs = 1;
     wire [3:0] qspi_io;
-    logic [7:0] cmd;
-    logic cmd_ready;
-    logic [7:0] data_read;
-    logic [7:0] data_write;
-    logic data_ready;
-    logic we = 0;
+
+    qspi_bus bus ();
+    logic master_we;
     logic [3:0] io_buf;
 
-    assign qspi_io = we ? 'z : io_buf;
+    assign qspi_io = master_we ? io_buf : 'z;
 
     qspi qspi (
         .qspi_clk(qspi_clk),
         .qspi_ncs(qspi_ncs),
         .qspi_io(qspi_io),
-        .clk(clk),
-        .cmd(cmd),
-        .cmd_ready(cmd_ready),
-        .data_read(data_read),
-        .data_write(data_write),
-        .data_ready(data_ready),
-        .we(we)
+        .bus(bus)
     );
 
     task slave;
-        @(posedge clk iff cmd_ready);
-        assert (cmd == 8'h9F)
-        else $fatal(1, "invalid cmd: %0h", cmd);
+        @(posedge qspi_clk iff bus.cmd_ready);
+        assert (bus.cmd == 8'h9F)
+        else $fatal(1, "invalid cmd: %0h", bus.cmd);
 
         foreach (sample[i]) begin
-            @(posedge clk iff data_ready);
-            assert (data_read == sample[i])
-            else $fatal(1, "invalid slave data: expected %0h, got %0h", sample[i], data_read);
+            @(posedge qspi_clk iff bus.data_ready);
+            assert (bus.data_read == sample[i])
+            else $fatal(1, "invalid slave data: expected %0h, got %0h", sample[i], bus.data_read);
         end
 
-        we = 1;
+        bus.we = 1;
         foreach (sample[i]) begin
-            data_write = sample[i];
-            @(posedge clk iff data_ready);
+            @(posedge qspi_clk iff bus.can_write);
+            bus.data_write = sample[i];
         end
-        we = 0;
+        bus.we = 0;
     endtask
 
     task send_byte(input [7:0] data);
@@ -80,12 +70,15 @@ module qspi_tb;
             slave();
         join_none
 
-        qspi_ncs = 0;
+        qspi_ncs  = 0;
+        master_we = 1;
 
         send_byte(8'h9F);
         foreach (sample[i]) send_byte(sample[i]);
 
-        @(posedge qspi_clk);  // Wait for the last byte to be sent
+        master_we = 0;
+        @(posedge qspi_clk);  // io switch
+        @(posedge qspi_clk);
 
         foreach (sample[i]) begin
             recv_byte(out);

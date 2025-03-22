@@ -8,6 +8,6 @@ interface sdram_bus #(
     logic [15:0] data_read;
     logic [15:0] data_write;
 
-    modport host(input req, we, address, data_write, output ack, data_read);
-    modport device(output req, we, address, data_write, input ack, data_read);
+    modport master(input ack, data_read, output req, we, address, data_write);
+    modport slave(input req, we, address, data_write, output ack, data_read);
 endinterface

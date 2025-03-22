@@ -4,8 +4,8 @@ module sdram #(
 ) (
     // SDRAM interface
     input logic init,  // Allow SDRAM to initialize
-    sdram_bus.host ch0,  // SDRAM bus interface 0
-    sdram_bus.host ch1,  // SDRAM bus interface 1
+    sdram_bus.slave ch0,  // SDRAM bus interface 0
+    sdram_bus.slave ch1,  // SDRAM bus interface 1
     input logic refresh,  // External refresh signal
 
     // SDRAM signals

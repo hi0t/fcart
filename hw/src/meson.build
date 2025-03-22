@@ -1,12 +1,20 @@
-src = files('fcart.sv')
+src = files(
+    'ip' / 'pll.v',
+    'qspi_bus.sv',
+    'sdram_bus.sv',
+    'api.sv',
+    'fcart.sv',
+    'qspi.sv',
+    'sdram.sv',
+)
 
 lpf = files('fcart.lpf')
 
-curr_dir = meson.current_source_dir()
+proj_dir = meson.project_source_root()
 fs = import('fs')
 src_list = []
 foreach f : src
-    src_list += 'prj_src add "@0@"'.format(curr_dir / fs.name(f))
+    src_list += 'prj_src add "@0@"'.format(proj_dir / fs.parent(f) / fs.name(f))
 endforeach
 
 tcl = configure_file(
@@ -17,7 +25,7 @@ tcl = configure_file(
         'DEVICE': get_option('device'),
         'PROJECT_PATH': meson.project_build_root(),
         'SRL_LIST': '\n'.join(src_list),
-        'LPF_PATH': curr_dir / fs.name(lpf),
+        'LPF_PATH': proj_dir / fs.parent(lpf) / fs.name(lpf),
         'TOP_MODULE': diamond_prj,
     },
 
