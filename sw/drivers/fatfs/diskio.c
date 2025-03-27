@@ -39,8 +39,8 @@ DSTATUS disk_initialize(BYTE pdrv)
     struct peripherals *p = get_peripherals();
     HAL_StatusTypeDef rc;
 
-    if (HAL_GPIO_ReadPin(GPIO_SD_CD_PORT, GPIO_SD_CD_PIN) == GPIO_PIN_RESET) {
-        return STA_NODISK;
+    if (HAL_GPIO_ReadPin(GPIO_SD_CD_PORT, GPIO_SD_CD_PIN) == GPIO_PIN_SET) {
+        return STA_NOINIT;
     }
 
     if ((rc = HAL_SD_Init(&p->hsdio)) != HAL_OK) {

@@ -4,9 +4,6 @@
 #include <stdio.h>
 #include <stm32f4xx.h>
 
-#define COLOR_DEFAULT "\x1B[0m"
-#define COLOR_RED "\x1B[31m"
-
 enum log_level __log_level = DEFAULT_LOG_LEVEL;
 
 static const char *level_str[] = { NULL, "err", "inf", "dbg" };
@@ -32,13 +29,9 @@ void log_print(enum log_level level, const char *source, const char *fmt, ...)
 
     timestamp_print(uptime_ms());
 
-    if (level == LOG_LEVEL_ERR) {
-        printf(COLOR_RED);
-    }
     printf("<%s> %s: ", level_str[level], source);
     vprintf(fmt, args);
 
-    printf(COLOR_DEFAULT);
     printf("\n");
 
     va_end(args);

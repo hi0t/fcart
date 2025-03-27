@@ -1,5 +1,6 @@
 drivers_src = files(
     'assert.c',
+    'fpga.c',
     'hal_msp.c',
     'interrupts.c',
     'log.c',
@@ -34,8 +35,12 @@ foreach ctrl : get_option('pinctrl')
     compile_args += '-DGPIO@0@_CLK_ENABLE'.format(p[1][1].to_upper())
 endforeach
 
+if get_option('buildtype') == 'debug'
+    compile_args += ['-g', '-gdwarf-2']
+endif
+
 link_args = []
-link_args += ['-T', meson.current_build_dir() / 'flash.ld']
+link_args += ['-T' + meson.current_build_dir() / 'flash.ld']
 link_args += '-lc'
 
 if get_option('enable_semihosting')

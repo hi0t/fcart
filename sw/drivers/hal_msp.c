@@ -164,9 +164,10 @@ void HAL_SD_MspInit(SD_HandleTypeDef *hsd)
 void HAL_RTC_MspInit(RTC_HandleTypeDef *hrtc)
 {
     HAL_StatusTypeDef rc;
+    struct peripherals *p = get_peripherals();
     RCC_PeriphCLKInitTypeDef clk = {
         .PeriphClockSelection = RCC_PERIPHCLK_RTC,
-        .RTCClockSelection = RCC_RTCCLKSOURCE_LSE,
+        .RTCClockSelection = p->lse_ready ? RCC_RTCCLKSOURCE_LSE : RCC_RTCCLKSOURCE_LSI,
     };
 
     if (hrtc->Instance != RTC) {
@@ -179,4 +180,26 @@ void HAL_RTC_MspInit(RTC_HandleTypeDef *hrtc)
     }
 
     __HAL_RCC_RTC_ENABLE();
+}
+
+void HAL_SPI_MspInit(SPI_HandleTypeDef *hspi)
+{
+    if (hspi->Instance != SPI2) {
+        return;
+    }
+
+    __HAL_RCC_SPI2_CLK_ENABLE();
+
+    GPIO_InitTypeDef gpio = {
+        .Mode = GPIO_MODE_AF_PP,
+        .Pull = GPIO_NOPULL,
+        .Speed = GPIO_SPEED_FREQ_VERY_HIGH,
+        .Alternate = GPIO_AF5_SPI2
+    };
+    gpio.Pin = GPIO_SPI_CLK_PIN;
+    HAL_GPIO_Init(GPIO_SPI_CLK_PORT, &gpio);
+    gpio.Pin = GPIO_SPI_MISO_PIN;
+    HAL_GPIO_Init(GPIO_SPI_MISO_PORT, &gpio);
+    gpio.Pin = GPIO_SPI_MOSI_PIN;
+    HAL_GPIO_Init(GPIO_SPI_MOSI_PORT, &gpio);
 }

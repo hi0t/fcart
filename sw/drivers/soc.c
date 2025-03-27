@@ -13,6 +13,7 @@ static void dma_init();
 static void qspi_init();
 static void sdio_init();
 static void rtc_init();
+static void spi_init();
 
 #ifdef ENABLE_SEMIHOSTING
 extern void initialise_monitor_handles();
@@ -31,6 +32,7 @@ void hw_init()
     qspi_init();
     sdio_init();
     rtc_init();
+    spi_init();
 }
 
 void delay_ms(uint32_t ms)
@@ -49,10 +51,12 @@ uint32_t uptime_ms()
 static void system_clock_init()
 {
     HAL_StatusTypeDef rc;
-    RCC_OscInitTypeDef osc = {
-        .OscillatorType = RCC_OSCILLATORTYPE_HSE | RCC_OSCILLATORTYPE_LSE,
+
+    __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
+
+    RCC_OscInitTypeDef hse = {
+        .OscillatorType = RCC_OSCILLATORTYPE_HSE,
         .HSEState = RCC_HSE_ON,
-        .LSEState = RCC_LSE_ON,
         .PLL.PLLState = RCC_PLL_ON,
         .PLL.PLLSource = RCC_PLLSOURCE_HSE,
         .PLL.PLLM = RCC_PLL_DIVM,
@@ -61,6 +65,29 @@ static void system_clock_init()
         .PLL.PLLQ = 4,
         .PLL.PLLR = 2,
     };
+    if ((rc = HAL_RCC_OscConfig(&hse)) != HAL_OK) {
+        LOG_ERR("HAL_RCC_OscConfig() failed: %d", rc);
+        LOG_PANIC();
+    }
+
+    RCC_OscInitTypeDef low = {
+        .OscillatorType = RCC_OSCILLATORTYPE_LSE,
+        .LSEState = RCC_LSE_ON,
+    };
+    if ((rc = HAL_RCC_OscConfig(&low)) != HAL_OK) {
+        LOG_ERR("lse init failed: %d", rc);
+        dev.lse_ready = false;
+
+        low.OscillatorType = RCC_OSCILLATORTYPE_LSI;
+        low.LSIState = RCC_LSI_ON;
+        if ((rc = HAL_RCC_OscConfig(&low)) != HAL_OK) {
+            LOG_ERR("lsi init failed: %d", rc);
+            LOG_PANIC();
+        }
+    } else {
+        dev.lse_ready = true;
+    }
+
     RCC_ClkInitTypeDef clk = {
         .ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK
             | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2,
@@ -69,19 +96,12 @@ static void system_clock_init()
         .APB1CLKDivider = RCC_HCLK_DIV2,
         .APB2CLKDivider = RCC_HCLK_DIV1,
     };
-
-    __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
-
-    if ((rc = HAL_RCC_OscConfig(&osc)) != HAL_OK) {
-        LOG_ERR("HAL_RCC_OscConfig() failed: %d", rc);
-        LOG_PANIC();
-    }
-
     if ((rc = HAL_RCC_ClockConfig(&clk, FLASH_LATENCY_3)) != HAL_OK) {
         LOG_ERR("HAL_RCC_ClockConfig() failed: %d", rc);
         LOG_PANIC();
     }
-    // HAL_RCC_MCOConfig(RCC_MCO1, RCC_MCO1SOURCE_PLLCLK, RCC_MCODIV_2);
+
+    HAL_RCC_MCOConfig(RCC_MCO1, RCC_MCO1SOURCE_PLLCLK, RCC_MCODIV_2);
 }
 
 static void gpio_init()
@@ -89,16 +109,27 @@ static void gpio_init()
     GPIO_InitTypeDef gpio = { 0 };
 
     gpio.Mode = GPIO_MODE_OUTPUT_PP;
-    gpio.Pull = GPIO_NOPULL;
     gpio.Speed = GPIO_SPEED_FREQ_LOW;
     gpio.Pin = GPIO_LED_PIN;
     HAL_GPIO_Init(GPIO_LED_PORT, &gpio);
 
     gpio.Mode = GPIO_MODE_INPUT;
-    gpio.Pull = GPIO_PULLUP;
+    gpio.Pull = GPIO_NOPULL;
     gpio.Speed = GPIO_SPEED_FREQ_LOW;
     gpio.Pin = GPIO_SD_CD_PIN;
     HAL_GPIO_Init(GPIO_SD_CD_PORT, &gpio);
+
+    gpio.Mode = GPIO_MODE_INPUT;
+    gpio.Pull = GPIO_PULLUP;
+    gpio.Speed = GPIO_SPEED_FREQ_LOW;
+    gpio.Pin = GPIO_QSPI_IRQ_PIN;
+    HAL_GPIO_Init(GPIO_QSPI_IRQ_PORT, &gpio);
+
+    HAL_GPIO_WritePin(GPIO_SPI_CS_PORT, GPIO_SPI_CS_PIN, GPIO_PIN_SET);
+    gpio.Mode = GPIO_MODE_OUTPUT_OD;
+    gpio.Speed = GPIO_SPEED_FREQ_LOW;
+    gpio.Pin = GPIO_SPI_CS_PIN;
+    HAL_GPIO_Init(GPIO_SPI_CS_PORT, &gpio);
 }
 
 static void dma_init()
@@ -158,6 +189,28 @@ static void rtc_init()
     dev.hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
     if ((rc = HAL_RTC_Init(&dev.hrtc)) != HAL_OK) {
         LOG_ERR("HAL_RTC_Init() failed: %d", rc);
+        LOG_PANIC();
+    }
+}
+
+static void spi_init()
+{
+    HAL_StatusTypeDef rc;
+
+    dev.hspi.Instance = SPI2;
+    dev.hspi.Init.Mode = SPI_MODE_MASTER;
+    dev.hspi.Init.Direction = SPI_DIRECTION_2LINES;
+    dev.hspi.Init.DataSize = SPI_DATASIZE_8BIT;
+    dev.hspi.Init.CLKPolarity = SPI_POLARITY_LOW;
+    dev.hspi.Init.CLKPhase = SPI_PHASE_1EDGE;
+    dev.hspi.Init.NSS = SPI_NSS_SOFT;
+    dev.hspi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
+    dev.hspi.Init.FirstBit = SPI_FIRSTBIT_MSB;
+    dev.hspi.Init.TIMode = SPI_TIMODE_DISABLE;
+    dev.hspi.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+    dev.hspi.Init.CRCPolynomial = 10;
+    if ((rc = HAL_SPI_Init(&dev.hspi)) != HAL_OK) {
+        LOG_ERR("HAL_SPI_Init() failed: %d", rc);
         LOG_PANIC();
     }
 }

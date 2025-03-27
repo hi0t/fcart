@@ -26,7 +26,7 @@ fcart_elf = executable('fcart_sw.elf', dependencies: fcart_sw)
 custom_target(
     output: fs.replace_suffix(fcart_elf.name(), '.bin'),
     input: fcart_elf,
-    command: [objcopy, ['-O', 'binary', '@INPUT@', '@OUTPUT@']],
+    command: [objcopy, ['-O', 'binary', '-S', '@INPUT@', '@OUTPUT@']],
     depends: fcart_elf,
     build_by_default: true,
 )

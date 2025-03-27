@@ -25,5 +25,6 @@ option(
 option(
     'enable_semihosting',
     type: 'boolean',
+    value: false,
     description: 'Enable semihosting',
 )

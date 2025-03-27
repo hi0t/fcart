@@ -12,7 +12,7 @@ cmsis_inc = [
 ]
 
 cmsis_dep = declare_dependency(
-    compile_args: ['-D' + mcu_series],
+    compile_args: ['-D' + mcu_series, '-DUSE_HAL_DRIVER'],
     sources: files(cmsis_src),
     include_directories: include_directories(cmsis_inc),
 )

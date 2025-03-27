@@ -1,9 +1,11 @@
 #include <assert.h>
 #include <ff.h>
+#include <fpga.h>
 #include <led.h>
 #include <log.h>
 #include <qspi.h>
 #include <soc.h>
+#include <stdio.h>
 #include <string.h>
 
 LOG_MODULE(main);
@@ -39,13 +41,11 @@ int main()
     f_write(&fil, "test\n", 5, &bw);
     f_close(&fil);*/
 
-    uint8_t data[512];
-    memset(data, 0xf, sizeof(data));
-    qspi_send(0x9F, data, sizeof(data));
+    uint32_t id = fpga_device_id();
 
     for (;;) {
         led_toggle();
-        delay_ms(1000);
+        delay_ms(500);
     }
 
     return 0;
