@@ -19,6 +19,7 @@ module sdram_tb;
 
     sdram_bus #(.ADDR_BITS(24)) bus0 ();
     sdram_bus #(.ADDR_BITS(24)) bus1 ();
+    sdram_bus #(.ADDR_BITS(24)) bus2 ();
 
     W9825G6KH sdram_model (
         .Dq   (sdram_dq),
@@ -39,6 +40,7 @@ module sdram_tb;
     ) ram (
         .ch0(bus0),
         .ch1(bus1),
+        .ch2(bus2),
         .init(init),
         .refresh(refresh),
 
@@ -94,22 +96,22 @@ module sdram_tb;
         wait (ram.state == ram.STATE_REFRESH);
 
         // refresh -> write
-        bus0.req = ~bus0.req;
-        bus0.we = 1;
-        bus0.address = '1;  // max address
-        bus0.data_write = 'hF7F8;
-        @(posedge clk iff bus0.req == bus0.ack);
+        bus2.req = ~bus2.req;
+        bus2.we = 1;
+        bus2.address = '1;  // max address
+        bus2.data_write = 'hF7F8;
+        @(posedge clk iff bus2.req == bus2.ack);
 
         wait (ram.timer == ram.REFRESH_INTERVAL / 2);
 
         // read -> refresh
-        bus0.data_read = 'x;
-        bus0.req = ~bus0.req;
-        bus0.we = 0;
-        bus0.address = '1;
-        @(posedge clk iff bus0.req == bus0.ack);
-        assert (bus0.data_read == 'hF7F8)
-        else $fatal(1, "hF7F8 != %0h", bus0.data_read);
+        bus2.data_read = 'x;
+        bus2.req = ~bus2.req;
+        bus2.we = 0;
+        bus2.address = '1;
+        @(posedge clk iff bus2.req == bus2.ack);
+        assert (bus2.data_read == 'hF7F8)
+        else $fatal(1, "hF7F8 != %0h", bus2.data_read);
 
         wait (ram.state == ram.STATE_REFRESH);
         wait (ram.state == ram.STATE_IDLE);

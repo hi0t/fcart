@@ -4,8 +4,9 @@ module sdram #(
 ) (
     // SDRAM interface
     input logic init,  // Allow SDRAM to initialize
-    sdram_bus.slave ch0,  // SDRAM bus interface 0
-    sdram_bus.slave ch1,  // SDRAM bus interface 1
+    sdram_bus.slave ch0,  // SDRAM bus with priority 0
+    sdram_bus.slave ch1,  // SDRAM bus with priority 1
+    sdram_bus.slave ch2,  // SDRAM bus with priority 2
     input logic refresh,  // External refresh signal
 
     // SDRAM signals
@@ -68,7 +69,7 @@ module sdram #(
     logic [1:0] bank;
     logic [COL_BITS-1:0] column;
     logic [15:0] data;
-    logic curr_ch;
+    bit [1:0] curr_ch;
     logic we;
 
     assign {sdram_ras, sdram_cas, sdram_we} = cmd;
@@ -153,11 +154,19 @@ module sdram #(
                 end else if (ch1.req != ch1.ack) begin
                     {sdram_ba, column, sdram_addr} <= ch1.address;
                     data <= ch1.we ? ch1.data_write : 'x;
-                    bank <= {ch1.address[ch0.ADDR_BITS-1-:2]};
+                    bank <= {ch1.address[ch1.ADDR_BITS-1-:2]};
                     cmd <= CMD_ACTIVATE;
                     state <= STATE_ACTIVE;
                     curr_ch <= 1;
                     we <= ch1.we;
+                end else if (ch2.req != ch2.ack) begin
+                    {sdram_ba, column, sdram_addr} <= ch2.address;
+                    data <= ch2.we ? ch2.data_write : 'x;
+                    bank <= {ch2.address[ch2.ADDR_BITS-1-:2]};
+                    cmd <= CMD_ACTIVATE;
+                    state <= STATE_ACTIVE;
+                    curr_ch <= 2;
+                    we <= ch2.we;
                 end
             end
             STATE_ACTIVE: begin
@@ -178,6 +187,9 @@ module sdram #(
                         end else if (curr_ch == 1) begin
                             ch1.ack <= ch1.req;
                             if (!we) ch1.data_read <= sdram_dq;
+                        end else if (curr_ch == 2) begin
+                            ch2.ack <= ch2.req;
+                            if (!we) ch2.data_read <= sdram_dq;
                         end
                     end
                     ACTIVE_READ_END:  if (!we) state <= STATE_IDLE;

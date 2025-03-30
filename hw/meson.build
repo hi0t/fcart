@@ -20,7 +20,7 @@ bit = custom_target(
     input: tcl,
     output: f'@diamond_prj@.bit',
     command: [diamondc, '@INPUT@'],
-    depend_files: [src, lpf],
+    depend_files: [src, lpf, sdc],
     console: true,
 )
 

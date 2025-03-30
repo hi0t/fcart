@@ -18,5 +18,8 @@ void assert_failed(uint8_t *file, uint32_t line)
 {
 #ifndef NDEBUG
     __assert_func((const char *)file, line, "HAL function", "assert_failed()");
+#else
+    UNUSED(file);
+    UNUSED(line);
 #endif
 }

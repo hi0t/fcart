@@ -24,27 +24,27 @@ module qspi_tb;
     assign qspi_io = master_we ? io_buf : 'z;
 
     qspi qspi (
-        .qspi_clk(qspi_clk),
-        .qspi_ncs(qspi_ncs),
-        .qspi_io(qspi_io),
+        .clk(qspi_clk),
+        .ncs(qspi_ncs),
+        .io (qspi_io),
         .bus(bus)
     );
 
     task slave;
-        @(posedge qspi_clk iff bus.cmd_ready);
+        @(posedge qspi_clk iff bus.cmd_valid);
         assert (bus.cmd == 8'h9F)
         else $fatal(1, "invalid cmd: %0h", bus.cmd);
 
         foreach (sample[i]) begin
-            @(posedge qspi_clk iff bus.data_ready);
+            @(posedge qspi_clk iff bus.data_valid);
             assert (bus.data_read == sample[i])
             else $fatal(1, "invalid slave data: expected %0h, got %0h", sample[i], bus.data_read);
         end
 
         bus.we = 1;
         foreach (sample[i]) begin
-            @(posedge qspi_clk iff bus.can_write);
             bus.data_write = sample[i];
+            @(posedge qspi_clk iff bus.write_done);
         end
         bus.we = 0;
     endtask
@@ -77,7 +77,7 @@ module qspi_tb;
         foreach (sample[i]) send_byte(sample[i]);
 
         master_we = 0;
-        @(posedge qspi_clk);  // io switch
+        @(posedge qspi_clk);  // two dummy cycles for switch to read mode
         @(posedge qspi_clk);
 
         foreach (sample[i]) begin

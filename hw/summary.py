@@ -11,16 +11,14 @@ if __name__ == "__main__":
     with open(log_file, 'r') as f:
         lines = f.readlines()
 
-    warningFilter = [
-        "Blackbox EHXPLLJ is missing a user supplied timing model", # https://www.latticesemi.com/support/answerdatabase/2/1/2/2128
-    ]
-
     warnings = []
     usage = []
     for line in lines:
         line = line.strip()
-        if line.startswith("@W:") and not any(pat in line for pat in warningFilter):
+        if line.startswith("@W:"):
             warnings.append(line[4:])
+        if line.startswith("WARNING - map:"):
+            warnings.append(line)
         if line.startswith("Number of LUT4s:") or line.startswith("Number of registers:"):
             usage.append(line)
 
@@ -60,6 +58,8 @@ if __name__ == "__main__":
         if capture > 0:
             timings.append(line)
             capture -= line.startswith("-" * 10)
+            if capture == 0:
+                break
 
     print(bcolors.HEADER)
     print("Timing summary")

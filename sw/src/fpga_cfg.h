@@ -2,4 +2,4 @@
 
 #include <stdint.h>
 
-uint32_t fpga_device_id();
+uint32_t fpga_cfg_device_id();

@@ -13196,9 +13196,9 @@
 		)
 		(uuid "18d28c9e-082e-483b-9483-51c7e6355d7b")
 	)
-	(text "qspi_clk and ppu_d0\nare mixed up"
+	(text "may not be clock"
 		(exclude_from_sim no)
-		(at 168.148 289.56 0)
+		(at 171.704 288.544 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -13235,6 +13235,16 @@
 			)
 		)
 		(uuid "da9ddb37-aa94-4b57-8aa0-82015193d835")
+	)
+	(text "need to connect to clock"
+		(exclude_from_sim no)
+		(at 168.148 329.438 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+		(uuid "e01926c6-5a1e-4b2b-b4f3-d74c069b70fc")
 	)
 	(junction
 		(at 96.52 241.3)
