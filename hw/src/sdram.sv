@@ -18,7 +18,7 @@ module sdram #(
     output logic sdram_ras,
     output logic sdram_cas,
     output logic sdram_we,
-    output logic [1:0] sdram_dqm
+    output logic sdram_dqm
 );
     typedef shortint unsigned uint16;
 
@@ -89,7 +89,7 @@ module sdram #(
                     0: begin
                         sdram_ba <= 'x;
                         sdram_addr <= 'x;
-                        sdram_dqm <= 2'b11;
+                        sdram_dqm <= 1'b1;
                         cmd <= CMD_NOOP;
                     end
                     INITIAL_PAUSE: begin
@@ -177,7 +177,7 @@ module sdram #(
                         sdram_ba <= bank;
                         sdram_addr <= {{ROW_BITS - COL_BITS{1'b0}}, column};
                         sdram_addr[10] <= 1;  // Auto-precharge
-                        sdram_dqm <= 2'b00;
+                        sdram_dqm <= 1'b0;
                         cmd <= we ? CMD_WRITE : CMD_READ;
                     end
                     ACTIVE_READY: begin

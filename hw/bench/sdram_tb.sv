@@ -10,7 +10,7 @@ module sdram_tb;
     wire  [12:0] sdram_addr;
     wire  [ 1:0] sdram_bank;
     wire  [ 3:0] sdram_command;
-    wire  [ 1:0] sdram_dqm;
+    wire         sdram_dqm;
     logic        init;
     logic        refresh;
 
@@ -31,7 +31,7 @@ module sdram_tb;
         .Ras_n(sdram_command[2]),
         .Cas_n(sdram_command[1]),
         .We_n (sdram_command[0]),
-        .Dqm  (sdram_dqm)
+        .Dqm  ({sdram_dqm, sdram_dqm})
     );
 
     sdram #(

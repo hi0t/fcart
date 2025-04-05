@@ -1,38 +1,33 @@
 project(
     'fcart-hw',
     version: '0.1',
-    meson_version: '>=1.1',
+    meson_version: '>=1.3',
 )
 
-diamond_prj = 'fcart'
+quartus_proj = 'fcart'
 
 subdir('bench')
 subdir('src')
 
-diamondc = find_program(
-    'pnmainc.exe',
-    'diamondc',
+quartus_sh = find_program(
+    'quartus_sh',
+    'quartus_sh.exe',
+    dirs: get_option('quartus_search_path'),
     required: true,
 )
 
-bit = custom_target(
-    f'@diamond_prj@.bit',
+qsf = custom_target(
+    'quartus project',
     input: tcl,
-    output: f'@diamond_prj@.bit',
-    command: [diamondc, '@INPUT@'],
-    depend_files: [src, lpf, sdc],
-    console: true,
+    output: f'@quartus_proj@.qsf',
+    command: [quartus_sh, '-t', '@INPUT@'],
+    depend_files: [src],
 )
 
-py = import('python').find_installation()
-curr_dir = meson.current_source_dir()
-run_target(
-    'summary',
-    command: [
-        py,
-        curr_dir / 'summary.py',
-        'impl/automake.log',
-        f'impl/@diamond_prj@_impl.twr',
-    ],
-    depends: bit,
+pof = custom_target(
+    f'@quartus_proj@.pof',
+    input: qsf,
+    output: f'@quartus_proj@.pof',
+    command: [quartus_sh, '--flow', 'compile', f'@quartus_proj@'],
+    console: true,
 )

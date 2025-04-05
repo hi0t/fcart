@@ -1,11 +1,22 @@
 option(
-    'diamond_search_path',
+    'quartus_search_path',
     type: 'string',
-    description: 'Path to Diamond binary',
+    description: 'Path to Quartus binary',
+)
+option(
+    'questa_search_path',
+    type: 'string',
+    description: 'Path to Questa binary',
 )
 option(
     'device',
     type: 'string',
-    value: 'LCMXO2-4000HC-4TG144C',
+    value: '10M04SCE144C8G',
     description: 'FPGA device',
+)
+option(
+    'family',
+    type: 'string',
+    value: 'MAX 10',
+    description: 'FPGA family',
 )

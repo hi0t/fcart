@@ -1,7 +1,7 @@
-tests = files('qspi_tb.sv', 'sdram_tb.sv')
+tests = files('sdram_tb.sv', 'spi_tb.sv')
 
-vlog = find_program('vlog', required: true)
-vsim = find_program('vsim', required: true)
+vlog = find_program('vlog', 'vlog.exe', dirs: get_option('questa_search_path'), required: true)
+vsim = find_program('vsim', 'vsim.exe', dirs: get_option('questa_search_path'), required: true)
 
 fs = import('fs')
 
@@ -34,5 +34,6 @@ foreach f : tests
         ],
         depends: work,
         workdir: meson.current_build_dir(),
+        verbose: true,
     )
 endforeach

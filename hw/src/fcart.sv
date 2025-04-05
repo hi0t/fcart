@@ -1,13 +1,14 @@
 module fcart (
-    input logic CLK_IN,
+    input logic CLK,
 
     // QSPI
-    input logic QSPI_CLK,
-    input logic QSPI_NCS,
-    inout wire [3:0] QSPI_IO,
+    input  logic SPI_SCK,
+    input  logic SPI_CS,
+    input  logic SPI_MOSI,
+    output logic SPI_MISO,
 
     // SDRAM
-    output logic SDRAM_CLK_OUT,
+    output logic SDRAM_CLK,
     output logic SDRAM_CS,
     output logic [11:0] SDRAM_ADDR,
     output logic [1:0] SDRAM_BA,
@@ -15,7 +16,7 @@ module fcart (
     output logic SDRAM_RAS,
     output logic SDRAM_CAS,
     output logic SDRAM_WE,
-    output logic [1:0] SDRAM_DQM,
+    output logic SDRAM_DQM,
 
     // Cart
     input logic M2,
@@ -30,13 +31,13 @@ module fcart (
     output logic CIRAM_CE,
     input logic [13:0] PPU_ADDR,
     inout wire [7:0] PPU_DATA,
+    output logic SND_SYN,
     output logic CPU_DIR,
     output logic PPU_DIR
 );
     assign IRQ = 1'b1;
+    assign SND_SYN = 1'b0;
 
-    logic clk;
-    logic sdram_clk;
     logic cpu_read;
     logic ppu_read;
     logic [7:0] cpu_data, ppu_data;
@@ -57,7 +58,7 @@ module fcart (
     assign CIRAM_A10 = PPU_ADDR[10];
 
     prg_rom prg_rom (
-        .clk(sdram_clk),
+        .clk(SDRAM_CLK),
         .en(!loading),
         .ram(ch_cpu.master),
         .refresh(refresh),
@@ -69,7 +70,7 @@ module fcart (
     );
 
     chr_rom chr_rom (
-        .clk(sdram_clk),
+        .clk(SDRAM_CLK),
         .en(!loading),
         .ram(ch_ppu.master),
         .ppu_rd(PPU_RD),
@@ -79,11 +80,9 @@ module fcart (
     );
 
     pll pll (
-        .CLKI  (CLK_IN),
-        .CLKOP (clk),
-        .CLKOS (sdram_clk),
-        .CLKOS2(SDRAM_CLK_OUT),
-        .LOCK  (pll_locked)
+        .inclk0(CLK),
+        .c0(SDRAM_CLK),
+        .locked(pll_locked)
     );
 
     sdram sdram (
@@ -92,7 +91,7 @@ module fcart (
         .ch1(ch_cpu.slave),
         .ch2(ch_api.slave),
         .refresh(refresh),
-        .sdram_clk(sdram_clk),
+        .sdram_clk(SDRAM_CLK),
         .sdram_cs(SDRAM_CS),
         .sdram_addr(SDRAM_ADDR),
         .sdram_ba(SDRAM_BA),
@@ -103,16 +102,19 @@ module fcart (
         .sdram_dqm(SDRAM_DQM)
     );
 
+    wire  [3:0] qspi_io;
+    logic [3:0] io_buf;
+    assign qspi_io = SPI_CS ? io_buf : 'z;
     qspi_bus qspi_bus ();
     qspi qspi (
-        .clk(QSPI_CLK),
-        .ncs(QSPI_NCS),
-        .io (QSPI_IO),
+        .clk(SPI_SCK),
+        .ncs(SPI_CS),
+        .io (qspi_io),
         .bus(qspi_bus.slave)
     );
 
     api api (
-        .clk(clk),
+        .clk(SPI_SCK),
         .loading(loading),
         .sdram(ch_api.master),
         .qspi(qspi_bus.master)
