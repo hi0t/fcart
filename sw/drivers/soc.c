@@ -8,12 +8,12 @@ LOG_MODULE(soc);
 static struct peripherals dev;
 
 static void system_clock_init();
+static void periph_clock_init();
 static void gpio_init();
 static void dma_init();
-static void qspi_init();
 static void sdio_init();
 static void rtc_init();
-static void spi_init();
+static void spi_init(SPI_HandleTypeDef *hspi, SPI_TypeDef *inst);
 
 #ifdef ENABLE_SEMIHOSTING
 extern void initialise_monitor_handles();
@@ -27,12 +27,13 @@ void hw_init()
 
     HAL_Init();
     system_clock_init();
+    periph_clock_init();
     gpio_init();
     dma_init();
-    qspi_init();
     sdio_init();
     rtc_init();
-    spi_init();
+    spi_init(&dev.hspi1, SPI1);
+    //  spi_init(&dev.hspi2, SPI2);
 }
 
 void delay_ms(uint32_t ms)
@@ -57,13 +58,15 @@ static void system_clock_init()
     RCC_OscInitTypeDef hse = {
         .OscillatorType = RCC_OSCILLATORTYPE_HSE,
         .HSEState = RCC_HSE_ON,
-        .PLL.PLLState = RCC_PLL_ON,
-        .PLL.PLLSource = RCC_PLLSOURCE_HSE,
-        .PLL.PLLM = RCC_PLL_DIVM,
-        .PLL.PLLN = 100,
-        .PLL.PLLP = RCC_PLLP_DIV2,
-        .PLL.PLLQ = 4,
-        .PLL.PLLR = 2,
+        .PLL = {
+            .PLLState = RCC_PLL_ON,
+            .PLLSource = RCC_PLLSOURCE_HSE,
+            .PLLM = RCC_PLL_DIVM,
+            .PLLN = 100,
+            .PLLP = RCC_PLLP_DIV2,
+            .PLLQ = 4,
+            .PLLR = 2,
+        }
     };
     if ((rc = HAL_RCC_OscConfig(&hse)) != HAL_OK) {
         LOG_ERR("HAL_RCC_OscConfig() failed: %d", rc);
@@ -104,6 +107,29 @@ static void system_clock_init()
     HAL_RCC_MCOConfig(RCC_MCO1, RCC_MCO1SOURCE_PLLCLK, RCC_MCODIV_2);
 }
 
+static void periph_clock_init()
+{
+    HAL_StatusTypeDef rc;
+
+    RCC_PeriphCLKInitTypeDef clk = {
+        .PeriphClockSelection = RCC_PERIPHCLK_PLLI2S | RCC_PERIPHCLK_CLK48
+            | RCC_PERIPHCLK_SDIO,
+        .PLLI2S = {
+            .PLLI2SM = RCC_PLL_DIVM,
+            .PLLI2SN = 192,
+            .PLLI2SQ = 8,
+            .PLLI2SR = 2,
+        },
+        .SdioClockSelection = RCC_SDIOCLKSOURCE_CLK48,
+        .Clk48ClockSelection = RCC_CLK48CLKSOURCE_PLLI2SQ,
+        .PLLI2SSelection = RCC_PLLI2SCLKSOURCE_PLLSRC,
+    };
+    if ((rc = HAL_RCCEx_PeriphCLKConfig(&clk)) != HAL_OK) {
+        LOG_ERR("HAL_RCCEx_PeriphCLKConfig() failed: %d", rc);
+        LOG_PANIC();
+    }
+}
+
 static void gpio_init()
 {
     GPIO_InitTypeDef gpio = { 0 };
@@ -114,16 +140,10 @@ static void gpio_init()
     HAL_GPIO_Init(GPIO_LED_PORT, &gpio);
 
     gpio.Mode = GPIO_MODE_INPUT;
-    gpio.Pull = GPIO_NOPULL;
+    gpio.Pull = GPIO_PULLUP;
     gpio.Speed = GPIO_SPEED_FREQ_LOW;
     gpio.Pin = GPIO_SD_CD_PIN;
     HAL_GPIO_Init(GPIO_SD_CD_PORT, &gpio);
-
-    gpio.Mode = GPIO_MODE_INPUT;
-    gpio.Pull = GPIO_PULLUP;
-    gpio.Speed = GPIO_SPEED_FREQ_LOW;
-    gpio.Pin = GPIO_QSPI_IRQ_PIN;
-    HAL_GPIO_Init(GPIO_QSPI_IRQ_PORT, &gpio);
 
     HAL_GPIO_WritePin(GPIO_SPI_CS_PORT, GPIO_SPI_CS_PIN, GPIO_PIN_SET);
     gpio.Mode = GPIO_MODE_OUTPUT_OD;
@@ -141,28 +161,6 @@ static void dma_init()
 
     HAL_NVIC_SetPriority(DMA2_Stream6_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(DMA2_Stream6_IRQn);
-
-    HAL_NVIC_SetPriority(DMA2_Stream7_IRQn, 0, 0);
-    HAL_NVIC_EnableIRQ(DMA2_Stream7_IRQn);
-}
-
-static void qspi_init()
-{
-    HAL_StatusTypeDef rc;
-
-    dev.hqspi.Instance = QUADSPI;
-    dev.hqspi.Init.ClockPrescaler = 3; // QSPI_CLK = HCLK / (Prescaler + 1)
-    dev.hqspi.Init.FifoThreshold = 1;
-    dev.hqspi.Init.SampleShifting = QSPI_SAMPLE_SHIFTING_NONE;
-    dev.hqspi.Init.FlashSize = 30; // 2^(FlashSize+1) * 256 bytes
-    dev.hqspi.Init.ChipSelectHighTime = QSPI_CS_HIGH_TIME_1_CYCLE;
-    dev.hqspi.Init.ClockMode = QSPI_CLOCK_MODE_0;
-    dev.hqspi.Init.FlashID = QSPI_FLASH_ID_2;
-    dev.hqspi.Init.DualFlash = QSPI_DUALFLASH_DISABLE;
-    if ((rc = HAL_QSPI_Init(&dev.hqspi)) != HAL_OK) {
-        LOG_ERR("HAL_QSPI_Init() failed: %d", rc);
-        LOG_PANIC();
-    }
 }
 
 static void sdio_init()
@@ -193,23 +191,23 @@ static void rtc_init()
     }
 }
 
-static void spi_init()
+static void spi_init(SPI_HandleTypeDef *hspi, SPI_TypeDef *inst)
 {
     HAL_StatusTypeDef rc;
 
-    dev.hspi.Instance = SPI2;
-    dev.hspi.Init.Mode = SPI_MODE_MASTER;
-    dev.hspi.Init.Direction = SPI_DIRECTION_2LINES;
-    dev.hspi.Init.DataSize = SPI_DATASIZE_8BIT;
-    dev.hspi.Init.CLKPolarity = SPI_POLARITY_LOW;
-    dev.hspi.Init.CLKPhase = SPI_PHASE_1EDGE;
-    dev.hspi.Init.NSS = SPI_NSS_SOFT;
-    dev.hspi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
-    dev.hspi.Init.FirstBit = SPI_FIRSTBIT_MSB;
-    dev.hspi.Init.TIMode = SPI_TIMODE_DISABLE;
-    dev.hspi.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-    dev.hspi.Init.CRCPolynomial = 10;
-    if ((rc = HAL_SPI_Init(&dev.hspi)) != HAL_OK) {
+    hspi->Instance = inst;
+    hspi->Init.Mode = SPI_MODE_MASTER;
+    hspi->Init.Direction = SPI_DIRECTION_2LINES;
+    hspi->Init.DataSize = SPI_DATASIZE_8BIT;
+    hspi->Init.CLKPolarity = SPI_POLARITY_LOW;
+    hspi->Init.CLKPhase = SPI_PHASE_1EDGE;
+    hspi->Init.NSS = SPI_NSS_SOFT;
+    hspi->Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
+    hspi->Init.FirstBit = SPI_FIRSTBIT_MSB;
+    hspi->Init.TIMode = SPI_TIMODE_DISABLE;
+    hspi->Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+    hspi->Init.CRCPolynomial = 10;
+    if ((rc = HAL_SPI_Init(hspi)) != HAL_OK) {
         LOG_ERR("HAL_SPI_Init() failed: %d", rc);
         LOG_PANIC();
     }

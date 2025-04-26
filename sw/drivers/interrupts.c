@@ -59,18 +59,6 @@ void DMA2_Stream6_IRQHandler()
     HAL_DMA_IRQHandler(&p->hdma_sdio_rx);
 }
 
-void DMA2_Stream7_IRQHandler()
-{
-    struct peripherals *p = get_peripherals();
-    HAL_DMA_IRQHandler(&p->hdma_qspi);
-}
-
-void QUADSPI_IRQHandler(void)
-{
-    struct peripherals *p = get_peripherals();
-    HAL_QSPI_IRQHandler(&p->hqspi);
-}
-
 void SDIO_IRQHandler()
 {
     struct peripherals *p = get_peripherals();

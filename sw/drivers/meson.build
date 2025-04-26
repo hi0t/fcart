@@ -3,7 +3,6 @@ drivers_src = files(
     'hal_msp.c',
     'interrupts.c',
     'log.c',
-    'qspi.c',
     'soc.c',
     'spi.c',
 )

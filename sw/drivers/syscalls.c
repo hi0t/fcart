@@ -106,10 +106,10 @@ int _stat(char *file, struct stat *st)
     return 0;
 }
 
-int _link(char *old, char *new)
+int _link(char *oldpath, char *newpath)
 {
-    UNUSED(old);
-    UNUSED(new);
+    UNUSED(oldpath);
+    UNUSED(newpath);
     errno = EMLINK;
     return -1;
 }
