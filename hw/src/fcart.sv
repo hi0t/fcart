@@ -38,6 +38,7 @@ module fcart (
     assign IRQ = 1'b1;
     assign SND_SYN = 1'b0;
 
+    logic clk2x;
     logic cpu_read;
     logic ppu_read;
     logic [7:0] cpu_data, ppu_data;
@@ -48,6 +49,7 @@ module fcart (
 
     initial loading = 0;
 
+    assign SDRAM_CLK = clk2x;
     assign cpu_read  = !ROMSEL && CPU_RW && M2;
     assign ppu_read  = CIRAM_CE && !PPU_RD;
     assign CPU_DATA  = cpu_read ? cpu_data : 'z;
@@ -58,19 +60,18 @@ module fcart (
     assign CIRAM_A10 = PPU_ADDR[10];
 
     prg_rom prg_rom (
-        .clk(SDRAM_CLK),
+        .clk(clk2x),
         .en(!loading),
         .ram(ch_cpu.master),
         .refresh(refresh),
         .m2(M2),
-        .cpu_rw(CPU_RW),
         .romsel(ROMSEL),
         .addr(CPU_ADDR),
         .data(cpu_data)
     );
 
     chr_rom chr_rom (
-        .clk(SDRAM_CLK),
+        .clk(clk2x),
         .en(!loading),
         .ram(ch_ppu.master),
         .ppu_rd(PPU_RD),
@@ -81,7 +82,7 @@ module fcart (
 
     pll pll (
         .inclk0(CLK),
-        .c0(SDRAM_CLK),
+        .c0(clk2x),
         .locked(pll_locked)
     );
 
@@ -91,7 +92,7 @@ module fcart (
         .ch1(ch_cpu.slave),
         .ch2(ch_api.slave),
         .refresh(refresh),
-        .sdram_clk(SDRAM_CLK),
+        .sdram_clk(clk2x),
         .sdram_cs(SDRAM_CS),
         .sdram_addr(SDRAM_ADDR),
         .sdram_ba(SDRAM_BA),
@@ -102,22 +103,21 @@ module fcart (
         .sdram_dqm(SDRAM_DQM)
     );
 
-    wire  [3:0] qspi_io;
-    logic [3:0] io_buf;
-    assign qspi_io = SPI_CS ? io_buf : 'z;
-    qspi_bus qspi_bus ();
-    qspi qspi (
-        .clk(SPI_SCK),
-        .ncs(SPI_CS),
-        .io (qspi_io),
-        .bus(qspi_bus.slave)
+    spi_bus spi_bus ();
+    spi spi (
+        .clk(CLK),
+        .spi_clk(SPI_SCK),
+        .spi_cs(SPI_CS),
+        .spi_mosi(SPI_MOSI),
+        .spi_miso(SPI_MISO),
+        .bus(spi_bus.slave)
     );
 
     api api (
-        .clk(SPI_SCK),
+        .clk(CLK),
         .loading(loading),
         .sdram(ch_api.master),
-        .qspi(qspi_bus.master)
+        .spi(spi_bus.master)
     );
 
 endmodule

@@ -47,6 +47,30 @@ void SysTick_Handler()
     HAL_IncTick();
 }
 
+void SDIO_IRQHandler()
+{
+    struct peripherals *p = get_peripherals();
+    HAL_SD_IRQHandler(&p->hsdio);
+}
+
+void SPI1_IRQHandler()
+{
+    struct peripherals *p = get_peripherals();
+    HAL_SPI_IRQHandler(&p->hspi1);
+}
+
+void DMA2_Stream0_IRQHandler()
+{
+    struct peripherals *p = get_peripherals();
+    HAL_DMA_IRQHandler(&p->hdma_spi1_rx);
+}
+
+void DMA2_Stream2_IRQHandler()
+{
+    struct peripherals *p = get_peripherals();
+    HAL_DMA_IRQHandler(&p->hdma_spi1_tx);
+}
+
 void DMA2_Stream3_IRQHandler()
 {
     struct peripherals *p = get_peripherals();
@@ -57,10 +81,4 @@ void DMA2_Stream6_IRQHandler()
 {
     struct peripherals *p = get_peripherals();
     HAL_DMA_IRQHandler(&p->hdma_sdio_rx);
-}
-
-void SDIO_IRQHandler()
-{
-    struct peripherals *p = get_peripherals();
-    HAL_SD_IRQHandler(&p->hsdio);
 }

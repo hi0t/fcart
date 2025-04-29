@@ -34,6 +34,8 @@ void hw_init()
     rtc_init();
     spi_init(&dev.hspi1, SPI1);
     //  spi_init(&dev.hspi2, SPI2);
+
+    spi_init_callbacks(&dev.hspi1);
 }
 
 void delay_ms(uint32_t ms)
@@ -134,27 +136,38 @@ static void gpio_init()
 {
     GPIO_InitTypeDef gpio = { 0 };
 
-    gpio.Mode = GPIO_MODE_OUTPUT_PP;
-    gpio.Speed = GPIO_SPEED_FREQ_LOW;
     gpio.Pin = GPIO_LED_PIN;
+    gpio.Mode = GPIO_MODE_OUTPUT_PP;
+    gpio.Pull = GPIO_NOPULL;
+    gpio.Speed = GPIO_SPEED_FREQ_LOW;
     HAL_GPIO_Init(GPIO_LED_PORT, &gpio);
 
+    gpio.Pin = GPIO_BTN_PIN;
+    gpio.Mode = GPIO_MODE_INPUT;
+    gpio.Pull = GPIO_NOPULL;
+    HAL_GPIO_Init(GPIO_BTN_PORT, &gpio);
+
+    gpio.Pin = GPIO_SD_CD_PIN;
     gpio.Mode = GPIO_MODE_INPUT;
     gpio.Pull = GPIO_PULLUP;
-    gpio.Speed = GPIO_SPEED_FREQ_LOW;
-    gpio.Pin = GPIO_SD_CD_PIN;
     HAL_GPIO_Init(GPIO_SD_CD_PORT, &gpio);
 
-    HAL_GPIO_WritePin(GPIO_SPI_CS_PORT, GPIO_SPI_CS_PIN, GPIO_PIN_SET);
-    gpio.Mode = GPIO_MODE_OUTPUT_OD;
-    gpio.Speed = GPIO_SPEED_FREQ_LOW;
     gpio.Pin = GPIO_SPI_CS_PIN;
+    gpio.Mode = GPIO_MODE_OUTPUT_OD;
+    gpio.Pull = GPIO_NOPULL;
+    gpio.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_WritePin(GPIO_SPI_CS_PORT, GPIO_SPI_CS_PIN, GPIO_PIN_SET);
     HAL_GPIO_Init(GPIO_SPI_CS_PORT, &gpio);
 }
 
 static void dma_init()
 {
     __HAL_RCC_DMA2_CLK_ENABLE();
+    HAL_NVIC_SetPriority(DMA2_Stream0_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(DMA2_Stream0_IRQn);
+
+    HAL_NVIC_SetPriority(DMA2_Stream2_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(DMA2_Stream2_IRQn);
 
     HAL_NVIC_SetPriority(DMA2_Stream3_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(DMA2_Stream3_IRQn);
@@ -202,7 +215,7 @@ static void spi_init(SPI_HandleTypeDef *hspi, SPI_TypeDef *inst)
     hspi->Init.CLKPolarity = SPI_POLARITY_LOW;
     hspi->Init.CLKPhase = SPI_PHASE_1EDGE;
     hspi->Init.NSS = SPI_NSS_SOFT;
-    hspi->Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
+    hspi->Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
     hspi->Init.FirstBit = SPI_FIRSTBIT_MSB;
     hspi->Init.TIMode = SPI_TIMODE_DISABLE;
     hspi->Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;

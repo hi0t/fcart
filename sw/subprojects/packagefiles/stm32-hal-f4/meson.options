@@ -1,6 +1,12 @@
 option(
-    'hal_components',
+    'hal_modules',
     type: 'array',
     value: [],
-    description: 'HAL components to include',
+    description: 'HAL modules to include',
+)
+option(
+    'hal_callbacks',
+    type: 'array',
+    value: [],
+    description: 'HAL callbacks to enable',
 )

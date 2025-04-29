@@ -1,15 +1,16 @@
 #include "rom.h"
 #include <ff.h>
-#include <led.h>
+#include <gpio.h>
 #include <log.h>
 #include <soc.h>
 #include <string.h>
 
 LOG_MODULE(main);
 
-int main()
+void upload()
 {
-    hw_init();
+    LOG_INF("Uploading ROM...");
+    led_on(true);
 
     FATFS fs;
     FRESULT res;
@@ -37,9 +38,16 @@ int main()
 
     f_unmount("/SD");
 
+    led_on(false);
+}
+
+int main()
+{
+    hw_init();
+    set_button_callback(upload);
+
     for (;;) {
-        led_toggle();
-        delay_ms(500);
+        gpio_pull();
     }
 
     return 0;

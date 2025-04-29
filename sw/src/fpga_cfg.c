@@ -13,7 +13,7 @@ uint32_t fpga_cfg_device_id()
     uint8_t rx[4];
     uint32_t id = 0;
 
-    spi_transmit_receive(tx, rx, sizeof(tx));
+    // spi_transmit_receive(tx, rx, sizeof(tx));
 
     return id;
 }

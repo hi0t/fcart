@@ -130,6 +130,7 @@ void HAL_RTC_MspInit(RTC_HandleTypeDef *hrtc)
 
 void HAL_SPI_MspInit(SPI_HandleTypeDef *hspi)
 {
+    HAL_StatusTypeDef rc;
     GPIO_InitTypeDef gpio = {
         .Mode = GPIO_MODE_AF_PP,
         .Pull = GPIO_NOPULL,
@@ -146,6 +147,46 @@ void HAL_SPI_MspInit(SPI_HandleTypeDef *hspi)
         HAL_GPIO_Init(GPIO_SPI1_MISO_PORT, &gpio);
         gpio.Pin = GPIO_SPI1_MOSI_PIN;
         HAL_GPIO_Init(GPIO_SPI1_MOSI_PORT, &gpio);
+
+        struct peripherals *p = get_peripherals();
+
+        // SPI1 TX init
+        p->hdma_spi1_tx.Instance = DMA2_Stream2;
+        p->hdma_spi1_tx.Init.Channel = DMA_CHANNEL_2;
+        p->hdma_spi1_tx.Init.Direction = DMA_MEMORY_TO_PERIPH;
+        p->hdma_spi1_tx.Init.PeriphInc = DMA_PINC_DISABLE;
+        p->hdma_spi1_tx.Init.MemInc = DMA_MINC_ENABLE;
+        p->hdma_spi1_tx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
+        p->hdma_spi1_tx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
+        p->hdma_spi1_tx.Init.Mode = DMA_NORMAL;
+        p->hdma_spi1_tx.Init.Priority = DMA_PRIORITY_LOW;
+        p->hdma_spi1_tx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
+        if ((rc = HAL_DMA_Init(&p->hdma_spi1_tx)) != HAL_OK) {
+            LOG_ERR("HAL_DMA_Init() failed: %d", rc);
+            LOG_PANIC();
+        }
+        __HAL_LINKDMA(hspi, hdmatx, p->hdma_spi1_tx);
+
+        // SPI1 RX init
+        p->hdma_spi1_rx.Instance = DMA2_Stream0;
+        p->hdma_spi1_rx.Init.Channel = DMA_CHANNEL_3;
+        p->hdma_spi1_rx.Init.Direction = DMA_PERIPH_TO_MEMORY;
+        p->hdma_spi1_rx.Init.PeriphInc = DMA_PINC_DISABLE;
+        p->hdma_spi1_rx.Init.MemInc = DMA_MINC_ENABLE;
+        p->hdma_spi1_rx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
+        p->hdma_spi1_rx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
+        p->hdma_spi1_rx.Init.Mode = DMA_NORMAL;
+        p->hdma_spi1_rx.Init.Priority = DMA_PRIORITY_LOW;
+        p->hdma_spi1_rx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
+        if ((rc = HAL_DMA_Init(&p->hdma_spi1_rx)) != HAL_OK) {
+            LOG_ERR("HAL_DMA_Init() failed: %d", rc);
+            LOG_PANIC();
+        }
+        __HAL_LINKDMA(hspi, hdmarx, p->hdma_spi1_rx);
+
+        // SPI1 interrupt init
+        HAL_NVIC_SetPriority(SPI1_IRQn, 0, 0);
+        HAL_NVIC_EnableIRQ(SPI1_IRQn);
     } else if (hspi->Instance == SPI2) {
         gpio.Alternate = GPIO_AF5_SPI2;
         __HAL_RCC_SPI2_CLK_ENABLE();

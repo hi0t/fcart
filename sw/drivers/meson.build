@@ -1,5 +1,6 @@
 drivers_src = files(
     'assert.c',
+    'gpio.c',
     'hal_msp.c',
     'interrupts.c',
     'log.c',
@@ -7,19 +8,19 @@ drivers_src = files(
     'spi.c',
 )
 
-cdata = configuration_data()
-cdata.set('HEAP_SIZE', get_option('heap_size'))
-cdata.set('STACK_SIZE', get_option('stack_size'))
-cdata.set('RAM_ORIGIN', '0x20000000')
-cdata.set('RAM_SIZE', get_option('ram_size'))
-cdata.set('FLASH_ORIGIN', '0x8000000')
-cdata.set('FLASH_SIZE', get_option('flash_size'))
+linker_cfg = configuration_data()
+linker_cfg.set('HEAP_SIZE', get_option('heap_size'))
+linker_cfg.set('STACK_SIZE', get_option('stack_size'))
+linker_cfg.set('RAM_ORIGIN', '0x20000000')
+linker_cfg.set('RAM_SIZE', get_option('ram_size'))
+linker_cfg.set('FLASH_ORIGIN', '0x8000000')
+linker_cfg.set('FLASH_SIZE', get_option('flash_size'))
 # if mcu uses ccram need to add this section to .ld
 
 configure_file(
-    input: 'flash.ld.in',
-    output: 'flash.ld',
-    configuration: cdata,
+    input: 'linker.ld.in',
+    output: 'linker.ld',
+    configuration: linker_cfg,
 )
 
 compile_args = []
@@ -39,7 +40,7 @@ if get_option('buildtype') == 'debug'
 endif
 
 link_args = []
-link_args += ['-T' + meson.current_build_dir() / 'flash.ld']
+link_args += ['-T' + meson.current_build_dir() / 'linker.ld']
 link_args += '-lc'
 
 if get_option('enable_semihosting')

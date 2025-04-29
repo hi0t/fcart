@@ -22,14 +22,14 @@ module sdram #(
 );
     typedef shortint unsigned uint16;
 
-    localparam uint16 INITIAL_PAUSE = 26_667;  // 200E-6 * FREQ
+    localparam uint16 INITIAL_PAUSE = 20_000;  // 200E-6 * FREQ
     localparam PRECHARGE_PERIOD = 2;  // tRP 15E-9 * FREQ
     localparam REGISTER_SET = 2;  // tRSC clocks
     localparam ACTIVE_TO_CMD = 2;  // tRCD 15E-9 * FREQ
     localparam CAS_LATENCY = 2;  // 2 or 3 clocks allowed. 3 for >133MHz
     localparam READ_PERIOD = 7;  // tRAS + tRP
     localparam WRITE_PERIOD = 9;  // tRAS + tRP + tWR
-    localparam REFRESH_INTERVAL = 2080;  // tREF / 4K(8K) 15.6E-6 * FREQ
+    localparam REFRESH_INTERVAL = 1560;  // tREF / 4K(8K) 15.6E-6 * FREQ
 
     // configure steps
     localparam CONFIGURE_PRECHARGE = 0;
@@ -136,7 +136,7 @@ module sdram #(
                 sdram_addr <= 'x;
                 sdram_dqm <= 'x;
                 cmd <= CMD_NOOP;
-                step <= ACTIVE_START;
+                step <= 4'(ACTIVE_START);
 
                 if (pending_refresh) begin
                     pending_refresh <= 0;
