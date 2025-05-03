@@ -1,7 +1,9 @@
 src = files(
     'ip' / 'pll.v',
+    'ip' / 'ufm.qip',
     'api.sv',
-    'chr_rom.sv',
+    #'chr_rom.sv',
+    'chr_rom_ufm.sv',
     'fcart.sdc',
     'fcart.sv',
     'prg_rom.sv',
@@ -21,6 +23,8 @@ foreach f : src
         file_type = 'VERILOG_FILE'
     elif file_name.endswith('.sdc')
         file_type = 'SDC_FILE'
+    elif file_name.endswith('.qip')
+        file_type = 'QIP_FILE'
     else
         error('Unknown file type for @0@'.format(f))
     endif

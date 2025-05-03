@@ -70,10 +70,19 @@ module fcart (
         .data(cpu_data)
     );
 
-    chr_rom chr_rom (
+    /*chr_rom chr_rom (
         .clk(clk2x),
         .en(!loading),
         .ram(ch_ppu.master),
+        .ppu_rd(PPU_RD),
+        .ciram_ce(CIRAM_CE),
+        .addr(PPU_ADDR[12:0]),
+        .data(ppu_data)
+    );*/
+
+    chr_rom_ufm chr_rom (
+        .clk(clk2x),
+        .en(!loading),
         .ppu_rd(PPU_RD),
         .ciram_ce(CIRAM_CE),
         .addr(PPU_ADDR[12:0]),
@@ -119,5 +128,4 @@ module fcart (
         .sdram(ch_api.master),
         .spi(spi_bus.master)
     );
-
 endmodule
