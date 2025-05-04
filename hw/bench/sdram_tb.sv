@@ -14,7 +14,7 @@ module sdram_tb;
     logic        init;
     logic        refresh;
 
-    // 100s MHz
+    // 100 MHz
     always #(10 / 2) clk <= !clk;
 
     sdram_bus #(.ADDR_BITS(24)) bus0 ();

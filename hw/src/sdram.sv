@@ -26,10 +26,10 @@ module sdram #(
     localparam PRECHARGE_PERIOD = 2;  // tRP 15E-9 * FREQ
     localparam REGISTER_SET = 2;  // tRSC clocks
     localparam ACTIVE_TO_CMD = 2;  // tRCD 15E-9 * FREQ
-    localparam CAS_LATENCY = 2;  // 2 or 3 clocks allowed. 3 for >133MHz
-    localparam READ_PERIOD = 7;  // tRAS + tRP
-    localparam WRITE_PERIOD = 9;  // tRAS + tRP + tWR
-    localparam REFRESH_INTERVAL = 1560;  // tREF / 4K(8K) 15.6E-6 * FREQ
+    localparam CAS_LATENCY = 2;  // 2 or 3 clocks allowed. 3 for >100MHz
+    localparam READ_PERIOD = 6;  // tRAS + tRP
+    localparam WRITE_PERIOD = 8;  // tRAS + tRP + tWR
+    localparam REFRESH_INTERVAL = 1560;  // tREF / 4K 15.625E-6 * FREQ
 
     // configure steps
     localparam CONFIGURE_PRECHARGE = 0;

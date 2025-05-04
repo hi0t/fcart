@@ -98,12 +98,12 @@ parameter   CL   = 	3		;	// CAS Latency
 
 `ifdef T6CL2
 // Timing Parameters
-parameter   tCK 		= 7.5	  	;	// Clock Cycle Time
+parameter   tCK 		= 10	  	;	// Clock Cycle Time
 parameter   tRC 		= 60			;// Ref/Act to Ref/Act Command Period
 parameter   tRAS	= 42			;// Active to Precharge Command Period
-parameter   tRCD	= 15			;// Active to Read/Write Command Delay Time
+parameter   tRCD	= 18			;// Active to Read/Write Command Delay Time
 parameter   tCCD	= tCK		;// Read/Write to Read/Write ( With different Bank) Command Period
-parameter   tRP 		= 15			;// Precharge to Active Command Period
+parameter   tRP 		= 18			;// Precharge to Active Command Period
 parameter   tWR 	= 2*tCK	;	// Write Recovery Time
 parameter   tCH 	= 2	  		;// Clock High-Level Width
 parameter   tCL 		= 2	  		;// Clock Low-Level Width
@@ -131,7 +131,7 @@ parameter   CL    	= 2			;// CAS Latency
 
 `ifdef T6CL3
 // Timing Parameters
-parameter   tCK 		=6.0	  ;		// Clock Cycle Time
+parameter   tCK 		=7.5	  ;		// Clock Cycle Time
 parameter   tRC 		= 60			;// Ref/Act to Ref/Act Command Period
 parameter   tRAS	= 42			;// Active to Precharge Command Period
 parameter   tRCD	= 18			;// Active to Read/Write Command Delay Time

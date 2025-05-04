@@ -47,7 +47,7 @@ module fcart (
     logic loading;
     sdram_bus ch_ppu (), ch_cpu (), ch_api ();
 
-    initial loading = 0;
+    initial loading = 1;
 
     assign SDRAM_CLK = clk2x;
     assign cpu_read  = !ROMSEL && CPU_RW && M2;
@@ -70,7 +70,7 @@ module fcart (
         .data(cpu_data)
     );
 
-    /*chr_rom chr_rom (
+    chr_rom chr_rom (
         .clk(clk2x),
         .en(!loading),
         .ram(ch_ppu.master),
@@ -78,16 +78,16 @@ module fcart (
         .ciram_ce(CIRAM_CE),
         .addr(PPU_ADDR[12:0]),
         .data(ppu_data)
-    );*/
+    );
 
-    chr_rom_ufm chr_rom (
+    /*chr_rom_ufm chr_rom (
         .clk(clk2x),
         .en(!loading),
         .ppu_rd(PPU_RD),
         .ciram_ce(CIRAM_CE),
         .addr(PPU_ADDR[12:0]),
         .data(ppu_data)
-    );
+    );*/
 
     pll pll (
         .inclk0(CLK),
@@ -128,4 +128,8 @@ module fcart (
         .sdram(ch_api.master),
         .spi(spi_bus.master)
     );
+    /*memtest memtest (
+        .clk  (CLK),
+        .sdram(ch_api.master)
+    );*/
 endmodule
