@@ -47,14 +47,15 @@ module api (
                 end
             end
             STATE_DATA: begin
+                sdram.req <= 0;
                 if (spi.read_valid) begin
                     case (cmd)
                         1: begin
                             loading <= 1;
                             if (high_byte) begin
                                 sdram.we <= 1;
+                                sdram.req <= 1;
                                 sdram.data_write[15:8] <= spi.read;
-                                sdram.req <= !sdram.req;
                                 if (zero_addr) zero_addr <= 0;
                                 else sdram.address <= sdram.address + 1'd1;
                             end else begin

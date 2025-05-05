@@ -1,4 +1,6 @@
-module chr_rom (
+module chr_rom #(
+    parameter ADDR_BITS = 22
+) (
     input logic clk,
     input logic en,
 
@@ -9,30 +11,23 @@ module chr_rom (
     input logic [12:0] addr,
     output logic [7:0] data
 );
-    bit read_req, read_ack;
-    logic [ 1:0] read_req_sync;
-    logic [11:0] addr_in;
+    logic [2:0] read_sync;
+    logic [ADDR_BITS-1:0] addr_in;
 
     assign data = addr[0] ? ram.data_read[15:8] : ram.data_read[7:0];
 
     always_ff @(negedge ppu_rd) begin
-        if (ciram_ce) begin
-            read_req <= !read_req;
-            addr_in  <= addr[12:1];
-        end
+        if (ciram_ce) addr_in <= {{10{1'b0}}, addr[12:1]} + 22'h4000;
     end
 
     always_ff @(posedge clk) begin
-        read_req_sync <= {read_req_sync[0], read_req};
+        read_sync <= {read_sync[1:0], !ppu_rd && ciram_ce};
+        ram.req   <= 0;
 
-        if (read_req_sync[1] != read_ack) begin
-            read_ack <= read_req_sync[1];
-
-            if (en) begin
-                ram.we <= 0;
-                ram.address <= {{10{1'b0}}, addr_in} + 22'h4000;
-                ram.req <= !ram.req;
-            end
+        if (en && !read_sync[2] && read_sync[1] && (addr_in != ram.address)) begin
+            ram.we <= 0;
+            ram.address <= addr_in;
+            ram.req <= 1;
         end
     end
 endmodule
