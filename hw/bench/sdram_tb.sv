@@ -3,6 +3,7 @@
 module sdram_tb;
     initial begin
         $dumpfile("sdram.vcd");
+        #30s $finish;
     end
 
     logic        clk = 0;
@@ -73,11 +74,11 @@ module sdram_tb;
         bus1.address = 'h01;
         bus0.data_write = 'hF7F8;
         bus1.data_write = 'hA7F8;
-        @(posedge clk);
-        bus0.req = 0;
-        bus1.req = 0;
         @(posedge clk iff !bus0.busy);
         @(posedge clk iff !bus1.busy);
+        bus0.req = 0;
+        bus1.req = 0;
+        @(posedge clk);
 
 
         // Parallel read
@@ -89,15 +90,15 @@ module sdram_tb;
         bus1.we = 0;
         bus0.address = 'h00;
         bus1.address = 'h01;
-        @(posedge clk);
-        bus0.req = 0;
-        bus1.req = 0;
         @(posedge clk iff !bus0.busy);
         assert (bus0.data_read == 'hF7F8)
         else $fatal(1, "hF7F8 != %0h", bus0.data_read);
         @(posedge clk iff !bus1.busy);
         assert (bus1.data_read == 'hA7F8)
         else $fatal(1, "hA7F8 != %0h", bus1.data_read);
+        bus0.req = 0;
+        bus1.req = 0;
+        @(posedge clk);
 
         refresh = 1;
         wait (ram.state == ram.STATE_REFRESH);
@@ -107,10 +108,9 @@ module sdram_tb;
         bus2.we = 1;
         bus2.address = '1;  // max address
         bus2.data_write = 'hF7F8;
-        @(posedge clk);
-        bus2.req = 0;
         @(posedge clk iff !bus2.busy);
-
+        bus2.req = 0;
+        @(posedge clk);
 
         wait (ram.timer == ram.REFRESH_INTERVAL / 2);
 

@@ -70,20 +70,20 @@ module sdram #(
     logic [COL_BITS-1:0] column;
     logic [15:0] data;
     logic [1:0] curr_ch;
-    logic [2:0] pending_req;
+    logic [2:0] prev_req;
     logic we;
 
     assign {sdram_ras, sdram_cas, sdram_we} = cmd;
     assign sdram_cs = (cmd == CMD_NOOP);
     assign sdram_dq = (cmd == CMD_WRITE) ? data : 'z;
-    assign ch0.busy = ((state == STATE_ACTIVE) && (curr_ch == 0) || pending_req[0]);
-    assign ch1.busy = ((state == STATE_ACTIVE) && (curr_ch == 1) || pending_req[1]);
-    assign ch2.busy = ((state == STATE_ACTIVE) && (curr_ch == 2) || pending_req[2]);
+    assign ch0.busy = ((state == STATE_ACTIVE) && (curr_ch == 0) || (!prev_req[0] && ch0.req));
+    assign ch1.busy = ((state == STATE_ACTIVE) && (curr_ch == 1) || (!prev_req[1] && ch1.req));
+    assign ch2.busy = ((state == STATE_ACTIVE) && (curr_ch == 2) || (!prev_req[2] && ch2.req));
 
     always_ff @(posedge sdram_clk) begin
         timer <= timer + 1'd1;
 
-        pending_req <= pending_req | {ch2.req, ch1.req, ch0.req};
+        prev_req <= prev_req & {ch2.req, ch1.req, ch0.req};
 
         if (timer >= REFRESH_INTERVAL || ((timer >= REFRESH_INTERVAL / 2) && refresh)) begin
             pending_refresh <= 1;
@@ -142,8 +142,8 @@ module sdram #(
                     timer <= 0;
                     cmd <= CMD_AUTO_REFRESH;
                     state <= STATE_REFRESH;
-                end else if (pending_req[0]) begin
-                    pending_req[0] <= 0;
+                end else if (!prev_req[0] && ch0.req) begin
+                    prev_req[0] <= ch0.req;
                     {sdram_ba, column, sdram_addr} <= ch0.address;
                     data <= ch0.we ? ch0.data_write : 'x;
                     bank <= {ch0.address[ch0.ADDR_BITS-1-:2]};
@@ -151,8 +151,8 @@ module sdram #(
                     state <= STATE_ACTIVE;
                     curr_ch <= 0;
                     we <= ch0.we;
-                end else if (pending_req[1]) begin
-                    pending_req[1] <= 0;
+                end else if (!prev_req[1] && ch1.req) begin
+                    prev_req[1] <= ch1.req;
                     {sdram_ba, column, sdram_addr} <= ch1.address;
                     data <= ch1.we ? ch1.data_write : 'x;
                     bank <= {ch1.address[ch1.ADDR_BITS-1-:2]};
@@ -160,8 +160,8 @@ module sdram #(
                     state <= STATE_ACTIVE;
                     curr_ch <= 1;
                     we <= ch1.we;
-                end else if (pending_req[2]) begin
-                    pending_req[2] <= 0;
+                end else if (!prev_req[2] && ch2.req) begin
+                    prev_req[2] <= ch2.req;
                     {sdram_ba, column, sdram_addr} <= ch2.address;
                     data <= ch2.we ? ch2.data_write : 'x;
                     bank <= {ch2.address[ch2.ADDR_BITS-1-:2]};

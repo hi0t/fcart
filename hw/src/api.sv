@@ -47,7 +47,7 @@ module api (
                 end
             end
             STATE_DATA: begin
-                sdram.req <= 0;
+                sdram.req <= sdram.busy;
                 if (spi.read_valid) begin
                     case (cmd)
                         1: begin

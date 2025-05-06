@@ -1,33 +1,27 @@
-module chr_rom #(
-    parameter ADDR_BITS = 22
-) (
+module chr_rom (
     input logic clk,
     input logic en,
 
     sdram_bus.master ram,
 
-    input logic ppu_rd,
     input logic ciram_ce,
     input logic [12:0] addr,
     output logic [7:0] data
 );
-    logic [2:0] read_sync;
-    logic [ADDR_BITS-1:0] addr_in;
+    logic [1:0] ce_sync;
+    logic [3:0][12:0] addr_sync;
 
     assign data = addr[0] ? ram.data_read[15:8] : ram.data_read[7:0];
 
-    always_ff @(negedge ppu_rd) begin
-        if (ciram_ce) addr_in <= {{10{1'b0}}, addr[12:1]} + 22'h4000;
-    end
-
     always_ff @(posedge clk) begin
-        read_sync <= {read_sync[1:0], !ppu_rd && ciram_ce};
-        ram.req   <= 0;
+        ce_sync   <= {ce_sync[0], ciram_ce};
+        addr_sync <= {addr_sync[2:0], addr};
 
-        if (en && !read_sync[2] && read_sync[1] && (addr_in != ram.address)) begin
+        // Page mode read divided into atomic transactions. Refresh can be performed at any time.
+        if (en && ce_sync[1] && (addr_sync[3] == addr_sync[2]) && (addr_sync[2] == addr_sync[1])) begin
             ram.we <= 0;
-            ram.address <= addr_in;
+            ram.address <= {{10{1'b0}}, addr_sync[1][12:1]} + 22'h4000;
             ram.req <= 1;
-        end
+        end else ram.req <= 0;
     end
 endmodule

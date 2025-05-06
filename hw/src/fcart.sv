@@ -38,7 +38,6 @@ module fcart (
     assign IRQ = 1'b1;
     assign SND_SYN = 1'b0;
 
-    logic clk2x;
     logic cpu_read;
     logic ppu_read;
     logic [7:0] cpu_data, ppu_data;
@@ -49,7 +48,6 @@ module fcart (
 
     initial loading = 1;
 
-    assign SDRAM_CLK = clk2x;
     assign cpu_read  = !ROMSEL && CPU_RW && M2;
     assign ppu_read  = CIRAM_CE && !PPU_RD;
     assign CPU_DATA  = cpu_read ? cpu_data : 'z;
@@ -60,7 +58,7 @@ module fcart (
     assign CIRAM_A10 = PPU_ADDR[10];
 
     prg_rom prg_rom (
-        .clk(clk2x),
+        .clk(SDRAM_CLK),
         .en(!loading),
         .ram(ch_cpu.master),
         .refresh(refresh),
@@ -71,37 +69,27 @@ module fcart (
     );
 
     chr_rom chr_rom (
-        .clk(clk2x),
+        .clk(SDRAM_CLK),
         .en(!loading),
         .ram(ch_ppu.master),
-        .ppu_rd(PPU_RD),
         .ciram_ce(CIRAM_CE),
         .addr(PPU_ADDR[12:0]),
         .data(ppu_data)
     );
 
-    /*chr_rom_ufm chr_rom (
-        .clk(clk2x),
-        .en(!loading),
-        .ppu_rd(PPU_RD),
-        .ciram_ce(CIRAM_CE),
-        .addr(PPU_ADDR[12:0]),
-        .data(ppu_data)
-    );*/
-
     pll pll (
         .inclk0(CLK),
-        .c0(clk2x),
+        .c0(SDRAM_CLK),
         .locked(pll_locked)
     );
 
     sdram sdram (
         .init(pll_locked),
-        .ch0(ch_ppu.slave),
-        .ch1(ch_cpu.slave),
+        .ch0(ch_cpu.slave),
+        .ch1(ch_ppu.slave),
         .ch2(ch_api.slave),
         .refresh(refresh),
-        .sdram_clk(clk2x),
+        .sdram_clk(SDRAM_CLK),
         .sdram_cs(SDRAM_CS),
         .sdram_addr(SDRAM_ADDR),
         .sdram_ba(SDRAM_BA),
