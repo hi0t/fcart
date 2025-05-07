@@ -13,7 +13,7 @@ static void gpio_init();
 static void dma_init();
 static void sdio_init();
 static void rtc_init();
-static void spi_init(SPI_HandleTypeDef *hspi, SPI_TypeDef *inst);
+static void spi_init(SPI_HandleTypeDef *hspi, SPI_TypeDef *inst, uint32_t first_bit);
 
 #ifdef ENABLE_SEMIHOSTING
 extern void initialise_monitor_handles();
@@ -32,8 +32,8 @@ void hw_init()
     dma_init();
     sdio_init();
     rtc_init();
-    spi_init(&dev.hspi1, SPI1);
-    //  spi_init(&dev.hspi2, SPI2);
+    spi_init(&dev.hspi1, SPI1, SPI_FIRSTBIT_MSB);
+    spi_init(&dev.hspi2, SPI2, SPI_FIRSTBIT_LSB);
 
     spi_init_callbacks(&dev.hspi1);
 }
@@ -152,12 +152,12 @@ static void gpio_init()
     gpio.Pull = GPIO_PULLUP;
     HAL_GPIO_Init(GPIO_SD_CD_PORT, &gpio);
 
-    gpio.Pin = GPIO_SPI_CS_PIN;
+    gpio.Pin = GPIO_SPI1_CS_PIN;
     gpio.Mode = GPIO_MODE_OUTPUT_OD;
     gpio.Pull = GPIO_NOPULL;
     gpio.Speed = GPIO_SPEED_FREQ_LOW;
-    HAL_GPIO_WritePin(GPIO_SPI_CS_PORT, GPIO_SPI_CS_PIN, GPIO_PIN_SET);
-    HAL_GPIO_Init(GPIO_SPI_CS_PORT, &gpio);
+    HAL_GPIO_WritePin(GPIO_SPI1_CS_PORT, GPIO_SPI1_CS_PIN, GPIO_PIN_SET);
+    HAL_GPIO_Init(GPIO_SPI1_CS_PORT, &gpio);
 }
 
 static void dma_init()
@@ -204,7 +204,7 @@ static void rtc_init()
     }
 }
 
-static void spi_init(SPI_HandleTypeDef *hspi, SPI_TypeDef *inst)
+static void spi_init(SPI_HandleTypeDef *hspi, SPI_TypeDef *inst, uint32_t first_bit)
 {
     HAL_StatusTypeDef rc;
 
@@ -216,7 +216,7 @@ static void spi_init(SPI_HandleTypeDef *hspi, SPI_TypeDef *inst)
     hspi->Init.CLKPhase = SPI_PHASE_1EDGE;
     hspi->Init.NSS = SPI_NSS_SOFT;
     hspi->Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
-    hspi->Init.FirstBit = SPI_FIRSTBIT_MSB;
+    hspi->Init.FirstBit = first_bit;
     hspi->Init.TIMode = SPI_TIMODE_DISABLE;
     hspi->Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
     hspi->Init.CRCPolynomial = 10;

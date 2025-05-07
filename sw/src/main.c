@@ -1,3 +1,4 @@
+#include "fpga_cfg.h"
 #include "rom.h"
 #include <ff.h>
 #include <gpio.h>
@@ -7,7 +8,7 @@
 
 LOG_MODULE(main);
 
-void upload()
+static void upload()
 {
     LOG_INF("Uploading ROM...");
     led_on(true);
@@ -41,10 +42,19 @@ void upload()
     led_on(false);
 }
 
+static void switch_led()
+{
+    static bool on = false;
+    on = !on;
+    led_on(on);
+}
+
 int main()
 {
     hw_init();
-    set_button_callback(upload);
+    set_button_callback(switch_led);
+    fpga_cfg_begin();
+    fpga_cfg_end();
 
     for (;;) {
         gpio_pull();

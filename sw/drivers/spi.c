@@ -19,12 +19,12 @@ void spi_init_callbacks(SPI_HandleTypeDef *hspi)
 
 void spi_begin()
 {
-    HAL_GPIO_WritePin(GPIO_SPI_CS_PORT, GPIO_SPI_CS_PIN, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(GPIO_SPI1_CS_PORT, GPIO_SPI1_CS_PIN, GPIO_PIN_RESET);
 }
 
 void spi_end()
 {
-    HAL_GPIO_WritePin(GPIO_SPI_CS_PORT, GPIO_SPI_CS_PIN, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(GPIO_SPI1_CS_PORT, GPIO_SPI1_CS_PIN, GPIO_PIN_SET);
 }
 
 int spi_send(const uint8_t *data, uint16_t size)

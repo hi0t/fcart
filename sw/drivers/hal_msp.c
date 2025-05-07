@@ -188,14 +188,6 @@ void HAL_SPI_MspInit(SPI_HandleTypeDef *hspi)
         HAL_NVIC_SetPriority(SPI1_IRQn, 0, 0);
         HAL_NVIC_EnableIRQ(SPI1_IRQn);
     } else if (hspi->Instance == SPI2) {
-        gpio.Alternate = GPIO_AF5_SPI2;
         __HAL_RCC_SPI2_CLK_ENABLE();
-
-        gpio.Pin = GPIO_SPI2_CLK_PIN;
-        HAL_GPIO_Init(GPIO_SPI2_CLK_PORT, &gpio);
-        gpio.Pin = GPIO_SPI2_MISO_PIN;
-        HAL_GPIO_Init(GPIO_SPI2_MISO_PORT, &gpio);
-        gpio.Pin = GPIO_SPI2_MOSI_PIN;
-        HAL_GPIO_Init(GPIO_SPI2_MOSI_PORT, &gpio);
     }
 }
