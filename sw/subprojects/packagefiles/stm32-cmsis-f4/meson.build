@@ -1,4 +1,4 @@
-project('stm32-cmsis-f4', version: '2.6.10')
+project('stm32-cmsis-f4', version: '2.6.10', meson_version: '>=1.1.0')
 
 family = 'F4'
 mcu_series = get_option('mcu_series')

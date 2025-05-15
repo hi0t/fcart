@@ -1,4 +1,4 @@
-project('stm32-hal-f4', version: '1.8.3')
+project('stm32-hal-f4', version: '1.8.3', meson_version: '>=1.1.0')
 
 family = 'F4'
 
@@ -10,18 +10,15 @@ foreach comp : get_option('hal_modules')
 endforeach
 
 hal_inc = [
+    '.',
     'Inc',
 ]
 
 hal_conf_prefix = 'stm32' + family.to_lower() + 'xx_hal_conf'
-py = import('python').find_installation()
-run_command(
-    py,
-    'gen_hal_conf.py',
-    '--input=' + 'Inc' / hal_conf_prefix + '_template.h',
-    '--output=' + 'Inc' / hal_conf_prefix + '.h',
-    '--hal_callbacks=' + ','.join(get_option('hal_callbacks')),
-    check: true,
+configure_file(
+    copy: true,
+    input: 'Inc' / hal_conf_prefix + '_template.h',
+    output: hal_conf_prefix + '.h',
 )
 
 hal_dep = declare_dependency(

@@ -1,7 +1,15 @@
-tests = files('sdram_tb.sv', 'spi_tb.sv')
+tests = files(
+    'fifo_tb.sv',
+    'qspi_tb.sv',
+    'sdram_tb.sv',
+)
 
-vlog = find_program('vlog', 'vlog.exe', dirs: get_option('questa_search_path'), required: true)
-vsim = find_program('vsim', 'vsim.exe', dirs: get_option('questa_search_path'), required: true)
+questa_path = get_option('questa_search_path')
+if questa_path == ''
+    questa_path = []
+endif
+vlog = find_program('vlog', 'vlog.exe', dirs: questa_path, required: true)
+vsim = find_program('vsim', 'vsim.exe', dirs: questa_path, required: true)
 
 fs = import('fs')
 

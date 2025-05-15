@@ -1,11 +1,10 @@
 module fcart (
-    input logic CLK,
+    input logic CLK_IN,
 
     // QSPI
-    input  logic SPI_SCK,
-    input  logic SPI_CS,
-    input  logic SPI_MOSI,
-    output logic SPI_MISO,
+    input logic QSPI_CLK,
+    input logic QSPI_NCS,
+    inout wire [3:0] QSPI_IO,
 
     // SDRAM
     output logic SDRAM_CLK,
@@ -16,7 +15,7 @@ module fcart (
     output logic SDRAM_RAS,
     output logic SDRAM_CAS,
     output logic SDRAM_WE,
-    output logic SDRAM_DQM,
+    output logic [1:0] SDRAM_DQM,
 
     // Cart
     input logic M2,
@@ -38,6 +37,8 @@ module fcart (
     assign IRQ = 1'b1;
     assign SND_SYN = 1'b0;
 
+    logic clk;
+    logic reset;
     logic cpu_read;
     logic ppu_read;
     logic [7:0] cpu_data, ppu_data;
@@ -48,7 +49,7 @@ module fcart (
 
     initial loading = 1;
 
-    assign cpu_read  = !ROMSEL && CPU_RW && M2;
+    assign cpu_read  = !ROMSEL && CPU_RW;
     assign ppu_read  = CIRAM_CE && !PPU_RD;
     assign CPU_DATA  = cpu_read ? cpu_data : 'z;
     assign PPU_DATA  = ppu_read ? ppu_data : 'z;
@@ -57,8 +58,10 @@ module fcart (
     assign CIRAM_CE  = !PPU_ADDR[13];
     assign CIRAM_A10 = PPU_ADDR[10];
 
+    GSR GSR_INST (.GSR(reset));
+
     prg_rom prg_rom (
-        .clk(SDRAM_CLK),
+        .clk(clk),
         .en(!loading),
         .ram(ch_cpu.master),
         .refresh(refresh),
@@ -69,7 +72,7 @@ module fcart (
     );
 
     chr_rom chr_rom (
-        .clk(SDRAM_CLK),
+        .clk(clk),
         .en(!loading),
         .ram(ch_ppu.master),
         .ciram_ce(CIRAM_CE),
@@ -78,18 +81,20 @@ module fcart (
     );
 
     pll pll (
-        .inclk0(CLK),
-        .c0(SDRAM_CLK),
-        .locked(pll_locked)
+        .CLKI (CLK_IN),
+        .CLKOP(clk),
+        .CLKOS(SDRAM_CLK),
+        .LOCK (pll_locked)
     );
+    always_ff @(posedge clk) reset <= !pll_locked;
 
     sdram sdram (
-        .init(pll_locked),
+        .clk(clk),
+        .reset(reset),
         .ch0(ch_cpu.slave),
         .ch1(ch_ppu.slave),
         .ch2(ch_api.slave),
         .refresh(refresh),
-        .sdram_clk(SDRAM_CLK),
         .sdram_cs(SDRAM_CS),
         .sdram_addr(SDRAM_ADDR),
         .sdram_ba(SDRAM_BA),
@@ -100,24 +105,21 @@ module fcart (
         .sdram_dqm(SDRAM_DQM)
     );
 
-    spi_bus spi_bus ();
-    spi spi (
-        .clk(CLK),
-        .spi_clk(SPI_SCK),
-        .spi_cs(SPI_CS),
-        .spi_mosi(SPI_MOSI),
-        .spi_miso(SPI_MISO),
-        .bus(spi_bus.slave)
+    bidir_bus bidir_bus ();
+    qspi qspi (
+        .clk(clk),
+        .reset(reset),
+        .bus(bidir_bus.provider),
+        .qspi_clk(QSPI_CLK),
+        .qspi_ncs(QSPI_NCS),
+        .qspi_io(QSPI_IO)
     );
 
     api api (
-        .clk(CLK),
+        .clk(clk),
+        .reset(reset),
         .loading(loading),
         .sdram(ch_api.master),
-        .spi(spi_bus.master)
+        .bus(bidir_bus.consumer)
     );
-    /*memtest memtest (
-        .clk  (CLK),
-        .sdram(ch_api.master)
-    );*/
 endmodule

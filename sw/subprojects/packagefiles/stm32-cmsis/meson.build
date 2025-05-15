@@ -1,4 +1,4 @@
-project('stm32-cmsis', version: '5.9.0')
+project('stm32-cmsis', version: '5.9.0', meson_version: '>=1.1.0')
 
 cmsis_inc = [
     'Include',

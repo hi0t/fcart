@@ -1,0 +1,11 @@
+services:
+  devcontainer:
+    build:
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    container_name: fcart
+    hostname: ${LICENSE_HOSTNAME}
+    mac_address: ${LICENSE_MAC_ADDRESS}
+    volumes:
+      - ..:/workspace:cached
+      - ${LICENSE_FILE}:/diamond/license/license.dat:ro

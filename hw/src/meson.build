@@ -1,45 +1,37 @@
 src = files(
     'ip' / 'pll.v',
-    #'ip' / 'ufm.qip',
+    'bidir_bus.sv',
+    'sdram_bus.sv',
     'api.sv',
     'chr_rom.sv',
-    #'chr_rom_ufm.sv',
-    'fcart.sdc',
     'fcart.sv',
-    #'memtest.sv',
+    'fifo.sv',
     'prg_rom.sv',
-    'sdram_bus.sv',
+    'qspi.sv',
     'sdram.sv',
-    'spi.sv',
-    'spi_bus.sv',
 )
 
+lpf = files('fcart.lpf')
+sdc = files('fcart.sdc')
+
+rtl_sorces = [src, lpf, sdc]
+
+src_dir = meson.project_source_root()
 fs = import('fs')
 src_list = []
 foreach f : src
-    file_name = fs.name(f)
-    if file_name.endswith('.sv')
-        file_type = 'SYSTEMVERILOG_FILE'
-    elif file_name.endswith('.v')
-        file_type = 'VERILOG_FILE'
-    elif file_name.endswith('.sdc')
-        file_type = 'SDC_FILE'
-    elif file_name.endswith('.qip')
-        file_type = 'QIP_FILE'
-    else
-        error('Unknown file type for @0@'.format(f))
-    endif
-
-    src_list += 'set_global_assignment -name @0@ "@1@"'.format(file_type, fs.relative_to(f, meson.project_build_root()))
+    src_list += 'prj_src add "@0@"'.format(src_dir / fs.parent(f) / fs.name(f))
 endforeach
 
 tcl = configure_file(
-    input: 'quartus.tcl.in',
-    output: 'quartus.tcl',
+    input: 'diamond.tcl.in',
+    output: 'diamond.tcl',
     configuration: {
-        'PROJECT_NAME': quartus_proj,
-        'FAMILY': get_option('family'),
+        'PROJECT_NAME': diamond_prj,
         'DEVICE': get_option('device'),
+        'LPF_PATH': src_dir / fs.parent(lpf) / fs.name(lpf),
+        'SDC_PATH': src_dir / fs.parent(sdc) / fs.name(sdc),
         'SRL_LIST': '\n'.join(src_list),
+        'TOP_MODULE': diamond_prj,
     },
 )

@@ -4,30 +4,27 @@ project(
     meson_version: '>=1.3',
 )
 
-quartus_proj = 'fcart'
+diamond_prj = 'fcart'
 
 subdir('bench')
 subdir('src')
 
-quartus_sh = find_program(
-    'quartus_sh',
-    'quartus_sh.exe',
-    dirs: get_option('quartus_search_path'),
+diamond_path = get_option('diamond_search_path')
+if diamond_path == ''
+    diamond_path = []
+endif
+diamondc = find_program(
+    'pnmainc.exe',
+    'diamondc',
+    dirs: diamond_path,
     required: true,
 )
 
-qsf = custom_target(
-    'quartus project',
+bit = custom_target(
+    f'@diamond_prj@.bit',
     input: tcl,
-    output: f'@quartus_proj@.qsf',
-    command: [quartus_sh, '-t', '@INPUT@'],
-    depend_files: [src],
-)
-
-pof = custom_target(
-    f'@quartus_proj@.pof',
-    input: qsf,
-    output: f'@quartus_proj@.pof',
-    command: [quartus_sh, '--flow', 'compile', f'@quartus_proj@'],
+    output: f'@diamond_prj@.bit',
+    command: [diamondc, '@INPUT@'],
+    depend_files: rtl_sorces,
     console: true,
 )
