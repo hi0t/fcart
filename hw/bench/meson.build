@@ -1,4 +1,8 @@
-tests = files('sdram_tb.sv', 'spi_tb.sv')
+tests = files(
+    'fifo_tb.sv',
+    'qspi_tb.sv',
+    'sdram_tb.sv',
+)
 
 vlog = find_program('vlog', 'vlog.exe', dirs: get_option('questa_search_path'), required: true)
 vsim = find_program('vsim', 'vsim.exe', dirs: get_option('questa_search_path'), required: true)

@@ -3,14 +3,14 @@ module sdram #(
     parameter COL_BITS = 8
 ) (
     // SDRAM interface
-    input logic init,  // Allow SDRAM to initialize
+    input logic clk,
+    input logic reset,  // Reset signal
     sdram_bus.slave ch0,  // SDRAM bus with priority 0
     sdram_bus.slave ch1,  // SDRAM bus with priority 1
     sdram_bus.slave ch2,  // SDRAM bus with priority 2
     input logic refresh,  // External refresh signal
 
     // SDRAM signals
-    input logic sdram_clk,
     output logic sdram_cs,
     output logic [ROW_BITS-1:0] sdram_addr,
     output logic [1:0] sdram_ba,
@@ -18,11 +18,9 @@ module sdram #(
     output logic sdram_ras,
     output logic sdram_cas,
     output logic sdram_we,
-    output logic sdram_dqm
+    output logic [1:0] sdram_dqm
 );
-    typedef shortint unsigned uint16;
-
-    localparam uint16 INITIAL_PAUSE = 20_000;  // 200E-6 * FREQ
+    localparam INITIAL_PAUSE = 20_000;  // 200E-6 * FREQ
     localparam PRECHARGE_PERIOD = 2;  // tRP 15E-9 * FREQ
     localparam REGISTER_SET = 2;  // tRSC clocks
     localparam ACTIVE_TO_CMD = 2;  // tRCD 15E-9 * FREQ
@@ -54,19 +52,18 @@ module sdram #(
     localparam CMD_WRITE = 3'b100;
     localparam CMD_PRECHARGE = 3'b010;
 
-    enum bit [2:0] {
+    enum logic [2:0] {
         STATE_POWERUP,
         STATE_CONFIGURE,
         STATE_IDLE,
         STATE_ACTIVE,
         STATE_REFRESH
-    } state = STATE_POWERUP;
+    } state;
 
     logic [2:0] cmd;
-    uint16 timer = 0;
+    logic [15:0] timer;
     logic pending_refresh;
-    bit [3:0] step;
-    logic [1:0] bank;
+    logic [3:0] step;
     logic [COL_BITS-1:0] column;
     logic [15:0] data;
     logic [1:0] curr_ch;
@@ -80,8 +77,8 @@ module sdram #(
     assign ch1.busy = ((state == STATE_ACTIVE) && (curr_ch == 1) || (!prev_req[1] && ch1.req));
     assign ch2.busy = ((state == STATE_ACTIVE) && (curr_ch == 2) || (!prev_req[2] && ch2.req));
 
-    always_ff @(posedge sdram_clk) begin
-        timer <= timer + 1'd1;
+    always_ff @(posedge clk) begin
+        timer <= timer + 1;
 
         prev_req <= prev_req & {ch2.req, ch1.req, ch0.req};
 
@@ -89,123 +86,123 @@ module sdram #(
             pending_refresh <= 1;
         end
 
-        case (state)
-            STATE_POWERUP: begin
-                case (timer)
-                    0: begin
-                        sdram_dqm <= 1'b1;
-                        cmd <= CMD_NOOP;
-                    end
-                    INITIAL_PAUSE: begin
-                        if (init) begin
+        if (reset) begin
+            state <= STATE_POWERUP;
+            cmd   <= CMD_NOOP;
+            timer <= 0;
+        end else begin
+            case (state)
+                STATE_POWERUP: begin
+                    case (timer)
+                        0: begin
+                            sdram_dqm <= 2'b11;
+                            cmd <= CMD_NOOP;
+                        end
+                        INITIAL_PAUSE: begin
                             timer <= 0;
                             state <= STATE_CONFIGURE;
                         end
-                    end
-                endcase
-            end
-            STATE_CONFIGURE: begin
-                case (timer)
-                    CONFIGURE_PRECHARGE: begin
-                        sdram_addr[10] <= 1'b1;  // precharge all banks
-                        cmd <= CMD_PRECHARGE;
-                    end
-                    CONFIGURE_SET_MODE: begin
-                        sdram_addr <= {
-                            {ROW_BITS - 10{1'b0}},
-                            1'd1,  // write mode - burst read and single write
-                            2'b00,
-                            3'(CAS_LATENCY),
-                            1'd0,  // sequential addressing mode
-                            3'd0  // burst length
-                        };
-                        sdram_ba <= '0;
-                        cmd <= CMD_MODE_REGISTER_SET;
-                    end
-                    CONFIGURE_REFRESH_1, CONFIGURE_REFRESH_2: begin
-                        cmd <= CMD_AUTO_REFRESH;
-                    end
-                    CONFIGURE_END: begin
-                        timer <= 0;
+                    endcase
+                end
+                STATE_CONFIGURE: begin
+                    case (timer)
+                        CONFIGURE_PRECHARGE: begin
+                            sdram_addr[10] <= 1'b1;  // precharge all banks
+                            cmd <= CMD_PRECHARGE;
+                        end
+                        CONFIGURE_SET_MODE: begin
+                            sdram_addr <= {
+                                {ROW_BITS - 10{1'b0}},
+                                1'd1,  // write mode - burst read and single write
+                                2'b00,
+                                3'(CAS_LATENCY),
+                                1'd0,  // sequential addressing mode
+                                3'd0  // burst length
+                            };
+                            sdram_ba <= '0;
+                            cmd <= CMD_MODE_REGISTER_SET;
+                        end
+                        CONFIGURE_REFRESH_1, CONFIGURE_REFRESH_2: begin
+                            cmd <= CMD_AUTO_REFRESH;
+                        end
+                        CONFIGURE_END: begin
+                            timer <= 0;
+                            pending_refresh <= 0;
+                            state <= STATE_IDLE;
+                        end
+                        default: cmd <= CMD_NOOP;
+                    endcase
+                end
+                STATE_IDLE: begin
+                    cmd  <= CMD_NOOP;
+                    step <= ACTIVE_START;
+
+                    if (pending_refresh) begin
                         pending_refresh <= 0;
+                        timer <= 0;
+                        sdram_dqm <= 2'b11;
+                        cmd <= CMD_AUTO_REFRESH;
+                        state <= STATE_REFRESH;
+                    end else if (!prev_req[0] && ch0.req) begin
+                        prev_req[0] <= ch0.req;
+                        {sdram_ba, column, sdram_addr} <= ch0.address;
+                        data <= ch0.data_write;
+                        cmd <= CMD_ACTIVATE;
+                        state <= STATE_ACTIVE;
+                        curr_ch <= 0;
+                        we <= ch0.we;
+                    end else if (!prev_req[1] && ch1.req) begin
+                        prev_req[1] <= ch1.req;
+                        {sdram_ba, column, sdram_addr} <= ch1.address;
+                        data <= ch1.data_write;
+                        cmd <= CMD_ACTIVATE;
+                        state <= STATE_ACTIVE;
+                        curr_ch <= 1;
+                        we <= ch1.we;
+                    end else if (!prev_req[2] && ch2.req) begin
+                        prev_req[2] <= ch2.req;
+                        {sdram_ba, column, sdram_addr} <= ch2.address;
+                        data <= ch2.data_write;
+                        cmd <= CMD_ACTIVATE;
+                        state <= STATE_ACTIVE;
+                        curr_ch <= 2;
+                        we <= ch2.we;
+                    end
+                end
+                STATE_ACTIVE: begin
+                    step <= step + 1;
+
+                    case (step)
+                        ACTIVE_CMD: begin
+                            sdram_addr <= {{ROW_BITS - COL_BITS{1'b0}}, column};
+                            sdram_addr[10] <= 1'b1;  // Auto-precharge
+                            sdram_dqm <= 2'b00;
+                            cmd <= we ? CMD_WRITE : CMD_READ;
+                        end
+                        ACTIVE_READY: begin
+                            if (!we) begin
+                                case (curr_ch)
+                                    0: ch0.data_read <= sdram_dq;
+                                    1: ch1.data_read <= sdram_dq;
+                                    2: ch2.data_read <= sdram_dq;
+                                endcase
+                            end
+                        end
+                        ACTIVE_READ_END: if (!we) state <= STATE_IDLE;
+                        ACTIVE_WRITE_END: if (we) state <= STATE_IDLE;
+                        default: cmd <= CMD_NOOP;
+                    endcase
+                end
+                STATE_REFRESH: begin
+                    cmd <= CMD_NOOP;
+                    if (timer == READ_PERIOD) begin
+                        timer <= 0;
                         state <= STATE_IDLE;
                     end
-                    default: cmd <= CMD_NOOP;
-                endcase
-            end
-            STATE_IDLE: begin
-                cmd  <= CMD_NOOP;
-                step <= 4'(ACTIVE_START);
-
-                if (pending_refresh) begin
-                    pending_refresh <= 0;
-                    timer <= 0;
-                    cmd <= CMD_AUTO_REFRESH;
-                    state <= STATE_REFRESH;
-                end else if (!prev_req[0] && ch0.req) begin
-                    prev_req[0] <= ch0.req;
-                    {sdram_ba, column, sdram_addr} <= ch0.address;
-                    data <= ch0.we ? ch0.data_write : 'x;
-                    bank <= {ch0.address[ch0.ADDR_BITS-1-:2]};
-                    cmd <= CMD_ACTIVATE;
-                    state <= STATE_ACTIVE;
-                    curr_ch <= 0;
-                    we <= ch0.we;
-                end else if (!prev_req[1] && ch1.req) begin
-                    prev_req[1] <= ch1.req;
-                    {sdram_ba, column, sdram_addr} <= ch1.address;
-                    data <= ch1.we ? ch1.data_write : 'x;
-                    bank <= {ch1.address[ch1.ADDR_BITS-1-:2]};
-                    cmd <= CMD_ACTIVATE;
-                    state <= STATE_ACTIVE;
-                    curr_ch <= 1;
-                    we <= ch1.we;
-                end else if (!prev_req[2] && ch2.req) begin
-                    prev_req[2] <= ch2.req;
-                    {sdram_ba, column, sdram_addr} <= ch2.address;
-                    data <= ch2.we ? ch2.data_write : 'x;
-                    bank <= {ch2.address[ch2.ADDR_BITS-1-:2]};
-                    cmd <= CMD_ACTIVATE;
-                    state <= STATE_ACTIVE;
-                    curr_ch <= 2;
-                    we <= ch2.we;
                 end
-            end
-            STATE_ACTIVE: begin
-                step <= step + 1'd1;
-
-                case (step)
-                    ACTIVE_CMD: begin
-                        sdram_ba <= bank;
-                        sdram_addr <= {{ROW_BITS - COL_BITS{1'b0}}, column};
-                        sdram_addr[10] <= 1;  // Auto-precharge
-                        sdram_dqm <= 1'b0;
-                        cmd <= we ? CMD_WRITE : CMD_READ;
-                    end
-                    ACTIVE_READY: begin
-                        if (!we) begin
-                            case (curr_ch)
-                                0: ch0.data_read <= sdram_dq;
-                                1: ch1.data_read <= sdram_dq;
-                                2: ch2.data_read <= sdram_dq;
-                            endcase
-                        end
-                    end
-                    ACTIVE_READ_END: if (!we) state <= STATE_IDLE;
-                    ACTIVE_WRITE_END: if (we) state <= STATE_IDLE;
-                    default: cmd <= CMD_NOOP;
-                endcase
-
-            end
-            STATE_REFRESH: begin
-                cmd <= CMD_NOOP;
-                if (timer == READ_PERIOD) begin
-                    timer <= 0;
-                    state <= STATE_IDLE;
-                end
-            end
-            default;
-        endcase
+                default;
+            endcase
+        end
     end
 
 endmodule

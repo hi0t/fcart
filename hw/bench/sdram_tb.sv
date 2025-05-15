@@ -11,8 +11,8 @@ module sdram_tb;
     wire  [12:0] sdram_addr;
     wire  [ 1:0] sdram_bank;
     wire  [ 3:0] sdram_command;
-    wire         sdram_dqm;
-    logic        init;
+    wire  [ 1:0] sdram_dqm;
+    logic        reset;
     logic        refresh;
 
     // 100 MHz
@@ -32,20 +32,20 @@ module sdram_tb;
         .Ras_n(sdram_command[2]),
         .Cas_n(sdram_command[1]),
         .We_n (sdram_command[0]),
-        .Dqm  ({sdram_dqm, sdram_dqm})
+        .Dqm  (sdram_dqm)
     );
 
     sdram #(
         .ROW_BITS(13),
         .COL_BITS(9)
     ) ram (
+        .clk(clk),
+        .reset(reset),
         .ch0(bus0),
         .ch1(bus1),
         .ch2(bus2),
-        .init(init),
         .refresh(refresh),
 
-        .sdram_clk (clk),
         .sdram_cs  (sdram_command[3]),
         .sdram_addr(sdram_addr),
         .sdram_ba  (sdram_bank),
@@ -57,7 +57,8 @@ module sdram_tb;
     );
 
     initial begin
-        init = 1;
+        reset = 1;
+        @(posedge clk) reset = 0;
 
         // skip powerup
         wait (ram.state == ram.STATE_CONFIGURE);

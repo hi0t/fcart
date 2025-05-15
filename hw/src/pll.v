@@ -2,8 +2,9 @@
 // verilator lint_off UNUSEDSIGNAL
 // verilator lint_off UNDRIVEN
 
-module pll (inclk0, c0, locked);
-    input inclk0;
-    output c0;
-    output locked;
+module pll (CLKI, CLKOP, CLKOS, LOCK);
+    input wire CLKI;
+    output wire CLKOP;
+    output wire CLKOS;
+    output wire LOCK;
 endmodule
