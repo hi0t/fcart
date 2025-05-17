@@ -1,54 +1,57 @@
 #include "fpga_api.h"
 #include <errno.h>
-#include <spi.h>
+#include <qspi.h>
 #include <stddef.h>
+#include <stdlib.h>
 
 enum {
-    LOAD_DATA = 1,
-    LAUNCH
+    CMD_RESET = 0,
+    CMD_WRITE,
+    CMD_LAUNCH
 };
+
+static void reset();
 
 int fpga_api_load(uint32_t address, uint32_t size, fpga_api_reader_cb cb, void *arg)
 {
-    uint8_t buf[512];
+#define BUF_SIZE 1024
+    uint8_t *buf = malloc(BUF_SIZE);
     uint32_t remain = size;
+    uint32_t offset = address;
     int rc = 0;
 
-    spi_begin();
-
-    buf[0] = LOAD_DATA;
-    if ((rc = spi_send(buf, 1)) != 0) {
-        goto out;
-    }
-    if ((rc = spi_send((uint8_t *)&address, 3)) != 0) {
-        goto out;
-    }
+    reset();
 
     while (remain > 0) {
-        uint16_t chunk = remain > sizeof(buf) ? sizeof(buf) : remain;
+        uint16_t chunk = remain > BUF_SIZE ? BUF_SIZE : remain;
         if (!cb(buf, chunk, arg)) {
             rc = -EIO;
             goto out;
         }
         // TODO: make parallel transfer
-        if ((rc = spi_send(buf, chunk)) != 0) {
+        if ((rc = qspi_write(CMD_WRITE, offset, buf, chunk)) != 0) {
             goto out;
         }
+        offset += chunk;
         remain -= chunk;
     }
 out:
-    spi_end();
+    free(buf);
     return rc;
 }
 
 int fpga_api_launch()
 {
-    uint8_t buf = LAUNCH;
-    int rc;
+    reset();
+    return qspi_cmd(CMD_LAUNCH);
+}
 
-    spi_begin();
-    rc = spi_send(&buf, 1);
-    spi_end();
-
-    return rc;
+static void reset()
+{
+    static bool reseted = false;
+    if (reseted) {
+        return;
+    }
+    qspi_cmd(CMD_RESET);
+    reseted = true;
 }

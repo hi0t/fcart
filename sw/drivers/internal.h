@@ -4,17 +4,17 @@
 #include <stm32f4xx_hal.h>
 
 struct peripherals {
+    DMA_HandleTypeDef hdma_qspi;
     DMA_HandleTypeDef hdma_sdio_tx;
     DMA_HandleTypeDef hdma_sdio_rx;
-    DMA_HandleTypeDef hdma_spi1_tx;
-    DMA_HandleTypeDef hdma_spi1_rx;
+    DMA_HandleTypeDef hdma_spi_tx;
+    DMA_HandleTypeDef hdma_spi_rx;
+    QSPI_HandleTypeDef hqspi;
     SD_HandleTypeDef hsdio;
     RTC_HandleTypeDef hrtc;
-    SPI_HandleTypeDef hspi1;
-    SPI_HandleTypeDef hspi2;
+    SPI_HandleTypeDef hspi;
+    TIM_HandleTypeDef htim6;
     bool lse_ready;
 };
 
 struct peripherals *get_peripherals();
-
-void spi_init_callbacks(SPI_HandleTypeDef *hspi);

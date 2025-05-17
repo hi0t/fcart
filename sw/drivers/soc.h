@@ -13,6 +13,17 @@
 void hw_init();
 
 /**
+ * @brief Delays the execution for a specified number of microseconds.
+ *
+ * This function introduces a delay in the program execution for the specified
+ * amount of time in microseconds. It is typically used to create timed delays
+ * in the execution flow.
+ *
+ * @param us The number of microseconds to delay.
+ */
+void delay_us(uint16_t us);
+
+/**
  * @brief Delays the execution for a specified number of milliseconds.
  *
  * This function introduces a delay in the program execution for the specified
@@ -21,7 +32,7 @@ void hw_init();
  *
  * @param ms The number of milliseconds to delay.
  */
-void delay_ms(uint32_t ms);
+void delay_ms(uint16_t ms);
 
 /**
  * @brief Returns the system uptime in milliseconds.

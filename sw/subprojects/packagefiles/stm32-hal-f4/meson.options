@@ -4,9 +4,3 @@ option(
     value: [],
     description: 'HAL modules to include',
 )
-option(
-    'hal_callbacks',
-    type: 'array',
-    value: [],
-    description: 'HAL callbacks to enable',
-)

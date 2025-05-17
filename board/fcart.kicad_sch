@@ -24801,7 +24801,7 @@
 		)
 	)
 	(global_label "FPGA_IRQ"
-		(shape input)
+		(shape output)
 		(at 46.99 308.61 180)
 		(fields_autoplaced yes)
 		(effects

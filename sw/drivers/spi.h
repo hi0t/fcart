@@ -5,3 +5,4 @@
 void spi_begin();
 void spi_end();
 int spi_send(const uint8_t *data, uint16_t size);
+int spi_recv(uint8_t *data, uint16_t size);

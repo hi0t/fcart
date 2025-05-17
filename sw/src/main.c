@@ -8,6 +8,31 @@
 
 LOG_MODULE(main);
 
+static void fpga_file_cfg(const char *filename)
+{
+    FIL fp;
+    UINT sz;
+    uint8_t buf[512];
+
+    if (f_open(&fp, filename, FA_READ) != FR_OK) {
+        goto out;
+    }
+    if (fpga_cfg_start() != 0) {
+        goto out;
+    }
+    while (!f_eof(&fp)) {
+        if (f_read(&fp, buf, sizeof(buf), &sz) != FR_OK) {
+            goto out;
+        }
+        if (fpga_cfg_write(buf, sz) != 0) {
+            goto out;
+        }
+    }
+    fpga_cfg_done();
+out:
+    f_close(&fp);
+}
+
 static void upload()
 {
     LOG_INF("Uploading ROM...");
@@ -28,8 +53,12 @@ static void upload()
                 break;
             if (!(fno.fattrib & AM_DIR)) {
                 char *ext = strrchr(fno.fname, '.');
-                if (ext != NULL && strcmp(ext, ".nes") == 0) {
+                /*if (ext != NULL && strcmp(ext, ".nes") == 0) {
                     rom_load(fno.fname);
+                    break;
+                }*/
+                if (ext != NULL && strcmp(ext, ".bit") == 0) {
+                    fpga_file_cfg(fno.fname);
                     break;
                 }
             }
@@ -52,12 +81,14 @@ static void switch_led()
 int main()
 {
     hw_init();
-    set_button_callback(switch_led);
-    fpga_cfg_begin();
-    fpga_cfg_end();
+    // set_button_callback(switch_led);
+    // upload();
 
     for (;;) {
-        gpio_pull();
+        // gpio_pull();
+        led_on(HAL_GPIO_ReadPin(GPIO_IRQ_PORT, GPIO_IRQ_PIN) == GPIO_PIN_SET);
+        // switch_led();
+        delay_ms(10);
     }
 
     return 0;

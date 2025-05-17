@@ -11,9 +11,11 @@ static void system_clock_init();
 static void periph_clock_init();
 static void gpio_init();
 static void dma_init();
+static void qspi_init();
 static void sdio_init();
 static void rtc_init();
-static void spi_init(SPI_HandleTypeDef *hspi, SPI_TypeDef *inst, uint32_t first_bit);
+static void spi_init();
+static void tim6_init();
 
 #ifdef ENABLE_SEMIHOSTING
 extern void initialise_monitor_handles();
@@ -30,19 +32,29 @@ void hw_init()
     periph_clock_init();
     gpio_init();
     dma_init();
+    qspi_init();
     sdio_init();
     rtc_init();
-    spi_init(&dev.hspi1, SPI1, SPI_FIRSTBIT_MSB);
-    spi_init(&dev.hspi2, SPI2, SPI_FIRSTBIT_LSB);
+    spi_init();
+    tim6_init();
 
-    spi_init_callbacks(&dev.hspi1);
+    HAL_TIM_Base_Start(&dev.htim6);
 }
 
-void delay_ms(uint32_t ms)
+void delay_us(uint16_t us)
 {
-    if (ms > 0) {
-        // HAL code adds an extra ms inside the HAL_Delay()
-        HAL_Delay(ms - 1);
+    __HAL_TIM_SET_COUNTER(&dev.htim6, 0);
+    while (__HAL_TIM_GET_COUNTER(&dev.htim6) < us)
+        ;
+}
+
+void delay_ms(uint16_t ms)
+{
+    while (ms > 0) {
+        __HAL_TIM_SET_COUNTER(&dev.htim6, 0);
+        ms--;
+        while (__HAL_TIM_GET_COUNTER(&dev.htim6) < 1000)
+            ;
     }
 }
 
@@ -64,7 +76,7 @@ static void system_clock_init()
             .PLLState = RCC_PLL_ON,
             .PLLSource = RCC_PLLSOURCE_HSE,
             .PLLM = RCC_PLL_DIVM,
-            .PLLN = 100,
+            .PLLN = 96,
             .PLLP = RCC_PLLP_DIV2,
             .PLLQ = 4,
             .PLLR = 2,
@@ -147,17 +159,15 @@ static void gpio_init()
     gpio.Pull = GPIO_NOPULL;
     HAL_GPIO_Init(GPIO_BTN_PORT, &gpio);
 
+    gpio.Pin = GPIO_IRQ_PIN;
+    gpio.Mode = GPIO_MODE_INPUT;
+    gpio.Pull = GPIO_NOPULL;
+    HAL_GPIO_Init(GPIO_IRQ_PORT, &gpio);
+
     gpio.Pin = GPIO_SD_CD_PIN;
     gpio.Mode = GPIO_MODE_INPUT;
     gpio.Pull = GPIO_PULLUP;
     HAL_GPIO_Init(GPIO_SD_CD_PORT, &gpio);
-
-    gpio.Pin = GPIO_SPI1_CS_PIN;
-    gpio.Mode = GPIO_MODE_OUTPUT_OD;
-    gpio.Pull = GPIO_NOPULL;
-    gpio.Speed = GPIO_SPEED_FREQ_LOW;
-    HAL_GPIO_WritePin(GPIO_SPI1_CS_PORT, GPIO_SPI1_CS_PIN, GPIO_PIN_SET);
-    HAL_GPIO_Init(GPIO_SPI1_CS_PORT, &gpio);
 }
 
 static void dma_init()
@@ -174,6 +184,28 @@ static void dma_init()
 
     HAL_NVIC_SetPriority(DMA2_Stream6_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(DMA2_Stream6_IRQn);
+
+    HAL_NVIC_SetPriority(DMA2_Stream7_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(DMA2_Stream7_IRQn);
+}
+
+static void qspi_init()
+{
+    HAL_StatusTypeDef rc;
+
+    dev.hqspi.Instance = QUADSPI;
+    dev.hqspi.Init.ClockPrescaler = 1; // QSPI_CLK = HCLK / (Prescaler + 1)
+    dev.hqspi.Init.FifoThreshold = 1;
+    dev.hqspi.Init.SampleShifting = QSPI_SAMPLE_SHIFTING_NONE;
+    dev.hqspi.Init.FlashSize = 22; // 2^(FlashSize+1) bytes
+    dev.hqspi.Init.ChipSelectHighTime = QSPI_CS_HIGH_TIME_1_CYCLE;
+    dev.hqspi.Init.ClockMode = QSPI_CLOCK_MODE_0;
+    dev.hqspi.Init.FlashID = QSPI_FLASH_ID_1;
+    dev.hqspi.Init.DualFlash = QSPI_DUALFLASH_DISABLE;
+    if ((rc = HAL_QSPI_Init(&dev.hqspi)) != HAL_OK) {
+        LOG_ERR("HAL_QSPI_Init() failed: %d", rc);
+        LOG_PANIC();
+    }
 }
 
 static void sdio_init()
@@ -204,24 +236,50 @@ static void rtc_init()
     }
 }
 
-static void spi_init(SPI_HandleTypeDef *hspi, SPI_TypeDef *inst, uint32_t first_bit)
+static void spi_init()
 {
     HAL_StatusTypeDef rc;
 
-    hspi->Instance = inst;
-    hspi->Init.Mode = SPI_MODE_MASTER;
-    hspi->Init.Direction = SPI_DIRECTION_2LINES;
-    hspi->Init.DataSize = SPI_DATASIZE_8BIT;
-    hspi->Init.CLKPolarity = SPI_POLARITY_LOW;
-    hspi->Init.CLKPhase = SPI_PHASE_1EDGE;
-    hspi->Init.NSS = SPI_NSS_SOFT;
-    hspi->Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
-    hspi->Init.FirstBit = first_bit;
-    hspi->Init.TIMode = SPI_TIMODE_DISABLE;
-    hspi->Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-    hspi->Init.CRCPolynomial = 10;
-    if ((rc = HAL_SPI_Init(hspi)) != HAL_OK) {
+    dev.hspi.Instance = SPI1;
+    dev.hspi.Init.Mode = SPI_MODE_MASTER;
+    dev.hspi.Init.Direction = SPI_DIRECTION_2LINES;
+    dev.hspi.Init.DataSize = SPI_DATASIZE_8BIT;
+    dev.hspi.Init.CLKPolarity = SPI_POLARITY_LOW;
+    dev.hspi.Init.CLKPhase = SPI_PHASE_1EDGE;
+    dev.hspi.Init.NSS = SPI_NSS_SOFT;
+    dev.hspi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
+    dev.hspi.Init.FirstBit = SPI_FIRSTBIT_MSB;
+    dev.hspi.Init.TIMode = SPI_TIMODE_DISABLE;
+    dev.hspi.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+    dev.hspi.Init.CRCPolynomial = 10;
+    if ((rc = HAL_SPI_Init(&dev.hspi)) != HAL_OK) {
         LOG_ERR("HAL_SPI_Init() failed: %d", rc);
+        LOG_PANIC();
+    }
+}
+
+static void tim6_init()
+{
+    HAL_StatusTypeDef rc;
+
+    uint32_t ticks = (HAL_RCC_GetHCLKFreq() / 1000000U);
+
+    dev.htim6.Instance = TIM6;
+    dev.htim6.Init.Prescaler = ticks - 1;
+    dev.htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
+    dev.htim6.Init.Period = 65535;
+    dev.htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+    if ((rc = HAL_TIM_Base_Init(&dev.htim6)) != HAL_OK) {
+        LOG_ERR("HAL_TIM_Base_Init() failed: %d", rc);
+        LOG_PANIC();
+    }
+
+    TIM_MasterConfigTypeDef master = {
+        .MasterOutputTrigger = TIM_TRGO_RESET,
+        .MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE,
+    };
+    if ((rc = HAL_TIMEx_MasterConfigSynchronization(&dev.htim6, &master)) != HAL_OK) {
+        LOG_ERR("HAL_TIMEx_MasterConfigSynchronization() failed: %d", rc);
         LOG_PANIC();
     }
 }
