@@ -53,8 +53,7 @@ int main()
 {
     hw_init();
     set_button_callback(switch_led);
-    fpga_cfg_begin();
-    fpga_cfg_end();
+    fpga_cfg_put(NULL, 0);
 
     for (;;) {
         gpio_pull();

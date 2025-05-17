@@ -3,8 +3,8 @@ drivers_src = files(
     'gpio.c',
     'hal_msp.c',
     'interrupts.c',
-    'jtag.c',
     'log.c',
+    'qspi.c',
     'soc.c',
     'spi.c',
 )
