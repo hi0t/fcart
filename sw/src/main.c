@@ -53,14 +53,14 @@ static void upload()
                 break;
             if (!(fno.fattrib & AM_DIR)) {
                 char *ext = strrchr(fno.fname, '.');
-                /*if (ext != NULL && strcmp(ext, ".nes") == 0) {
+                if (ext != NULL && strcmp(ext, ".nes") == 0) {
                     rom_load(fno.fname);
                     break;
-                }*/
-                if (ext != NULL && strcmp(ext, ".bit") == 0) {
+                }
+                /*if (ext != NULL && strcmp(ext, ".bit") == 0) {
                     fpga_file_cfg(fno.fname);
                     break;
-                }
+                }*/
             }
         }
         f_closedir(&dir);
@@ -81,14 +81,14 @@ static void switch_led()
 int main()
 {
     hw_init();
-    // set_button_callback(switch_led);
+    set_button_callback(upload);
     // upload();
 
     for (;;) {
-        // gpio_pull();
-        led_on(HAL_GPIO_ReadPin(GPIO_IRQ_PORT, GPIO_IRQ_PIN) == GPIO_PIN_SET);
+        gpio_pull();
+        // led_on(HAL_GPIO_ReadPin(GPIO_IRQ_PORT, GPIO_IRQ_PIN) == GPIO_PIN_SET);
         // switch_led();
-        delay_ms(10);
+        // delay_ms(500);
     }
 
     return 0;

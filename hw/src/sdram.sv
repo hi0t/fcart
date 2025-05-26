@@ -20,7 +20,6 @@ module sdram #(
     output logic sdram_we,
     output logic [1:0] sdram_dqm
 );
-    localparam INITIAL_PAUSE = 20_000;  // 200E-6 * FREQ
     localparam PRECHARGE_PERIOD = 2;  // tRP 15E-9 * FREQ
     localparam REGISTER_SET = 2;  // tRSC clocks
     localparam ACTIVE_TO_CMD = 2;  // tRCD 15E-9 * FREQ
@@ -30,7 +29,7 @@ module sdram #(
     localparam REFRESH_INTERVAL = 1560;  // tREF / 4K 15.625E-6 * FREQ
 
     // configure steps
-    localparam CONFIGURE_PRECHARGE = 0;
+    localparam CONFIGURE_PRECHARGE = PRECHARGE_PERIOD;
     localparam CONFIGURE_SET_MODE = CONFIGURE_PRECHARGE + PRECHARGE_PERIOD;
     localparam CONFIGURE_REFRESH_1 = CONFIGURE_SET_MODE + REGISTER_SET;
     // READ_PERIOD cover the refresh period
@@ -52,8 +51,7 @@ module sdram #(
     localparam CMD_WRITE = 3'b100;
     localparam CMD_PRECHARGE = 3'b010;
 
-    enum logic [2:0] {
-        STATE_POWERUP,
+    enum logic [1:0] {
         STATE_CONFIGURE,
         STATE_IDLE,
         STATE_ACTIVE,
@@ -61,9 +59,9 @@ module sdram #(
     } state;
 
     logic [2:0] cmd;
-    logic [15:0] timer;
+    logic [10:0] refresh_timer;
     logic pending_refresh;
-    logic [3:0] step;
+    logic [4:0] step;
     logic [COL_BITS-1:0] column;
     logic [15:0] data;
     logic [1:0] curr_ch;
@@ -78,34 +76,25 @@ module sdram #(
     assign ch2.busy = ((state == STATE_ACTIVE) && (curr_ch == 2) || (!prev_req[2] && ch2.req));
 
     always_ff @(posedge clk) begin
-        timer <= timer + 1;
+        refresh_timer <= refresh_timer + 1;
 
         prev_req <= prev_req & {ch2.req, ch1.req, ch0.req};
 
-        if (timer >= REFRESH_INTERVAL || ((timer >= REFRESH_INTERVAL / 2) && refresh)) begin
+        if (refresh_timer >= REFRESH_INTERVAL || ((refresh_timer >= REFRESH_INTERVAL / 2) && refresh)) begin
             pending_refresh <= 1;
         end
 
         if (reset) begin
-            state <= STATE_POWERUP;
-            cmd   <= CMD_NOOP;
-            timer <= 0;
+            state <= STATE_CONFIGURE;
+            cmd <= CMD_NOOP;
+            sdram_dqm <= 2'b11;
+            step <= 0;
         end else begin
             case (state)
-                STATE_POWERUP: begin
-                    case (timer)
-                        0: begin
-                            sdram_dqm <= 2'b11;
-                            cmd <= CMD_NOOP;
-                        end
-                        INITIAL_PAUSE: begin
-                            timer <= 0;
-                            state <= STATE_CONFIGURE;
-                        end
-                    endcase
-                end
                 STATE_CONFIGURE: begin
-                    case (timer)
+                    step <= step + 1;
+
+                    case (step)
                         CONFIGURE_PRECHARGE: begin
                             sdram_addr[10] <= 1'b1;  // precharge all banks
                             cmd <= CMD_PRECHARGE;
@@ -126,7 +115,7 @@ module sdram #(
                             cmd <= CMD_AUTO_REFRESH;
                         end
                         CONFIGURE_END: begin
-                            timer <= 0;
+                            refresh_timer <= 0;
                             pending_refresh <= 0;
                             state <= STATE_IDLE;
                         end
@@ -134,13 +123,13 @@ module sdram #(
                     endcase
                 end
                 STATE_IDLE: begin
-                    cmd  <= CMD_NOOP;
+                    cmd <= CMD_NOOP;
                     step <= ACTIVE_START;
+                    sdram_dqm <= 2'b11;
 
                     if (pending_refresh) begin
                         pending_refresh <= 0;
-                        timer <= 0;
-                        sdram_dqm <= 2'b11;
+                        refresh_timer <= 0;
                         cmd <= CMD_AUTO_REFRESH;
                         state <= STATE_REFRESH;
                     end else if (!prev_req[0] && ch0.req) begin
@@ -194,13 +183,10 @@ module sdram #(
                     endcase
                 end
                 STATE_REFRESH: begin
-                    cmd <= CMD_NOOP;
-                    if (timer == READ_PERIOD) begin
-                        timer <= 0;
-                        state <= STATE_IDLE;
-                    end
+                    cmd  <= CMD_NOOP;
+                    step <= step + 1;
+                    if (step == READ_PERIOD) state <= STATE_IDLE;
                 end
-                default;
             endcase
         end
     end

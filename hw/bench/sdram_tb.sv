@@ -61,7 +61,6 @@ module sdram_tb;
         @(posedge clk) reset = 0;
 
         // skip powerup
-        wait (ram.state == ram.STATE_CONFIGURE);
         $dumpvars(0, sdram_tb);
 
         wait (ram.state == ram.STATE_IDLE);
@@ -113,7 +112,7 @@ module sdram_tb;
         bus2.req = 0;
         @(posedge clk);
 
-        wait (ram.timer == ram.REFRESH_INTERVAL / 2);
+        wait (ram.refresh_timer == ram.REFRESH_INTERVAL / 2);
 
         // read -> refresh
         bus2.data_read = 'x;

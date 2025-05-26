@@ -26,7 +26,7 @@ int qspi_cmd(uint8_t cmd)
     return 0;
 }
 
-int qspi_wrie(uint8_t cmd, uint32_t address, const uint8_t *data, uint32_t size)
+int qspi_write(uint8_t cmd, uint32_t address, const uint8_t *data, uint32_t size)
 {
     struct peripherals *p = get_peripherals();
     QSPI_CommandTypeDef cmdcfg = {
