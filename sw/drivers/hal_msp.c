@@ -48,6 +48,8 @@ void HAL_QSPI_MspInit(QSPI_HandleTypeDef *hqspi)
     HAL_GPIO_Init(GPIO_QSPI_IO3_PORT, &gpio);
     gpio.Pin = GPIO_QSPI_CLK_PIN;
     HAL_GPIO_Init(GPIO_QSPI_CLK_PORT, &gpio);
+
+    gpio.Alternate = GPIO_AF10_QSPI;
     gpio.Pull = GPIO_PULLUP;
     gpio.Pin = GPIO_QSPI_NCS_PIN;
     HAL_GPIO_Init(GPIO_QSPI_NCS_PORT, &gpio);

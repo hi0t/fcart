@@ -5,13 +5,8 @@ create_clock -name QSPI_CLK -period 20 [get_ports QSPI_CLK]
 create_clock -name M2 -period 500 [get_ports M2]
 
 set_clock_groups -exclusive \
-    -group [get_clocks {CLK}] \
-    -group [get_clocks {SDRAM_CLK}] \
-    -group [get_clocks {QSPI_CLK}]
+    -group [get_clocks CLK] \
+    -group [get_clocks SDRAM_CLK] \
+    -group [get_clocks QSPI_CLK]
 
-set_false_path -from {reset}
-
-#set_multicycle_path -from {sdram|*} -to {api|*} -start -setup 2
-#set_multicycle_path -from {sdram|*} -to {api|*} -start -hold 1
-#set_multicycle_path -from {api|*} -to {sdram|*} -setup 2
-#set_multicycle_path -from {api|*} -to {sdram|*} -hold 1
+set_false_path -from [get_ports QSPI_NCS]

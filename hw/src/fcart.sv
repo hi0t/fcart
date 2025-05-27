@@ -38,11 +38,11 @@ module fcart (
     assign SND_SYN = 1'b0;
 
     logic clk;
+    logic async_nreset;
     logic reset;
     logic cpu_read;
     logic ppu_read;
     logic [7:0] cpu_data, ppu_data;
-    logic pll_locked;
     logic refresh;
     logic loading;
     sdram_bus ch_ppu (), ch_cpu (), ch_api ();
@@ -58,12 +58,10 @@ module fcart (
     assign CIRAM_CE  = !PPU_ADDR[13];
     assign CIRAM_A10 = PPU_ADDR[10];
 
-    GSR GSR_INST (.GSR(reset));
-
     prg_rom prg_rom (
         .clk(clk),
         .en(!loading),
-        .ram(ch_cpu.master),
+        .ram(ch_cpu.controller),
         .refresh(refresh),
         .m2(M2),
         .romsel(ROMSEL),
@@ -74,7 +72,8 @@ module fcart (
     chr_rom chr_rom (
         .clk(clk),
         .en(!loading),
-        .ram(ch_ppu.master),
+        .ram(ch_ppu.controller),
+        .ppu_rd(PPU_RD),
         .ciram_ce(CIRAM_CE),
         .addr(PPU_ADDR[12:0]),
         .data(ppu_data)
@@ -84,16 +83,20 @@ module fcart (
         .CLKI (CLK_IN),
         .CLKOP(clk),
         .CLKOS(SDRAM_CLK),
-        .LOCK (pll_locked)
+        .LOCK (async_nreset)
     );
-    always_ff @(posedge clk) reset <= !pll_locked;
+    logic [1:0] rst_sync = '0;
+    always_ff @(posedge clk) begin
+        rst_sync <= {rst_sync[0], async_nreset};
+        reset <= !rst_sync[1];
+    end
 
     sdram sdram (
         .clk(clk),
         .reset(reset),
-        .ch0(ch_cpu.slave),
-        .ch1(ch_ppu.slave),
-        .ch2(ch_api.slave),
+        .ch0(ch_cpu.memory),
+        .ch1(ch_ppu.memory),
+        .ch2(ch_api.memory),
         .refresh(refresh),
         .sdram_cs(SDRAM_CS),
         .sdram_addr(SDRAM_ADDR),
@@ -108,7 +111,7 @@ module fcart (
     bidir_bus bidir_bus ();
     qspi qspi (
         .clk(clk),
-        .reset(reset),
+        .async_reset(!async_nreset),
         .bus(bidir_bus.provider),
         .qspi_clk(QSPI_CLK),
         .qspi_ncs(QSPI_NCS),
@@ -119,7 +122,7 @@ module fcart (
         .clk(clk),
         .reset(reset),
         .loading(loading),
-        .sdram(ch_api.master),
+        .ram(ch_api.controller),
         .bus(bidir_bus.consumer)
     );
 endmodule

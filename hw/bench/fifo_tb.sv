@@ -18,7 +18,7 @@ module fifo_tb;
     always #((CYC + 1) / 2) rd_clk <= !rd_clk;
 
     fifo #(
-        .DEPTH(8)
+        .DEPTH(16)
     ) fifo (
         .wr_clk(wr_clk),
         .wr_reset(wr_reset),

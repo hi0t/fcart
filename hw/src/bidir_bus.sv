@@ -1,29 +1,29 @@
 interface bidir_bus;
     logic [7:0] rd_data;
-    logic rd_en;
-    logic rd_empty;
+    logic rd_valid;
+    logic rd_ready;
     logic [7:0] wr_data;
-    logic wr_en;
-    logic wr_full;
+    logic wr_valid;
+    logic wr_ready;
     logic closed;
 
     modport provider(
         output rd_data,
-        input rd_en,
-        output rd_empty,
+        output rd_valid,
+        input rd_ready,
         input wr_data,
-        input wr_en,
-        output wr_full,
+        output wr_valid,
+        input wr_ready,
         output closed
     );
 
     modport consumer(
         input rd_data,
-        output rd_en,
-        input rd_empty,
+        input rd_valid,
+        output rd_ready,
         output wr_data,
-        output wr_en,
-        input wr_full,
+        input wr_valid,
+        output wr_ready,
         input closed
     );
 endinterface

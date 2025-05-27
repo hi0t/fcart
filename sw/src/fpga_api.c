@@ -5,12 +5,9 @@
 #include <stdlib.h>
 
 enum {
-    CMD_RESET = 0,
-    CMD_WRITE,
+    CMD_WRITE = 1,
     CMD_LAUNCH
 };
-
-static void reset();
 
 int fpga_api_load(uint32_t address, uint32_t size, fpga_api_reader_cb cb, void *arg)
 {
@@ -19,8 +16,6 @@ int fpga_api_load(uint32_t address, uint32_t size, fpga_api_reader_cb cb, void *
     uint32_t remain = size;
     uint32_t offset = address;
     int rc = 0;
-
-    reset();
 
     while (remain > 0) {
         uint16_t chunk = remain > BUF_SIZE ? BUF_SIZE : remain;
@@ -42,16 +37,5 @@ out:
 
 int fpga_api_launch()
 {
-    reset();
     return qspi_cmd(CMD_LAUNCH);
-}
-
-static void reset()
-{
-    static bool reseted = false;
-    if (reseted) {
-        return;
-    }
-    qspi_cmd(CMD_RESET);
-    reseted = true;
 }
