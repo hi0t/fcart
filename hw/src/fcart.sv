@@ -64,17 +64,17 @@ module fcart (
         .ram(ch_cpu.controller),
         .refresh(refresh),
         .m2(M2),
-        .romsel(ROMSEL),
+        .oe(!ROMSEL),
         .addr(CPU_ADDR),
         .data(cpu_data)
     );
 
     chr_rom chr_rom (
-        .clk(clk),
-        .en(!loading),
-        .ram(ch_ppu.controller),
-        .ppu_rd(PPU_RD),
-        .ciram_ce(CIRAM_CE),
+        .clk (clk),
+        .en  (!loading),
+        .ram (ch_ppu.controller),
+        .ce  (CIRAM_CE),
+        .oe  (!PPU_RD),
         .addr(PPU_ADDR[12:0]),
         .data(ppu_data)
     );
