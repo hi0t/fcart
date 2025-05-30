@@ -35,7 +35,7 @@ out:
     return rc;
 }
 
-int fpga_api_launch()
+int fpga_api_launch(uint32_t ppu_off)
 {
-    return qspi_cmd(CMD_LAUNCH);
+    return qspi_write(CMD_LAUNCH, ppu_off, NULL, 0);
 }
