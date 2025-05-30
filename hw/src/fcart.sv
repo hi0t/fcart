@@ -37,6 +37,8 @@ module fcart (
     assign IRQ = 1'b1;
     assign SND_SYN = 1'b0;
 
+    localparam RAM_ADDR_BITS = 22;  // SDRAM row + col + bank bits
+
     logic clk;
     logic async_nreset;
     logic reset;
@@ -45,7 +47,9 @@ module fcart (
     logic [7:0] cpu_data, ppu_data;
     logic refresh;
     logic loading;
-    sdram_bus ch_ppu (), ch_cpu (), ch_api ();
+    logic [7:0] ppu_off;
+    logic mirroring;
+    sdram_bus #(.ADDR_BITS(RAM_ADDR_BITS)) ch_ppu (), ch_cpu (), ch_api ();
 
     initial loading = 1;
 
@@ -56,7 +60,7 @@ module fcart (
     assign CPU_DIR   = cpu_read;
     assign PPU_DIR   = ppu_read;
     assign CIRAM_CE  = !PPU_ADDR[13];
-    assign CIRAM_A10 = PPU_ADDR[10];
+    assign CIRAM_A10 = mirroring ? PPU_ADDR[10] : PPU_ADDR[11];
 
     prg_rom prg_rom (
         .clk(clk),
@@ -70,11 +74,12 @@ module fcart (
     );
 
     chr_rom chr_rom (
-        .clk (clk),
-        .en  (!loading),
-        .ram (ch_ppu.controller),
-        .ce  (CIRAM_CE),
-        .oe  (!PPU_RD),
+        .clk(clk),
+        .en(!loading),
+        .offset(ppu_off),
+        .ram(ch_ppu.controller),
+        .ce(CIRAM_CE),
+        .oe(!PPU_RD),
         .addr(PPU_ADDR[12:0]),
         .data(ppu_data)
     );
@@ -122,6 +127,8 @@ module fcart (
         .clk(clk),
         .reset(reset),
         .loading(loading),
+        .ppu_off(ppu_off),
+        .mirroring(mirroring),
         .ram(ch_api.controller),
         .bus(bidir_bus.consumer)
     );

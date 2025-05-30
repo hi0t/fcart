@@ -1,6 +1,7 @@
 module chr_rom (
     input logic clk,
     input logic en,
+    input logic [7:0] offset,
 
     sdram_bus.controller ram,
 
@@ -38,7 +39,7 @@ module chr_rom (
         if (en && !read_prev && addr_stable) begin
             read_prev <= 1;
             ram.we <= 0;
-            ram.address <= {{10{1'b0}}, addr[12:1]} + 22'h4000;
+            ram.address <= {{2{1'b0}}, offset, addr[12:1]};
             ram.req <= 1;
         end
     end

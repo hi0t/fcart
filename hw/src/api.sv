@@ -1,11 +1,16 @@
 module api (
-    input  logic clk,
-    input  logic reset,
+    input logic clk,
+    input logic reset,
     output logic loading,
+    output logic [7:0] ppu_off,
+    output logic mirroring,
 
     sdram_bus.controller ram,
     bidir_bus.consumer   bus
 );
+    localparam CMD_WRITE = 1;
+    localparam CMD_LAUNCH = 2;
+
     enum logic [1:0] {
         STATE_CMD,
         STATE_ADDR,
@@ -30,27 +35,34 @@ module api (
             if (!bus.rd_ready && bus.rd_valid) begin
                 case (state)
                     STATE_CMD: begin
+                        bus.rd_ready <= 1;
                         cmd <= bus.rd_data;
                         byte_cnt <= 0;
-                        bus.rd_ready <= 1;
-
-                        case (bus.rd_data)
-                            2:       loading <= 0;
-                            default: state <= STATE_ADDR;
-                        endcase
+                        state <= STATE_ADDR;
                     end
                     STATE_ADDR: begin
-                        byte_cnt <= byte_cnt + 1;
                         bus.rd_ready <= 1;
+                        byte_cnt <= byte_cnt + 1;
 
-                        case (byte_cnt)
-                            0: ram.address[21:15] <= bus.rd_data[6:0];
-                            1: ram.address[14:7] <= bus.rd_data;
-                            2: begin
-                                {ram.address[6:0], high_byte} <= bus.rd_data;
-                                zero_addr <= 1;
-                                state <= STATE_DATA;
-                                loading <= 1;
+                        case (cmd)
+                            CMD_WRITE: begin
+                                case (byte_cnt)
+                                    0: ram.address[21:15] <= bus.rd_data[6:0];
+                                    1: ram.address[14:7] <= bus.rd_data;
+                                    2: {ram.address[6:0], high_byte} <= bus.rd_data;
+                                endcase
+                                if (byte_cnt == 2) begin
+                                    zero_addr <= 1;
+                                    state <= STATE_DATA;
+                                    loading <= 1;
+                                end
+                            end
+                            CMD_LAUNCH: begin
+                                case (byte_cnt)
+                                    1: mirroring <= bus.rd_data[0];
+                                    2: ppu_off <= bus.rd_data;
+                                endcase
+                                if (byte_cnt == 2) loading <= 0;
                             end
                         endcase
                     end
@@ -59,7 +71,7 @@ module api (
                             bus.rd_ready <= 1;
 
                             case (cmd)
-                                1: begin
+                                CMD_WRITE: begin
                                     if (high_byte) begin
                                         ram.we <= 1;
                                         ram.data_write[15:8] <= bus.rd_data;

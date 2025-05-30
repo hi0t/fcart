@@ -1,5 +1,5 @@
 interface sdram_bus #(
-    parameter ADDR_BITS = 22  // SDRAM row + col + bank bits
+    parameter ADDR_BITS = 22
 );
     logic req;
     logic we;

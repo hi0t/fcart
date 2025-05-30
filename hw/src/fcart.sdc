@@ -10,3 +10,6 @@ set_clock_groups -exclusive \
     -group [get_clocks QSPI_CLK]
 
 set_false_path -from [get_ports QSPI_NCS]
+set_false_path -from [get_cells api.loading]
+set_false_path -from [get_cells {api.ppu_off[*]}]
+set_false_path -from [get_cells api.mirroring]
