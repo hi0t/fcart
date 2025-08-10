@@ -16,11 +16,11 @@ sdc = files('fcart.sdc')
 
 rtl_sorces = [src, lpf, sdc]
 
-src_dir = meson.project_source_root()
+build_dir = meson.project_build_root()
 fs = import('fs')
 src_list = []
 foreach f : src
-    src_list += 'prj_src add "@0@"'.format(src_dir / fs.parent(f) / fs.name(f))
+    src_list += 'prj_src add "@0@"'.format(fs.relative_to(f, build_dir))
 endforeach
 
 tcl = configure_file(
@@ -29,8 +29,8 @@ tcl = configure_file(
     configuration: {
         'PROJECT_NAME': diamond_prj,
         'DEVICE': get_option('device'),
-        'LPF_PATH': src_dir / fs.parent(lpf) / fs.name(lpf),
-        'SDC_PATH': src_dir / fs.parent(sdc) / fs.name(sdc),
+        'LPF_PATH': fs.relative_to(lpf, build_dir),
+        'SDC_PATH': fs.relative_to(sdc, build_dir),
         'SRL_LIST': '\n'.join(src_list),
         'TOP_MODULE': diamond_prj,
     },

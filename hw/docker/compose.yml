@@ -1,0 +1,22 @@
+name: diamond
+x-app-template: &app-template
+  build:
+    context: .
+    args:
+      USER_NAME: ${USER}
+  platform: linux/amd64
+  user: ${USER}
+  hostname: diamond
+  mac_address: ${LICENSE_MAC_ADDRESS}
+  volumes:
+    - ../..:/workspace:cached
+    - ${LICENSE_FILE}:/diamond/license/license.dat:ro
+
+services:
+  build:
+    <<: *app-template
+    working_dir: /workspace/hw/builddir
+
+  bench:
+    <<: *app-template
+    working_dir: /workspace/hw/builddir/bench

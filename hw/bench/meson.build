@@ -8,11 +8,26 @@ questa_path = get_option('questa_search_path')
 if questa_path == ''
     questa_path = []
 endif
-vlog = find_program('vlog', 'vlog.exe', dirs: questa_path, required: true)
-vsim = find_program('vsim', 'vsim.exe', dirs: questa_path, required: true)
+
+vlog = get_option('vlog_custom_cmd')
+if vlog.length() == 0
+    vlog = [find_program('vlog', 'vlog.exe', dirs: questa_path, required: true)]
+endif
+
+vsim = get_option('vsim_custom_cmd')
+if vsim.length() == 0
+    vsim_exe = find_program('vsim', 'vsim.exe', dirs: questa_path, required: true)
+    vsim_args = []
+else
+    vsim_exe = find_program(vsim[0], required: true)
+    vsim_args = []
+    foreach i : range(1, vsim.length())
+        vsim_args += vsim[i]
+    endforeach
+endif
 
 fs = import('fs')
-
+build_dir = meson.project_build_root()
 work = custom_target(
     'sim_work',
     build_always_stale: true,
@@ -20,8 +35,8 @@ work = custom_target(
         vlog,
         '+libext+.sv+.vp+.v',
         '-work', '@OUTPUT@',
-        '-y', meson.project_source_root() / 'src',
-        '-y', meson.current_source_dir(),
+        '-y', fs.relative_to(meson.project_source_root() / 'src', build_dir),
+        '-y', fs.relative_to(meson.current_source_dir(), build_dir),
         '@INPUT@',
     ],
     input: tests,
@@ -32,8 +47,9 @@ foreach f : tests
     module = fs.stem(f)
     test(
         module,
-        vsim,
+        vsim_exe,
         args: [
+            vsim_args,
             '-c',
             '-voptargs=-debug',
             '-onfinish', 'stop',
