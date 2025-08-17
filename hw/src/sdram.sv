@@ -67,6 +67,7 @@ module sdram #(
     logic [1:0] curr_ch;
     logic [2:0] req;
     logic we;
+    logic [1:0] wm;
     logic busy;
 
     assign {sdram_ras, sdram_cas, sdram_we} = cmd;
@@ -143,6 +144,7 @@ module sdram #(
                         state <= STATE_ACTIVE;
                         curr_ch <= 0;
                         we <= ch0.we;
+                        wm <= ch0.wm;
                     end else if (req[1]) begin
                         req[1] <= 0;
                         {sdram_ba, column, sdram_addr} <= ch1.address;
@@ -151,6 +153,7 @@ module sdram #(
                         state <= STATE_ACTIVE;
                         curr_ch <= 1;
                         we <= ch1.we;
+                        wm <= ch1.wm;
                     end else if (req[2]) begin
                         req[2] <= 0;
                         {sdram_ba, column, sdram_addr} <= ch2.address;
@@ -159,6 +162,7 @@ module sdram #(
                         state <= STATE_ACTIVE;
                         curr_ch <= 2;
                         we <= ch2.we;
+                        wm <= ch2.wm;
                     end else begin
                         busy <= 0;
                     end
@@ -170,7 +174,7 @@ module sdram #(
                         ACTIVE_CMD: begin
                             sdram_addr <= {{ROW_BITS - COL_BITS{1'b0}}, column};
                             sdram_addr[10] <= 1'b1;  // Auto-precharge
-                            sdram_dqm <= 2'b00;
+                            sdram_dqm <= we ? wm : 2'b00;
                             cmd <= we ? CMD_WRITE : CMD_READ;
                         end
                         ACTIVE_READY: begin
@@ -195,9 +199,4 @@ module sdram #(
             endcase
         end
     end
-
-    // Verilator lint_off UNUSED
-    logic [1:0] debug_state = state;
-    logic debug_busy = busy;
-    // Verilator lint_on UNUSED
 endmodule

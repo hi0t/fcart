@@ -34,7 +34,6 @@ module fcart (
     output logic CPU_DIR,
     output logic PPU_DIR
 );
-    assign IRQ = 1'b1;
     assign SND_SYN = 1'b0;
 
     localparam RAM_ADDR_BITS = 22;  // SDRAM row + col + bank bits
@@ -42,46 +41,35 @@ module fcart (
     logic clk;
     logic async_nreset;
     logic reset;
-    logic cpu_read;
-    logic ppu_read;
-    logic [7:0] cpu_data, ppu_data;
-    logic refresh;
-    logic loading;
-    logic [7:0] ppu_off;
-    logic mirroring;
+    logic [23:0] map_ctrl;
+    logic map_ctrl_req;
+    logic map_ctrl_ack;
     sdram_bus #(.ADDR_BITS(RAM_ADDR_BITS)) ch_ppu (), ch_cpu (), ch_api ();
 
-    initial loading = 1;
-
-    assign cpu_read  = !ROMSEL && CPU_RW;
-    assign ppu_read  = CIRAM_CE && !PPU_RD;
-    assign CPU_DATA  = cpu_read ? cpu_data : 'z;
-    assign PPU_DATA  = ppu_read ? ppu_data : 'z;
-    assign CPU_DIR   = cpu_read;
-    assign PPU_DIR   = ppu_read;
-    assign CIRAM_CE  = !PPU_ADDR[13];
-    assign CIRAM_A10 = mirroring ? PPU_ADDR[10] : PPU_ADDR[11];
-
-    prg_rom prg_rom (
+    map_mux mux (
         .clk(clk),
-        .en(!loading),
-        .ram(ch_cpu.controller),
-        .refresh(refresh),
+        .async_reset(!async_nreset),
+        .ch_prg(ch_cpu.controller),
+        .ch_chr(ch_ppu.controller),
+
         .m2(M2),
-        .oe(!ROMSEL),
-        .addr(CPU_ADDR),
-        .data(cpu_data)
-    );
+        .cpu_addr({!ROMSEL, CPU_ADDR}),
+        .cpu_data(CPU_DATA),
+        .cpu_rw(CPU_RW),
+        .irq(IRQ),
+        .ppu_rd(PPU_RD),
+        .ppu_wr(PPU_WR),
+        .ciram_a10(CIRAM_A10),
+        .ciram_ce(CIRAM_CE),
+        .ppu_addr(PPU_ADDR),
+        .ppu_data(PPU_DATA),
 
-    chr_rom chr_rom (
-        .clk(clk),
-        .en(!loading),
-        .offset(ppu_off),
-        .ram(ch_ppu.controller),
-        .ce(CIRAM_CE),
-        .oe(!PPU_RD),
-        .addr(PPU_ADDR[12:0]),
-        .data(ppu_data)
+        .cpu_oe(CPU_DIR),
+        .ppu_oe(PPU_DIR),
+
+        .map_ctrl(map_ctrl),
+        .map_ctrl_req(map_ctrl_req),
+        .map_ctrl_ack(map_ctrl_ack)
     );
 
     pll pll (
@@ -90,11 +78,22 @@ module fcart (
         .CLKOS(SDRAM_CLK),
         .LOCK (async_nreset)
     );
-    logic [1:0] rst_sync = '0;
+    logic [1:0] rst_sync;
+    assign reset = !rst_sync[1];
     always_ff @(posedge clk) begin
-        rst_sync <= {rst_sync[0], async_nreset};
-        reset <= !rst_sync[1];
+        if (!async_nreset) begin
+            rst_sync <= 2'b00;
+        end else begin
+            rst_sync <= {rst_sync[0], 1'b1};
+        end
     end
+
+    logic [2:0] refresh_sync;
+    always_ff @(posedge clk)
+        // Refresh is performed after the OE cycle is completed.
+        refresh_sync <= {
+            refresh_sync[1:0], !M2
+        };
 
     sdram sdram (
         .clk(clk),
@@ -102,7 +101,7 @@ module fcart (
         .ch0(ch_cpu.memory),
         .ch1(ch_ppu.memory),
         .ch2(ch_api.memory),
-        .refresh(refresh),
+        .refresh(!refresh_sync[2] && refresh_sync[1]),
         .sdram_cs(SDRAM_CS),
         .sdram_addr(SDRAM_ADDR),
         .sdram_ba(SDRAM_BA),
@@ -113,11 +112,11 @@ module fcart (
         .sdram_dqm(SDRAM_DQM)
     );
 
-    bidir_bus bidir_bus ();
+    bidir_bus qspi_bus ();
     qspi qspi (
         .clk(clk),
         .async_reset(!async_nreset),
-        .bus(bidir_bus.provider),
+        .bus(qspi_bus.provider),
         .qspi_clk(QSPI_CLK),
         .qspi_ncs(QSPI_NCS),
         .qspi_io(QSPI_IO)
@@ -126,10 +125,10 @@ module fcart (
     api api (
         .clk(clk),
         .reset(reset),
-        .loading(loading),
-        .ppu_off(ppu_off),
-        .mirroring(mirroring),
+        .map_ctrl(map_ctrl),
+        .map_ctrl_req(map_ctrl_req),
+        .map_ctrl_ack(map_ctrl_ack),
         .ram(ch_api.controller),
-        .bus(bidir_bus.consumer)
+        .qspi_bus(qspi_bus.consumer)
     );
 endmodule

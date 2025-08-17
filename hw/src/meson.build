@@ -3,13 +3,16 @@ src = files(
     'bidir_bus.sv',
     'sdram_bus.sv',
     'api.sv',
-    'chr_rom.sv',
+    'chr_ram.sv',
     'fcart.sv',
     'fifo.sv',
-    'prg_rom.sv',
+    'prg_ram.sv',
     'qspi.sv',
+    'map_mux.sv',
     'sdram.sv',
 )
+
+subdir('mappers')
 
 lpf = files('fcart.lpf')
 sdc = files('fcart.sdc')
