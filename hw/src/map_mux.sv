@@ -32,12 +32,13 @@ module map_mux #(
 
     main main (.bus(map[0]));
     NROM NROM (.bus(map[1]));
-    UxROM UxROM (.bus(map[2]));
-    CNROM CNROM (.bus(map[3]));
+    MMC1 MMC1 (.bus(map[2]));
+    UxROM UxROM (.bus(map[3]));
+    CNROM CNROM (.bus(map[4]));
 
     logic [4:0] select;
     logic [6:0] map_args;
-    logic [4:0] chr_off = map_args[4:0];
+    logic [4:0] chr_off;
     logic [1:0] map_ctrl_req_sync;
     logic [7:0] cpu_data_out, ppu_data_out;
 
@@ -85,6 +86,8 @@ module map_mux #(
     assign ciram_a10 = bus_ciram_a10[select];
     assign ciram_ce = bus_ciram_ce[select];
     assign ppu_data = ppu_oe ? ppu_data_out : 'z;
+
+    assign chr_off = map_args[4:0];
 
     prg_ram prg_ram (
         .clk(clk),
