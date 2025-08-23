@@ -9,7 +9,7 @@ prj_src remove -all
 @SRL_LIST@
 
 prj_strgy set_value -strategy Strategy1 \
-    par_place_iterator=2
+    par_place_iterator=1
 
 prj_impl option top @TOP_MODULE@
 prj_project save

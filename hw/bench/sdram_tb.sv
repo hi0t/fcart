@@ -59,8 +59,11 @@ module sdram_tb;
     initial begin
         reset = 1;
         bus0.req = 0;
+        bus0.wm = 2'b00;
         bus1.req = 0;
+        bus1.wm = 2'b00;
         bus2.req = 0;
+        bus2.wm = 2'b00;
         @(posedge clk) reset = 0;
 
         // skip powerup

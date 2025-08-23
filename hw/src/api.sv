@@ -98,7 +98,7 @@ module api (
     end
 
     // Verilator lint_off UNUSED
-    logic debug_ram_req = ram.req;
+    logic debug_ram_busy = ram.busy;
     logic [21:0] debug_ram_address = ram.address;
     logic [15:0] debug_ram_data = ram.data_write;
     logic [1:0] debug_state = state;

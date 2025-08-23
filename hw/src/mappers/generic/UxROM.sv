@@ -1,10 +1,10 @@
 module UxROM (
     map_bus.mapper bus
 );
-    logic [4:0] bank;
+    logic [4:0] prg_bank;
 
     // CPU
-    assign bus.prg_addr = bus.ADDR_BITS'({bus.cpu_addr[14] ? 5'b11111 : bank[4:0], bus.cpu_addr[13:0]});
+    assign bus.prg_addr = bus.ADDR_BITS'({bus.cpu_addr[14] ? 5'b11111 : prg_bank[4:0], bus.cpu_addr[13:0]});
     assign bus.prg_oe = bus.cpu_addr[15] && bus.cpu_rw;
     // PPU
     assign bus.chr_addr = bus.ADDR_BITS'({bus.ppu_addr[12:0]});
@@ -16,7 +16,7 @@ module UxROM (
 
     always_ff @(negedge bus.m2) begin
         if (bus.cpu_addr[15] && !bus.cpu_rw) begin
-            bank <= bus.cpu_data_in[4:0];
+            prg_bank <= bus.cpu_data_in[4:0];
         end
     end
 endmodule
