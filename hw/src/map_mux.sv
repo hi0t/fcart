@@ -33,6 +33,7 @@ module map_mux #(
     main main (.bus(map[0]));
     NROM NROM (.bus(map[1]));
     UxROM UxROM (.bus(map[2]));
+    CNROM CNROM (.bus(map[3]));
 
     logic [4:0] select;
     logic [6:0] map_args;

@@ -126,6 +126,8 @@ static uint16_t choose_mapper(uint16_t id)
         return 1;
     case 2:
         return 2;
+    case 3:
+        return 3;
     default:
         return 0;
     }
