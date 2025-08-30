@@ -41,9 +41,9 @@ module fcart (
     logic clk;
     logic async_nreset;
     logic reset;
-    logic [23:0] map_ctrl;
-    logic map_ctrl_req;
-    logic map_ctrl_ack;
+    logic [31:0] wr_reg;
+    logic [3:0] wr_reg_addr;
+    logic wr_reg_changed;
     sdram_bus #(.ADDR_BITS(RAM_ADDR_BITS)) ch_ppu (), ch_cpu (), ch_api ();
 
     map_mux mux (
@@ -67,9 +67,9 @@ module fcart (
         .cpu_oe(CPU_DIR),
         .ppu_oe(PPU_DIR),
 
-        .map_ctrl(map_ctrl),
-        .map_ctrl_req(map_ctrl_req),
-        .map_ctrl_ack(map_ctrl_ack)
+        .wr_reg(wr_reg),
+        .wr_reg_addr(wr_reg_addr),
+        .wr_reg_changed(wr_reg_changed)
     );
 
     pll pll (
@@ -112,23 +112,46 @@ module fcart (
         .sdram_dqm(SDRAM_DQM)
     );
 
-    bidir_bus qspi_bus ();
+    logic [7:0] qspi_rd_data;
+    logic qspi_rd_valid;
+    logic qspi_rd_ready;
+    logic [7:0] qspi_wr_data;
+    logic qspi_wr_valid;
+    logic qspi_wr_ready;
+    logic qspi_start;
     qspi qspi (
         .clk(clk),
         .async_reset(!async_nreset),
-        .bus(qspi_bus.provider),
+
+        .rd_data(qspi_rd_data),
+        .rd_valid(qspi_rd_valid),
+        .rd_ready(qspi_rd_ready),
+        .wr_data(qspi_wr_data),
+        .wr_valid(qspi_wr_valid),
+        .wr_ready(qspi_wr_ready),
+        .start(qspi_start),
+
         .qspi_clk(QSPI_CLK),
         .qspi_ncs(QSPI_NCS),
-        .qspi_io(QSPI_IO)
+        .qspi_io (QSPI_IO)
     );
 
     api api (
-        .clk(clk),
+        .clk  (clk),
         .reset(reset),
-        .map_ctrl(map_ctrl),
-        .map_ctrl_req(map_ctrl_req),
-        .map_ctrl_ack(map_ctrl_ack),
+
+        .wr_reg(wr_reg),
+        .wr_reg_addr(wr_reg_addr),
+        .wr_reg_changed(wr_reg_changed),
+
         .ram(ch_api.controller),
-        .qspi_bus(qspi_bus.consumer)
+
+        .rd_data(qspi_rd_data),
+        .rd_valid(qspi_rd_valid),
+        .rd_ready(qspi_rd_ready),
+        .wr_data(qspi_wr_data),
+        .wr_valid(qspi_wr_valid),
+        .wr_ready(qspi_wr_ready),
+        .start(qspi_start)
     );
 endmodule

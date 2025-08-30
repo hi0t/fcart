@@ -74,15 +74,15 @@ int rom_load(const char *filename)
     uint8_t has_chr_ram = nes20 ? chr_ram_size > 0 : chr_size == 0;
     uint8_t chr_off = get_chr_off(prg_size);
 
-    fpga_api_load(0, prg_size, file_reader, &fp);
-    fpga_api_load(1U << chr_off, chr_size, file_reader, &fp);
+    fpga_api_write_mem(0, prg_size, file_reader, &fp);
+    fpga_api_write_mem(1U << chr_off, chr_size, file_reader, &fp);
 
     uint32_t mapper_args = choose_mapper(mapper_id);
     mapper_args |= chr_off << 5U;
     mapper_args |= mirroring << 10U;
     mapper_args |= has_chr_ram << 11U;
 
-    fpga_api_launch(mapper_args);
+    fpga_api_write_reg(0, mapper_args);
     // mapper args:
     // 11|10|9|8|7|6|5|4|3|2|1|0
     //  |  | | | | | | | | | | |
@@ -127,7 +127,7 @@ static uint16_t choose_mapper(uint16_t id)
     case 1:
         return 2;
     case 2:
-        return 2;
+        return 3;
     case 3:
         return 4;
     default:

@@ -22,9 +22,9 @@ module map_mux #(
     output logic cpu_oe,
     output logic ppu_oe,
 
-    input logic [23:0] map_ctrl,
-    input logic map_ctrl_req,
-    output logic map_ctrl_ack
+    input logic [31:0] wr_reg,
+    input logic [3:0] wr_reg_addr,
+    input logic wr_reg_changed
 );
 
     localparam MAP_CNT = 32;
@@ -39,7 +39,7 @@ module map_mux #(
     logic [4:0] select;
     logic [6:0] map_args;
     logic [4:0] chr_off;
-    logic [1:0] map_ctrl_req_sync;
+    logic [2:0] wr_reg_sync;
     logic [7:0] cpu_data_out, ppu_data_out;
 
     // Muxed bus signals
@@ -110,14 +110,12 @@ module map_mux #(
 
     always_ff @(posedge m2 or posedge async_reset) begin
         if (async_reset) begin
-            select <= '0;
+            select   <= '0;
             map_args <= '0;
-            map_ctrl_ack <= 0;
         end else begin
-            map_ctrl_req_sync <= {map_ctrl_req_sync[0], map_ctrl_req};
-            if (map_ctrl_req_sync[1] != map_ctrl_ack) begin
-                {map_args, select} <= map_ctrl[11:0];
-                map_ctrl_ack <= map_ctrl_req_sync[1];
+            wr_reg_sync <= {wr_reg_sync[1:0], wr_reg_changed};
+            if (wr_reg_sync[1] != wr_reg_sync[2] && wr_reg_addr == 0) begin
+                {map_args, select} <= wr_reg[11:0];
             end
         end
     end

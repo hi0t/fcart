@@ -1,5 +1,5 @@
 module fifo #(
-    parameter DEPTH = 16
+    parameter DEPTH = 8
 ) (
     input logic wr_clk,
     input logic wr_reset,

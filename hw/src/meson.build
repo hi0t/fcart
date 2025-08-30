@@ -1,6 +1,5 @@
 src = files(
     'ip' / 'pll.v',
-    'bidir_bus.sv',
     'sdram_bus.sv',
     'api.sv',
     'chr_ram.sv',

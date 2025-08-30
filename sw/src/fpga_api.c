@@ -5,11 +5,11 @@
 #include <stdlib.h>
 
 enum {
-    CMD_WRITE = 1,
-    CMD_LAUNCH
+    CMD_WRITE_MEM = 1,
+    CMD_WRITE_REG = 3
 };
 
-int fpga_api_load(uint32_t address, uint32_t size, fpga_api_reader_cb cb, void *arg)
+int fpga_api_write_mem(uint32_t address, uint32_t size, fpga_api_reader_cb cb, void *arg)
 {
 #define BUF_SIZE 1024
     uint8_t *buf = malloc(BUF_SIZE);
@@ -24,7 +24,7 @@ int fpga_api_load(uint32_t address, uint32_t size, fpga_api_reader_cb cb, void *
             goto out;
         }
         // TODO: make parallel transfer
-        if ((rc = qspi_write(CMD_WRITE, offset, buf, chunk)) != 0) {
+        if ((rc = qspi_write(CMD_WRITE_MEM, offset, buf, chunk)) != 0) {
             goto out;
         }
         offset += chunk;
@@ -35,7 +35,7 @@ out:
     return rc;
 }
 
-int fpga_api_launch(uint32_t ppu_off)
+int fpga_api_write_reg(uint8_t id, uint32_t value)
 {
-    return qspi_write(CMD_LAUNCH, ppu_off, NULL, 0);
+    return qspi_write(CMD_WRITE_REG, id, (uint8_t *)&value, sizeof(value));
 }
