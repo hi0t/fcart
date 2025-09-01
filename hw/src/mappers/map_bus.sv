@@ -8,6 +8,8 @@ interface map_bus #(
     logic m2;
     logic [15:0] cpu_addr;
     logic [7:0] cpu_data_in;
+    logic [7:0] cpu_data_out;
+    logic cpu_oe;
     logic cpu_rw;
     logic irq;
     logic ppu_rd;
@@ -24,8 +26,12 @@ interface map_bus #(
     logic chr_oe;
     logic chr_we;
 
+    initial begin
+        cpu_oe = 0;
+    end
+
     modport mapper(
         input reset, args, m2, cpu_addr, cpu_data_in, cpu_rw, ppu_rd, ppu_wr, ppu_addr,
-        output irq, ciram_a10, ciram_ce, prg_addr, prg_oe, chr_addr, chr_ce, chr_oe, chr_we
+        output cpu_oe, cpu_data_out, irq, ciram_a10, ciram_ce, prg_addr, prg_oe, chr_addr, chr_ce, chr_oe, chr_we
     );
 endinterface

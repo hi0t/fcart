@@ -30,7 +30,7 @@ module map_mux #(
     localparam MAP_CNT = 32;
     map_bus map[MAP_CNT] ();
 
-    main main (.bus(map[0]));
+    loader loader (.bus(map[0]));
     NROM NROM (.bus(map[1]));
     MMC1 MMC1 (.bus(map[2]));
     UxROM UxROM (.bus(map[3]));
@@ -43,6 +43,8 @@ module map_mux #(
     logic [7:0] cpu_data_out, ppu_data_out;
 
     // Muxed bus signals
+    logic [7:0] bus_cpu_data_out[MAP_CNT];
+    logic bus_cpu_oe[MAP_CNT];
     logic bus_irq[MAP_CNT];
     logic bus_ciram_a10[MAP_CNT];
     logic bus_ciram_ce[MAP_CNT];
@@ -67,6 +69,8 @@ module map_mux #(
         assign map[n].ppu_addr = ppu_addr;
 
         // unpack interface array
+        assign bus_cpu_data_out[n] = map[n].cpu_data_out;
+        assign bus_cpu_oe[n] = map[n].cpu_oe;
         assign bus_irq[n] = map[n].irq;
         assign bus_ciram_a10[n] = map[n].ciram_a10;
         assign bus_ciram_ce[n] = map[n].ciram_ce;
@@ -81,7 +85,7 @@ module map_mux #(
     // mux for outgoing signals
     assign cpu_oe = bus_prg_oe[select];
     assign ppu_oe = bus_chr_ce[select] && bus_chr_oe[select];
-    assign cpu_data = cpu_oe ? cpu_data_out : 'z;
+    assign cpu_data = cpu_oe ? (bus_cpu_oe[select] ? bus_cpu_data_out[select] : cpu_data_out) : 'z;
     assign irq = bus_irq[select];
     assign ciram_a10 = bus_ciram_a10[select];
     assign ciram_ce = bus_ciram_ce[select];
@@ -92,7 +96,7 @@ module map_mux #(
     prg_ram prg_ram (
         .clk(clk),
         .ram(ch_prg),
-        .oe(bus_prg_oe[select]),
+        .oe(bus_prg_oe[select] && !bus_cpu_oe[select]),
         .addr(bus_prg_addr[select] & ADDR_BITS'((1 << chr_off) - 1)),
         .data_out(cpu_data_out)
     );

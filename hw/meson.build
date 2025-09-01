@@ -8,6 +8,7 @@ diamond_prj = 'fcart'
 
 subdir('bench')
 subdir('src')
+subdir('loader')
 
 diamond_path = get_option('diamond_search_path')
 if diamond_path == ''
@@ -27,6 +28,7 @@ bit = custom_target(
     output: f'@diamond_prj@.bit',
     command: [diamondc, '@INPUT@'],
     depend_files: rtl_sorces,
+    depends: loader_mem,
     console: true,
 )
 
