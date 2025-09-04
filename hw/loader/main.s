@@ -4,6 +4,7 @@ PPU_STATUS = $2002
 PPU_SCROLL = $2005
 PPU_ADDR   = $2006
 PPU_DATA   = $2007
+MAP_CTRL   = $8000
 
 .segment "STARTUP"
 reset:
@@ -41,6 +42,9 @@ reset:
     ; end initialization
 
     lda PPU_ADDR ; read PPU status to reset high-low latch
+
+    lda #%00000001 ; vblank
+    sta MAP_CTRL
 
 	; load palette data into PPU
     lda #$3F
@@ -84,14 +88,18 @@ reset:
     sta PPU_SCROLL
     sta PPU_SCROLL
 
-    ; enbale background rendering
-    lda #%00001010
+    lda #%10000000 ; Enable NMI on vblank
+	sta PPU_CTRL
+
+    lda #%00001010 ; enbale background rendering
     sta PPU_MASK
 
     forever:
         jmp forever
 
 nmi:
+    lda #%00000001 ; vblank
+    sta MAP_CTRL
     rti
 
 irq:

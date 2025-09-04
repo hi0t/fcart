@@ -38,7 +38,7 @@ module map_mux #(
 
     logic [4:0] select;
     logic [6:0] map_args;
-    logic [4:0] chr_off;
+    logic [ADDR_BITS-1:0] chr_off;
     logic [2:0] wr_reg_sync;
     logic [7:0] cpu_data_out, ppu_data_out;
 
@@ -91,7 +91,7 @@ module map_mux #(
     assign ciram_ce = bus_ciram_ce[select];
     assign ppu_data = ppu_oe ? ppu_data_out : 'z;
 
-    assign chr_off = map_args[4:0];
+    assign chr_off = (map_args[4:0] == 0) ? 0 : ADDR_BITS'(1 << map_args[4:0]);
 
     prg_ram prg_ram (
         .clk(clk),
@@ -104,7 +104,7 @@ module map_mux #(
     chr_ram chr_ram (
         .clk(clk),
         .ram(ch_chr),
-        .addr(bus_chr_addr[select] | ADDR_BITS'(1 << chr_off)),
+        .addr(bus_chr_addr[select] | chr_off),
         .data_in(ppu_data),
         .data_out(ppu_data_out),
         .ce(bus_chr_ce[select]),

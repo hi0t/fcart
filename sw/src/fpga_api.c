@@ -18,7 +18,7 @@ int fpga_api_write_mem(uint32_t address, uint32_t size, fpga_api_reader_cb cb, v
     int rc = 0;
 
     while (remain > 0) {
-        uint16_t chunk = remain > BUF_SIZE ? BUF_SIZE : remain;
+        uint32_t chunk = remain > BUF_SIZE ? BUF_SIZE : remain;
         if (!cb(buf, chunk, arg)) {
             rc = -EIO;
             goto out;
