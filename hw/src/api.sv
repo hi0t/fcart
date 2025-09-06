@@ -26,16 +26,17 @@ module api (
 
     logic [1:0] byte_cnt;
     logic [7:0] cmd;
-    logic zero_addr;
     logic is_upper_nibble;
+    logic write_in_progress;
 
     always_ff @(posedge clk) begin
         if (reset) begin
+            ram.req <= 0;
+            ram.we <= 0;
             state <= STATE_CMD;
             wr_reg_changed <= 0;
         end else begin
             rd_ready <= 0;
-            ram.req  <= 0;
 
             if (start) begin
                 state <= STATE_CMD;
@@ -65,7 +66,7 @@ module api (
                                     1: ram.address[14:7] <= rd_data;
                                     2: {ram.address[6:0], is_upper_nibble} <= rd_data;
                                 endcase
-                                if (byte_cnt == 2) zero_addr <= 1;
+                                write_in_progress <= 0;
                             end
                             CMD_WRITE_REG: begin
                                 if (byte_cnt == 2) wr_reg_addr <= rd_data[3:0];
@@ -77,20 +78,23 @@ module api (
 
                         case (cmd)
                             CMD_WRITE_MEM: begin
-                                if (!ram.busy) begin
-                                    rd_ready <= 1;
-
-                                    if (is_upper_nibble) begin
+                                if (is_upper_nibble) begin
+                                    if (!write_in_progress && ram.req == ram.ack) begin
                                         ram.we <= 1;
                                         ram.wm <= 2'b00;
                                         ram.data_write[15:8] <= rd_data;
-                                        if (zero_addr) zero_addr <= 0;
-                                        else ram.address <= ram.address + 1;
-                                        ram.req <= 1;
-                                    end else begin
-                                        ram.data_write[7:0] <= rd_data;
+                                        ram.req <= !ram.req;
+                                        write_in_progress <= 1;
+                                    end else if (ram.req == ram.ack) begin
+                                        rd_ready <= 1;
+                                        is_upper_nibble <= 0;
+                                        ram.address <= ram.address + 1;
+                                        write_in_progress <= 0;
                                     end
-                                    is_upper_nibble <= !is_upper_nibble;
+                                end else begin
+                                    rd_ready <= 1;
+                                    ram.data_write[7:0] <= rd_data;
+                                    is_upper_nibble <= 1;
                                 end
                             end
                             CMD_WRITE_REG: begin
@@ -113,7 +117,7 @@ module api (
     end
 
     // Verilator lint_off UNUSED
-    logic debug_ram_busy = ram.busy;
+    logic debug_ram_busy = ram.req != ram.ack;
     logic [21:0] debug_ram_address = ram.address;
     logic [15:0] debug_ram_data = ram.data_write;
     logic [1:0] debug_state = state;

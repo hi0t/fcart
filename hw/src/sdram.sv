@@ -65,22 +65,15 @@ module sdram #(
     logic [COL_BITS-1:0] column;
     logic [15:0] data;
     logic [1:0] curr_ch;
-    logic [2:0] req;
     logic we;
     logic [1:0] wm;
-    logic busy;
 
     assign {sdram_ras, sdram_cas, sdram_we} = cmd;
     assign sdram_cs = (cmd == CMD_NOOP);
     assign sdram_dq = (cmd == CMD_WRITE) ? data : 'z;
-    assign ch0.busy = busy;
-    assign ch1.busy = busy;
-    assign ch2.busy = busy;
 
     always_ff @(posedge clk) begin
         refresh_timer <= refresh_timer + 1;
-
-        req <= req | {ch2.req, ch1.req, ch0.req};
 
         if (refresh_timer >= REFRESH_INTERVAL || ((refresh_timer >= REFRESH_INTERVAL / 2) && refresh)) begin
             pending_refresh <= 1;
@@ -91,7 +84,9 @@ module sdram #(
             cmd <= CMD_NOOP;
             sdram_dqm <= 2'b11;
             step <= '0;
-            busy <= 1;
+            ch0.ack <= 0;
+            ch1.ack <= 0;
+            ch2.ack <= 0;
         end else begin
             case (state)
                 STATE_CONFIGURE: begin
@@ -129,15 +124,14 @@ module sdram #(
                     cmd <= CMD_NOOP;
                     step <= ACTIVE_START;
                     sdram_dqm <= 2'b11;
-                    busy <= 1;
 
+                    // prioritize refresh over requests
                     if (pending_refresh) begin
                         pending_refresh <= 0;
                         refresh_timer <= 0;
                         cmd <= CMD_AUTO_REFRESH;
                         state <= STATE_REFRESH;
-                    end else if (req[0]) begin
-                        req[0] <= 0;
+                    end else if (ch0.req != ch0.ack) begin
                         {sdram_ba, column, sdram_addr} <= ch0.address;
                         data <= ch0.data_write;
                         cmd <= CMD_ACTIVATE;
@@ -145,8 +139,7 @@ module sdram #(
                         curr_ch <= 0;
                         we <= ch0.we;
                         wm <= ch0.wm;
-                    end else if (req[1]) begin
-                        req[1] <= 0;
+                    end else if (ch1.req != ch1.ack) begin
                         {sdram_ba, column, sdram_addr} <= ch1.address;
                         data <= ch1.data_write;
                         cmd <= CMD_ACTIVATE;
@@ -154,8 +147,7 @@ module sdram #(
                         curr_ch <= 1;
                         we <= ch1.we;
                         wm <= ch1.wm;
-                    end else if (req[2]) begin
-                        req[2] <= 0;
+                    end else if (ch2.req != ch2.ack) begin
                         {sdram_ba, column, sdram_addr} <= ch2.address;
                         data <= ch2.data_write;
                         cmd <= CMD_ACTIVATE;
@@ -163,8 +155,6 @@ module sdram #(
                         curr_ch <= 2;
                         we <= ch2.we;
                         wm <= ch2.wm;
-                    end else begin
-                        busy <= 0;
                     end
                 end
                 STATE_ACTIVE: begin
@@ -178,13 +168,20 @@ module sdram #(
                             cmd <= we ? CMD_WRITE : CMD_READ;
                         end
                         ACTIVE_READY: begin
-                            if (!we) begin
-                                case (curr_ch)
-                                    0: ch0.data_read <= sdram_dq;
-                                    1: ch1.data_read <= sdram_dq;
-                                    2: ch2.data_read <= sdram_dq;
-                                endcase
-                            end
+                            case (curr_ch)
+                                0: begin
+                                    ch0.ack <= ch0.req;
+                                    if (!we) ch0.data_read <= sdram_dq;
+                                end
+                                1: begin
+                                    ch1.ack <= ch1.req;
+                                    if (!we) ch1.data_read <= sdram_dq;
+                                end
+                                2: begin
+                                    ch2.ack <= ch2.req;
+                                    if (!we) ch2.data_read <= sdram_dq;
+                                end
+                            endcase
                         end
                         ACTIVE_READ_END: if (!we) state <= STATE_IDLE;
                         ACTIVE_WRITE_END: if (we) state <= STATE_IDLE;

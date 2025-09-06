@@ -2,6 +2,7 @@ module map_mux #(
     parameter ADDR_BITS = 23  // SDRAM width + 1
 ) (
     input logic clk,
+    input logic reset,
     input logic async_reset,
     sdram_bus.controller ch_prg,
     sdram_bus.controller ch_chr,
@@ -26,21 +27,17 @@ module map_mux #(
     input logic [3:0] wr_reg_addr,
     input logic wr_reg_changed
 );
+    localparam FPGA_REG_MAPPER = 0;
+    localparam FPGA_REG_LOADER = 1;
 
     localparam MAP_CNT = 32;
-    map_bus map[MAP_CNT] ();
-
-    loader loader (.bus(map[0]));
-    NROM NROM (.bus(map[1]));
-    MMC1 MMC1 (.bus(map[2]));
-    UxROM UxROM (.bus(map[3]));
-    CNROM CNROM (.bus(map[4]));
 
     logic [4:0] select;
     logic [6:0] map_args;
     logic [ADDR_BITS-1:0] chr_off;
     logic [2:0] wr_reg_sync;
     logic [7:0] cpu_data_out, ppu_data_out;
+    logic [31:0] loader_args;
 
     // Muxed bus signals
     logic [7:0] bus_cpu_data_out[MAP_CNT];
@@ -54,6 +51,17 @@ module map_mux #(
     logic bus_chr_ce[MAP_CNT];
     logic bus_chr_oe[MAP_CNT];
     logic bus_chr_we[MAP_CNT];
+
+    map_bus map[MAP_CNT] ();
+
+    loader loader (
+        .bus (map[0]),
+        .args(loader_args)
+    );
+    NROM NROM (.bus(map[1]));
+    MMC1 MMC1 (.bus(map[2]));
+    UxROM UxROM (.bus(map[3]));
+    CNROM CNROM (.bus(map[4]));
 
     genvar n;
     for (n = 0; n < MAP_CNT; n = n + 1) begin
@@ -91,18 +99,20 @@ module map_mux #(
     assign ciram_ce = bus_ciram_ce[select];
     assign ppu_data = ppu_oe ? ppu_data_out : 'z;
 
-    assign chr_off = (map_args[4:0] == 0) ? 0 : ADDR_BITS'(1 << map_args[4:0]);
+    assign chr_off = (map_args[4:0] == 0) ? '0 : ADDR_BITS'(1 << map_args[4:0]);
 
     prg_ram prg_ram (
         .clk(clk),
+        .reset(reset),
         .ram(ch_prg),
         .oe(bus_prg_oe[select] && !bus_cpu_oe[select]),
-        .addr(bus_prg_addr[select] & ADDR_BITS'((1 << chr_off) - 1)),
+        .addr(bus_prg_addr[select] & ADDR_BITS'((1 << map_args[4:0]) - 1)),
         .data_out(cpu_data_out)
     );
 
     chr_ram chr_ram (
         .clk(clk),
+        .reset(reset),
         .ram(ch_chr),
         .addr(bus_chr_addr[select] | chr_off),
         .data_in(ppu_data),
@@ -114,12 +124,14 @@ module map_mux #(
 
     always_ff @(posedge m2 or posedge async_reset) begin
         if (async_reset) begin
-            select   <= '0;
+            select <= '0;
             map_args <= '0;
+            loader_args <= '0;
         end else begin
             wr_reg_sync <= {wr_reg_sync[1:0], wr_reg_changed};
-            if (wr_reg_sync[1] != wr_reg_sync[2] && wr_reg_addr == 0) begin
-                {map_args, select} <= wr_reg[11:0];
+            if (wr_reg_sync[1] != wr_reg_sync[2]) begin
+                if (wr_reg_addr == FPGA_REG_MAPPER) {map_args, select} <= wr_reg[11:0];
+                else if (wr_reg_addr == FPGA_REG_LOADER) loader_args <= wr_reg;
             end
         end
     end

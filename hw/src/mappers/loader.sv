@@ -1,5 +1,6 @@
 module loader (
-    map_bus.mapper bus
+    map_bus.mapper bus,
+    input logic [31:0] args
 );
     logic [7:0] rom[1024]  /* synthesis syn_romstyle = "EBR" */;
     initial $readmemh("loader/loader.mem", rom);
@@ -10,10 +11,11 @@ module loader (
     logic [7:0] scanline_cnt;
     logic [5:0] tile_cnt;
     logic [1:0] match_ppu;
+    logic nbuffer;
 
     assign bus.cpu_oe = 1;
     assign bus.prg_oe = bus.cpu_rw && bus.cpu_addr[15];
-    assign bus.chr_addr = bus.ADDR_BITS'({chr_bank, bus.ppu_addr[11:0]});
+    assign bus.chr_addr = bus.ADDR_BITS'({nbuffer, chr_bank, bus.ppu_addr[11:0]});
     assign bus.ciram_ce = !bus.ppu_addr[13];
     assign bus.chr_ce = bus.ciram_ce;
     assign bus.chr_oe = !bus.ppu_rd;
@@ -32,7 +34,8 @@ module loader (
         // read control register
         if (bus.cpu_addr[15] && !bus.cpu_rw) begin
             if (bus.cpu_data_in[0]) begin
-                vblank <= 1;
+                vblank  <= 1;
+                nbuffer <= args[0];
             end
         end
     end

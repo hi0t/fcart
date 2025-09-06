@@ -72,17 +72,6 @@ static void upload()
     led_on(false);
 }
 
-static void draw_text()
-{
-    led_on(true);
-    gfx_text(10, 0, "Hello, World!", 3);
-    gfx_text(10, 8, "Hello, World!", 2);
-    gfx_text(10, 230, "Hello, World!", 1);
-    gfx_line(20, 20, 200, 200, 3);
-    gfx_refresh();
-    led_on(false);
-}
-
 static void switch_led()
 {
     static bool on = false;
@@ -93,13 +82,23 @@ static void switch_led()
 int main()
 {
     hw_init();
-    set_button_callback(draw_text);
+    set_button_callback(upload);
+
+    int i = 0;
 
     for (;;) {
         gpio_pull();
         // led_on(HAL_GPIO_ReadPin(GPIO_IRQ_PORT, GPIO_IRQ_PIN) == GPIO_PIN_SET);
         // switch_led();
         // delay_ms(500);
+
+        /*gfx_clear();
+        gfx_text(i, 100, "Hello, World!", 2);
+        i++;
+        if (i > 200)
+            i = 0;
+        gfx_refresh();
+        delay_ms(50);*/
     }
 
     return 0;

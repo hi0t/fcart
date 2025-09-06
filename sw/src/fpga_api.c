@@ -35,7 +35,7 @@ out:
     return rc;
 }
 
-int fpga_api_write_reg(uint8_t id, uint32_t value)
+int fpga_api_write_reg(enum fpga_reg_id id, uint32_t value)
 {
     return qspi_write(CMD_WRITE_REG, id, (uint8_t *)&value, sizeof(value));
 }

@@ -82,7 +82,7 @@ int rom_load(const char *filename)
     mapper_args |= mirroring << 10U;
     mapper_args |= has_chr_ram << 11U;
 
-    fpga_api_write_reg(0, mapper_args);
+    fpga_api_write_reg(FPGA_REG_MAPPER, mapper_args);
     // mapper args:
     // 11|10|9|8|7|6|5|4|3|2|1|0
     //  |  | | | | | | | | | | |

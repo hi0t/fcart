@@ -3,7 +3,7 @@
 module sdram_tb;
     initial begin
         $dumpfile("sdram.vcd");
-        #30s $finish;
+        #10s $finish;
     end
 
     logic        clk = 0;
@@ -72,35 +72,28 @@ module sdram_tb;
         wait (ram.state == ram.STATE_IDLE);
 
         // Parallel write
-        bus0.req = 1;
-        bus1.req = 1;
+        bus0.req = !bus0.req;
+        bus1.req = !bus1.req;
         bus0.we = 1;
         bus1.we = 1;
         bus0.address = 'h00;
         bus1.address = 'h01;
         bus0.data_write = 'hF7F8;
         bus1.data_write = 'hA7F8;
-        @(posedge clk);
-        bus0.req = 0;
-        bus1.req = 0;
-        @(posedge clk iff ram.step == ram.ACTIVE_WRITE_END);
-        @(posedge clk iff ram.step == ram.ACTIVE_WRITE_END);
-
+        @(posedge clk iff bus0.req == bus0.ack);
+        @(posedge clk iff bus1.req == bus1.ack);
 
         // Parallel read
         bus0.data_read = 'x;
         bus1.data_read = 'x;
-        bus0.req = 1;
-        bus1.req = 1;
+        bus0.req = !bus0.req;
+        bus1.req = !bus1.req;
         bus0.we = 0;
         bus1.we = 0;
         bus0.address = 'h00;
         bus1.address = 'h01;
-        @(posedge clk);
-        bus0.req = 0;
-        bus1.req = 0;
-        @(posedge clk iff ram.step == ram.ACTIVE_READ_END);
-        @(posedge clk iff ram.step == ram.ACTIVE_READ_END);
+        @(posedge clk iff bus0.req == bus0.ack);
+        @(posedge clk iff bus1.req == bus1.ack);
         assert (bus0.data_read == 'hF7F8)
         else $fatal(1, "hF7F8 != %0h", bus0.data_read);
         assert (bus1.data_read == 'hA7F8)
@@ -110,25 +103,20 @@ module sdram_tb;
         wait (ram.state == ram.STATE_REFRESH);
 
         // refresh -> write
-        bus2.req = 1;
+        bus2.req = !bus2.req;
         bus2.we = 1;
         bus2.address = '1;  // max address
         bus2.data_write = 'hF7F8;
-        @(posedge clk);
-        bus2.req = 0;
-        @(posedge clk iff ram.state == ram.STATE_ACTIVE && ram.step == ram.ACTIVE_WRITE_END);
-
+        @(posedge clk iff bus2.req == bus2.ack);
 
         wait (ram.refresh_timer == ram.REFRESH_INTERVAL / 2);
 
         // read -> refresh
         bus2.data_read = 'x;
-        bus2.req = 1;
+        bus2.req = !bus2.req;
         bus2.we = 0;
         bus2.address = '1;
-        @(posedge clk);
-        bus2.req = 0;
-        @(posedge clk iff ram.state == ram.STATE_ACTIVE && ram.step == ram.ACTIVE_READ_END);
+        @(posedge clk iff bus2.req == bus2.ack);
         assert (bus2.data_read == 'hF7F8)
         else $fatal(1, "hF7F8 != %0h", bus2.data_read);
 

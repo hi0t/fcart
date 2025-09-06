@@ -35,7 +35,7 @@ module qspi (
     assign wr_valid   = !tx_full;
 
     fifo #(
-        .DEPTH(8)
+        .DEPTH(16)
     ) fifo_rx (
         .wr_clk(qspi_clk),
         .wr_reset(fifo_reset),

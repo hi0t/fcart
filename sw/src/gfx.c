@@ -10,6 +10,7 @@
 #define FB_SIZE (SCREEN_WIDTH * SCREEN_HEIGHT / 8U * BPP)
 
 static uint8_t framebuffer[FB_SIZE];
+static uint8_t curr_buffer;
 static bool fb_reader(uint8_t *data, uint32_t size, void *arg);
 
 void gfx_pixel(uint16_t x, uint16_t y, uint8_t color)
@@ -75,10 +76,24 @@ void gfx_line(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint8_t color)
     }
 }
 
+void gfx_clear()
+{
+    memset(framebuffer, 0, sizeof(framebuffer));
+}
+
 void gfx_refresh()
 {
     uint32_t offset = 0;
-    fpga_api_write_mem(0, FB_SIZE, fb_reader, &offset);
+    uint32_t addr = 0;
+
+    curr_buffer = !curr_buffer;
+    if (curr_buffer) {
+        addr = 1U << 14;
+    }
+    fpga_api_write_mem(addr, FB_SIZE, fb_reader, &offset);
+
+    uint32_t args = curr_buffer;
+    fpga_api_write_reg(FPGA_REG_LOADER, args);
 }
 
 static bool fb_reader(uint8_t *data, uint32_t size, void *arg)
