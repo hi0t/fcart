@@ -6,7 +6,8 @@
 
 enum {
     CMD_WRITE_MEM = 1,
-    CMD_WRITE_REG = 3
+    CMD_READ_REG,
+    CMD_WRITE_REG
 };
 
 int fpga_api_write_mem(uint32_t address, uint32_t size, fpga_api_reader_cb cb, void *arg)
@@ -33,6 +34,11 @@ int fpga_api_write_mem(uint32_t address, uint32_t size, fpga_api_reader_cb cb, v
 out:
     free(buf);
     return rc;
+}
+
+int fpga_api_read_reg(enum fpga_reg_id id, uint32_t *value)
+{
+    return qspi_read(CMD_READ_REG, id, (uint8_t *)value, sizeof(uint32_t));
 }
 
 int fpga_api_write_reg(enum fpga_reg_id id, uint32_t value)

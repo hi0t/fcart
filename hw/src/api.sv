@@ -4,6 +4,7 @@ module api (
     output logic [31:0] wr_reg,
     output logic [3:0] wr_reg_addr,
     output logic wr_reg_changed,
+    input logic [31:0] rd_reg_1,
 
     sdram_bus.controller ram,
 
@@ -16,6 +17,7 @@ module api (
     input logic start
 );
     localparam CMD_WRITE_MEM = 1;
+    localparam CMD_READ_REG = 2;
     localparam CMD_WRITE_REG = 3;
 
     enum logic [1:0] {
@@ -28,6 +30,7 @@ module api (
     logic [7:0] cmd;
     logic is_upper_nibble;
     logic write_in_progress;
+    logic [3:0] rd_reg_addr;
 
     always_ff @(posedge clk) begin
         if (reset) begin
@@ -67,6 +70,9 @@ module api (
                                     2: {ram.address[6:0], is_upper_nibble} <= rd_data;
                                 endcase
                                 write_in_progress <= 0;
+                            end
+                            CMD_READ_REG: begin
+                                if (byte_cnt == 2) rd_reg_addr <= rd_data[3:0];
                             end
                             CMD_WRITE_REG: begin
                                 if (byte_cnt == 2) wr_reg_addr <= rd_data[3:0];
@@ -116,10 +122,33 @@ module api (
         end
     end
 
-    // Verilator lint_off UNUSED
+    // respond to reads
+    always_ff @(posedge clk) begin
+        wr_ready <= 0;
+
+        if (!wr_ready && wr_valid) begin
+            if (state == STATE_DATA) begin
+                if (cmd == CMD_READ_REG) begin
+                    case (rd_reg_addr)
+                        1: begin
+                            wr_ready <= 1;
+                            case (byte_cnt)
+                                0: wr_data <= rd_reg_1[7:0];
+                                1: wr_data <= rd_reg_1[15:8];
+                                2: wr_data <= rd_reg_1[23:16];
+                                3: wr_data <= rd_reg_1[31:24];
+                            endcase
+                        end
+                    endcase
+                end
+            end
+        end
+    end
+
+`ifdef DEBUG
     logic debug_ram_busy = ram.req != ram.ack;
     logic [21:0] debug_ram_address = ram.address;
     logic [15:0] debug_ram_data = ram.data_write;
     logic [1:0] debug_state = state;
-    // Verilator lint_on UNUSED
+`endif
 endmodule

@@ -9,6 +9,6 @@ module NROM (
     assign bus.ciram_ce = !bus.ppu_addr[13];
     assign bus.chr_ce = bus.ciram_ce;
     assign bus.chr_oe = !bus.ppu_rd;
-    assign bus.chr_we = bus.args[6] ? !bus.ppu_wr : 0;
-    assign bus.ciram_a10 = bus.args[5] ? bus.ppu_addr[10] : bus.ppu_addr[11];
+    assign bus.chr_we = bus.chr_ram ? !bus.ppu_wr : 0;
+    assign bus.ciram_a10 = bus.mirroring ? bus.ppu_addr[10] : bus.ppu_addr[11];
 endmodule

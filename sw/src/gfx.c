@@ -76,6 +76,15 @@ void gfx_line(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint8_t color)
     }
 }
 
+void gfx_fill_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint8_t color)
+{
+    for (uint16_t i = 0; i < h; i++) {
+        for (uint16_t j = 0; j < w; j++) {
+            gfx_pixel(x + j, y + i, color);
+        }
+    }
+}
+
 void gfx_clear()
 {
     memset(framebuffer, 0, sizeof(framebuffer));

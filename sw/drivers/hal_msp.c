@@ -160,6 +160,29 @@ void HAL_SD_MspInit(SD_HandleTypeDef *hsd)
     HAL_NVIC_EnableIRQ(SDIO_IRQn);
 }
 
+void HAL_SD_MspDeInit(SD_HandleTypeDef *hsd)
+{
+    if (hsd->Instance != SDIO) {
+        return;
+    }
+
+    HAL_GPIO_DeInit(GPIO_SD_CMD_PORT, GPIO_SD_CMD_PIN);
+    HAL_GPIO_DeInit(GPIO_SD_D0_PORT, GPIO_SD_D0_PIN);
+    HAL_GPIO_DeInit(GPIO_SD_D1_PORT, GPIO_SD_D1_PIN);
+    HAL_GPIO_DeInit(GPIO_SD_D2_PORT, GPIO_SD_D2_PIN);
+    HAL_GPIO_DeInit(GPIO_SD_D3_PORT, GPIO_SD_D3_PIN);
+    HAL_GPIO_DeInit(GPIO_SD_CLK_PORT, GPIO_SD_CLK_PIN);
+
+    HAL_DMA_DeInit(hsd->hdmatx);
+    HAL_DMA_DeInit(hsd->hdmarx);
+
+    HAL_NVIC_DisableIRQ(SDIO_IRQn);
+
+    __HAL_RCC_SDIO_FORCE_RESET();
+    HAL_Delay(2);
+    __HAL_RCC_SDIO_RELEASE_RESET();
+}
+
 void HAL_RTC_MspInit(RTC_HandleTypeDef *hrtc)
 {
     HAL_StatusTypeDef rc;

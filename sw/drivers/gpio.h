@@ -21,7 +21,7 @@ static inline void led_on(bool on)
  * This function should be called regularly (e.g., from a timer interrupt or main loop).
  * It implements debouncing for a button and for SD card detection using counters.
  */
-void gpio_pull();
+void gpio_poll();
 
 /**
  * @brief Sets the callback function for button press events.
@@ -33,10 +33,23 @@ void gpio_pull();
 void set_button_callback(void (*cb)());
 
 /**
- * @brief Checks if an SD card is present.
+ * @brief Sets the callback function for SD card presence events.
  *
- * This function detects whether an SD card is currently inserted or present.
+ * This function sets a callback function that will be called when the SD card presence changes.
  *
- * @return true if the SD card is present, false otherwise.
+ * @param cb The callback function to set, which takes a boolean indicating SD card presence.
  */
-bool sd_present();
+void set_sd_callback(void (*cb)(bool));
+
+/**
+ * @brief Checks if an interrupt has been called.
+ *
+ * This function returns true if an interrupt has occurred since the last call to this function.
+ * It is used to determine if the main loop needs to handle any events.
+ *
+ * @return true if an interrupt has occurred, false otherwise
+ */
+static inline bool irq_called()
+{
+    return HAL_GPIO_ReadPin(GPIO_IRQ_PORT, GPIO_IRQ_PIN) == GPIO_PIN_SET;
+}

@@ -1,6 +1,7 @@
 module loader (
     map_bus.mapper bus,
-    input logic [31:0] args
+    input logic buffer_num,
+    output logic [7:0] buttons
 );
     logic [7:0] rom[1024]  /* synthesis syn_romstyle = "EBR" */;
     initial $readmemh("loader/loader.mem", rom);
@@ -11,11 +12,11 @@ module loader (
     logic [7:0] scanline_cnt;
     logic [5:0] tile_cnt;
     logic [1:0] match_ppu;
-    logic nbuffer;
+    logic next_buffer;
 
-    assign bus.cpu_oe = 1;
+    assign bus.custom_cpu_out = 1;
     assign bus.prg_oe = bus.cpu_rw && bus.cpu_addr[15];
-    assign bus.chr_addr = bus.ADDR_BITS'({nbuffer, chr_bank, bus.ppu_addr[11:0]});
+    assign bus.chr_addr = bus.ADDR_BITS'({next_buffer, chr_bank, bus.ppu_addr[11:0]});
     assign bus.ciram_ce = !bus.ppu_addr[13];
     assign bus.chr_ce = bus.ciram_ce;
     assign bus.chr_oe = !bus.ppu_rd;
@@ -29,13 +30,25 @@ module loader (
     end
 
     always_ff @(negedge bus.m2) begin
-        vblank <= 0;
+        if (bus.reset) begin
+            buttons <= '0;
+            next_buffer <= 0;
+            vblank <= 1;
+        end else begin
+            vblank <= 0;
 
-        // read control register
-        if (bus.cpu_addr[15] && !bus.cpu_rw) begin
-            if (bus.cpu_data_in[0]) begin
-                vblank  <= 1;
-                nbuffer <= args[0];
+            if (!bus.cpu_rw) begin
+                // read control register
+                if (bus.cpu_addr == 'h5000) begin
+                    if (bus.cpu_data_in[0]) begin
+                        vblank <= 1;
+                        next_buffer <= buffer_num;
+                    end
+                end
+                // read buttons
+                if (bus.cpu_addr == 'h5001) begin
+                    buttons <= bus.cpu_data_in;
+                end
             end
         end
     end

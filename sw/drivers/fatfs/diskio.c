@@ -44,18 +44,20 @@ DSTATUS disk_initialize(BYTE pdrv)
         return STA_NOINIT;
     }
 
-    if (!initialized) {
-        if ((rc = HAL_SD_Init(&p->hsdio)) != HAL_OK) {
-            LOG_ERR("HAL_SD_Init() failed: %d", rc);
-            return STA_NOINIT;
-        }
-
-        if ((rc = HAL_SD_ConfigWideBusOperation(&p->hsdio, SDIO_BUS_WIDE_4B)) != HAL_OK) {
-            LOG_ERR("HAL_SD_ConfigWideBusOperation() failed: %d", rc);
-            return STA_NOINIT;
-        }
-        initialized = true;
+    if (initialized) {
+        HAL_SD_DeInit(&p->hsdio);
     }
+
+    if ((rc = HAL_SD_Init(&p->hsdio)) != HAL_OK) {
+        LOG_ERR("HAL_SD_Init() failed: %d", rc);
+        return STA_NOINIT;
+    }
+
+    if ((rc = HAL_SD_ConfigWideBusOperation(&p->hsdio, SDIO_BUS_WIDE_4B)) != HAL_OK) {
+        LOG_ERR("HAL_SD_ConfigWideBusOperation() failed: %d", rc);
+        return STA_NOINIT;
+    }
+    initialized = true;
 
     return wait_transfer_state(SD_TIMEOUT) ? 0 : STA_NOINIT;
 }

@@ -8,7 +8,6 @@ LOG_MODULE(soc);
 static struct peripherals dev;
 
 static void system_clock_init();
-static void periph_clock_init();
 static void gpio_init();
 static void dma_init();
 static void qspi_init();
@@ -29,7 +28,6 @@ void hw_init()
 
     HAL_Init();
     system_clock_init();
-    periph_clock_init();
     gpio_init();
     dma_init();
     qspi_init();
@@ -119,29 +117,6 @@ static void system_clock_init()
     }
 
     HAL_RCC_MCOConfig(RCC_MCO1, RCC_MCO1SOURCE_PLLCLK, RCC_MCODIV_2);
-}
-
-static void periph_clock_init()
-{
-    HAL_StatusTypeDef rc;
-
-    RCC_PeriphCLKInitTypeDef clk = {
-        .PeriphClockSelection = RCC_PERIPHCLK_PLLI2S | RCC_PERIPHCLK_CLK48
-            | RCC_PERIPHCLK_SDIO,
-        .PLLI2S = {
-            .PLLI2SM = RCC_PLL_DIVM,
-            .PLLI2SN = 192,
-            .PLLI2SQ = 8,
-            .PLLI2SR = 2,
-        },
-        .SdioClockSelection = RCC_SDIOCLKSOURCE_CLK48,
-        .Clk48ClockSelection = RCC_CLK48CLKSOURCE_PLLI2SQ,
-        .PLLI2SSelection = RCC_PLLI2SCLKSOURCE_PLLSRC,
-    };
-    if ((rc = HAL_RCCEx_PeriphCLKConfig(&clk)) != HAL_OK) {
-        LOG_ERR("HAL_RCCEx_PeriphCLKConfig() failed: %d", rc);
-        LOG_PANIC();
-    }
 }
 
 static void gpio_init()

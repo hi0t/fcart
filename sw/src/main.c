@@ -1,13 +1,8 @@
 #include "fpga_cfg.h"
-#include "gfx.h"
-#include "rom.h"
+#include "ui.h"
 #include <ff.h>
 #include <gpio.h>
-#include <log.h>
 #include <soc.h>
-#include <string.h>
-
-LOG_MODULE(main);
 
 static void fpga_file_cfg(const char *filename)
 {
@@ -34,44 +29,6 @@ out:
     f_close(&fp);
 }
 
-static void upload()
-{
-    LOG_INF("Uploading ROM...");
-    led_on(true);
-
-    FATFS fs;
-    FRESULT res;
-    DIR dir;
-    FILINFO fno;
-
-    f_mount(&fs, "/SD", 1);
-
-    res = f_opendir(&dir, "/");
-    if (res == FR_OK) {
-        for (;;) {
-            res = f_readdir(&dir, &fno);
-            if (res != FR_OK || fno.fname[0] == 0)
-                break;
-            if (!(fno.fattrib & AM_DIR)) {
-                char *ext = strrchr(fno.fname, '.');
-                if (ext != NULL && strcmp(ext, ".nes") == 0) {
-                    rom_load(fno.fname);
-                    break;
-                }
-                /*if (ext != NULL && strcmp(ext, ".bit") == 0) {
-                    fpga_file_cfg(fno.fname);
-                    break;
-                }*/
-            }
-        }
-        f_closedir(&dir);
-    }
-
-    f_unmount("/SD");
-
-    led_on(false);
-}
-
 static void switch_led()
 {
     static bool on = false;
@@ -82,23 +39,12 @@ static void switch_led()
 int main()
 {
     hw_init();
-    set_button_callback(upload);
-
-    int i = 0;
+    // set_button_callback(upload);
+    ui_init();
 
     for (;;) {
-        gpio_pull();
-        // led_on(HAL_GPIO_ReadPin(GPIO_IRQ_PORT, GPIO_IRQ_PIN) == GPIO_PIN_SET);
-        // switch_led();
-        // delay_ms(500);
-
-        /*gfx_clear();
-        gfx_text(i, 100, "Hello, World!", 2);
-        i++;
-        if (i > 200)
-            i = 0;
-        gfx_refresh();
-        delay_ms(50);*/
+        gpio_poll();
+        ui_poll();
     }
 
     return 0;

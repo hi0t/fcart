@@ -52,8 +52,8 @@ module chr_ram #(
         end
     end
 
-    // Verilator lint_off UNUSED
+`ifdef DEBUG
     logic debug_ram_busy = ram.req != ram.ack;
     logic debug_ram_we = ram.we;
-    // Verilator lint_on UNUSED
+`endif
 endmodule

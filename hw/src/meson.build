@@ -1,13 +1,14 @@
 src = files(
     'ip' / 'pll.v',
+    'map_bus.sv',
     'sdram_bus.sv',
     'api.sv',
     'chr_ram.sv',
     'fcart.sv',
     'fifo.sv',
+    'map_mux.sv',
     'prg_ram.sv',
     'qspi.sv',
-    'map_mux.sv',
     'sdram.sv',
 )
 
@@ -35,5 +36,6 @@ tcl = configure_file(
         'SDC_PATH': fs.relative_to(sdc, build_dir),
         'SRL_LIST': '\n'.join(src_list),
         'TOP_MODULE': diamond_prj,
+        'STRATEGY': get_option('debug') ? 'Debug' : 'Release',
     },
 )

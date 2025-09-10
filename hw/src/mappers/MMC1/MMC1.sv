@@ -15,11 +15,11 @@ module MMC1 (
     assign bus.prg_addr = bus.ADDR_BITS'({chr_sel[4], prg_sel, bus.cpu_addr[13:0]});
     assign bus.prg_oe   = bus.cpu_rw && bus.cpu_addr[15];
     // PPU
-    assign bus.chr_addr = bus.ADDR_BITS'({bus.args[6] ? {4'b0000, bus.ppu_addr[12]} : chr_sel, bus.ppu_addr[11:0]});
+    assign bus.chr_addr = bus.ADDR_BITS'({bus.chr_ram ? {4'b0000, bus.ppu_addr[12]} : chr_sel, bus.ppu_addr[11:0]});
     assign bus.ciram_ce = !bus.ppu_addr[13];
     assign bus.chr_ce   = bus.ciram_ce;
     assign bus.chr_oe   = !bus.ppu_rd;
-    assign bus.chr_we   = bus.args[6] ? !bus.ppu_wr : 0;
+    assign bus.chr_we   = bus.chr_ram ? !bus.ppu_wr : 0;
     assign shift_next   = {bus.cpu_data_in[0], shift[4:1]};
 
     always_comb begin

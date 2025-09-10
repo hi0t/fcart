@@ -32,7 +32,7 @@ module prg_ram #(
         end
     end
 
-    // Verilator lint_off UNUSED
+`ifdef DEBUG
     logic debug_ram_busy = ram.req != ram.ack;
-    // Verilator lint_on UNUSED
+`endif
 endmodule

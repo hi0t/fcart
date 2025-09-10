@@ -1,5 +1,6 @@
 module fcart (
-    input logic CLK_IN,
+    input  logic CLK_IN,
+    output logic FPGA_IRQ,
 
     // QSPI
     input logic QSPI_CLK,
@@ -44,6 +45,7 @@ module fcart (
     logic [31:0] wr_reg;
     logic [3:0] wr_reg_addr;
     logic wr_reg_changed;
+    logic [31:0] loader_out;
     sdram_bus #(.ADDR_BITS(RAM_ADDR_BITS)) ch_ppu (), ch_cpu (), ch_api ();
 
     map_mux mux (
@@ -52,6 +54,7 @@ module fcart (
         .async_reset(!async_nreset),
         .ch_prg(ch_cpu.controller),
         .ch_chr(ch_ppu.controller),
+        .fpga_irq(FPGA_IRQ),
 
         .m2(M2),
         .cpu_addr({!ROMSEL, CPU_ADDR}),
@@ -70,7 +73,8 @@ module fcart (
 
         .wr_reg(wr_reg),
         .wr_reg_addr(wr_reg_addr),
-        .wr_reg_changed(wr_reg_changed)
+        .wr_reg_changed(wr_reg_changed),
+        .loader_out(loader_out)
     );
 
     pll pll (
@@ -144,6 +148,7 @@ module fcart (
         .wr_reg(wr_reg),
         .wr_reg_addr(wr_reg_addr),
         .wr_reg_changed(wr_reg_changed),
+        .rd_reg_1(loader_out),
 
         .ram(ch_api.controller),
 

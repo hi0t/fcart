@@ -3,15 +3,25 @@ if [file exists "@PROJECT_NAME@.ldf"] {
 } else {
     prj_project new -name @PROJECT_NAME@ -dev @DEVICE@ -lpf "@LPF_PATH@" -impl "impl" -synthesis "synplify"
     prj_src add "@SDC_PATH@"
+    prj_strgy new -name Debug -file debug.sty
+    prj_strgy new -name Release -file release.sty
 }
 
 prj_src remove -all
 @SRL_LIST@
 
-prj_strgy set_value -strategy Strategy1 \
+prj_strgy set @STRATEGY@
+prj_strgy set_value -strategy Debug \
     par_place_iterator=1
+prj_strgy set_value -strategy Release \
+    par_place_iterator=2
 
 prj_impl option top @TOP_MODULE@
+if {"@STRATEGY@"=="Debug"} {
+    prj_impl option VERILOG_DIRECTIVES DEBUG
+} else {
+    prj_impl option -rem VERILOG_DIRECTIVES
+}
 prj_project save
 prj_run Export -impl impl -task Bitgen
 prj_project close

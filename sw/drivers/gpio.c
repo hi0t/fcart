@@ -7,20 +7,16 @@
 #define MASK 0xF00FU
 
 static void (*button_cb)();
-static uint16_t sd_history = 0;
+static void (*sd_cb)(bool);
 
-void gpio_pull()
+void gpio_poll()
 {
     static uint32_t last_time = RESET;
     static uint16_t btn_history = RESET;
+    static uint16_t sd_history = RESET;
     static bool btn_pressed = false;
-    static bool power_up = true;
+    static uint8_t sd_present = 0xFF; // Unknown state
     uint32_t now = HAL_GetTick();
-
-    if (power_up) {
-        power_up = false;
-        sd_history = (HAL_GPIO_ReadPin(GPIO_SD_CD_PORT, GPIO_SD_CD_PIN) == GPIO_PIN_RESET) ? SET : RESET;
-    }
 
     if (btn_history == SET) {
         btn_pressed = true;
@@ -37,6 +33,16 @@ void gpio_pull()
         if (button_cb != NULL && !btn_pressed && (btn_history & MASK) == PRESS) {
             button_cb();
         }
+
+        if (sd_cb != NULL) {
+            if ((!sd_present || sd_present == 0xFF) && sd_history == SET) {
+                sd_present = 1;
+                sd_cb(true);
+            } else if (sd_present && sd_history == RESET) {
+                sd_present = 0;
+                sd_cb(false);
+            }
+        }
     }
 }
 
@@ -45,7 +51,7 @@ void set_button_callback(void (*cb)())
     button_cb = cb;
 }
 
-bool sd_present()
+void set_sd_callback(void (*cb)(bool))
 {
-    return sd_history == SET;
+    sd_cb = cb;
 }

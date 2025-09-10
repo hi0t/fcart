@@ -5,6 +5,7 @@ src = files(
     'gfx.c',
     'main.c',
     'rom.c',
+    'ui.c',
 )
 
 fcart_sw = declare_dependency(sources: src, dependencies: drivers_dep)

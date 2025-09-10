@@ -4,7 +4,9 @@ PPU_STATUS = $2002
 PPU_SCROLL = $2005
 PPU_ADDR   = $2006
 PPU_DATA   = $2007
-MAP_CTRL   = $8000
+JOYPAD1    = $4016
+MAP_CTRL   = $5000
+BUTTONS    = $5001
 
 .segment "STARTUP"
 reset:
@@ -100,6 +102,22 @@ reset:
 nmi:
     lda #%00000001 ; vblank
     sta MAP_CTRL
+
+    lda #$01
+    sta JOYPAD1
+    lda #$00
+    sta JOYPAD1
+
+    lda #$01
+    read_joypad:
+        pha
+        lda JOYPAD1
+        lsr a
+        pla
+        rol a
+        bcc read_joypad
+    sta BUTTONS
+
     rti
 
 irq:
