@@ -33,13 +33,19 @@ void gfx_pixel(uint16_t x, uint16_t y, uint8_t color)
     }
 }
 
-void gfx_text(uint16_t x, uint16_t y, const char *str, uint8_t color)
+void gfx_text(uint16_t x, uint16_t y, const char *str, int len, uint8_t color)
 {
+    int i = 0;
     while (*str) {
+        if (len > 0 && i++ >= len) {
+            break;
+        }
+
         char c = *str++;
         if (c < 32 || c > 127) {
             c = '?'; // Replace unsupported characters
         }
+
         const uint8_t *char_bitmap = font8x8[c - 32];
         for (int row = 0; row < 8; row++) {
             for (int col = 0; col < 8; col++) {

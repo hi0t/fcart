@@ -1,4 +1,5 @@
 #include "fpga_cfg.h"
+#include "joypad.h"
 #include "ui.h"
 #include <ff.h>
 #include <gpio.h>
@@ -39,12 +40,11 @@ static void switch_led()
 int main()
 {
     hw_init();
-    // set_button_callback(upload);
     ui_init();
 
     for (;;) {
         gpio_poll();
-        ui_poll();
+        joypad_poll();
     }
 
     return 0;
