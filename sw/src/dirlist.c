@@ -106,6 +106,24 @@ uint8_t dirlist_select(uint32_t index, uint8_t limit, struct dirlist_entry *out)
     return count; // Return number of entries filled
 }
 
+char *dirlist_file_path(struct dirlist_entry *entry)
+{
+    uint16_t curr_path_len = strlen(curr_path);
+    uint16_t name_len = strlen(entry->name);
+    char *full_path = malloc(curr_path_len + name_len + 2);
+    if (full_path == NULL) {
+        return NULL;
+    }
+
+    if (curr_path_len > 0) {
+        strcpy(full_path, curr_path);
+    }
+    full_path[curr_path_len] = '/';
+    strcpy(&full_path[curr_path_len + 1], entry->name);
+
+    return full_path;
+}
+
 static int names_cmp(const void *a, const void *b)
 {
     uint32_t offset_a = *(const uint32_t *)a;

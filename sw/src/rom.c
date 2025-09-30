@@ -74,6 +74,7 @@ int rom_load(const char *filename)
     uint8_t has_chr_ram = nes20 ? chr_ram_size > 0 : chr_size == 0;
     uint8_t chr_off = get_chr_off(prg_size);
 
+    fpga_api_write_reg(FPGA_REG_LOADER, 1 << 1U); // prelaunch
     fpga_api_write_mem(0, prg_size, file_reader, &fp);
     fpga_api_write_mem(1U << chr_off, chr_size, file_reader, &fp);
 
@@ -83,13 +84,13 @@ int rom_load(const char *filename)
     mapper_args |= has_chr_ram << 11U;
 
     fpga_api_write_reg(FPGA_REG_MAPPER, mapper_args);
-    // mapper args:
-    // 11|10|9|8|7|6|5|4|3|2|1|0
-    //  |  | | | | | | | | | | |
-    //  |  | | | | | | +-+-+-+-+- mapper ID (5 bits)
-    //  |  | +-+-+-+-+----------- CHR offset
-    //  |  +--------------------- mirroring: 0 = horizontal, 1 = vertical
-    //  +------------------------ has CHR RAM
+    //   mapper args:
+    //   11|10|9|8|7|6|5|4|3|2|1|0
+    //    |  | | | | | | | | | | |
+    //    |  | | | | | | +-+-+-+-+- mapper ID (5 bits)
+    //    |  | +-+-+-+-+----------- CHR offset
+    //    |  +--------------------- mirroring: 0 = horizontal, 1 = vertical
+    //    +------------------------ has CHR RAM
 out:
     f_close(&fp);
     return err;

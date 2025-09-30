@@ -3,8 +3,10 @@
 #include "fpga_api.h"
 #include "gfx.h"
 #include "joypad.h"
+#include "rom.h"
 #include <ff.h>
 #include <gpio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define ROWS 30
@@ -114,6 +116,17 @@ static void process_input(uint8_t buttons)
             dir_index = 0;
             cursor_pos = 0;
         } else {
+            char *full_path = dirlist_file_path(entry);
+            if (full_path == NULL) {
+                show_error("Memory error");
+                return;
+            }
+            int err = rom_load(full_path);
+            free(full_path);
+            if (err != 0) {
+                show_error("Load ROM error");
+            }
+            return;
         }
     } else if (buttons & BUTTON_B) {
         if (!dirlist_pop()) {

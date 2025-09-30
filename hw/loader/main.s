@@ -1,14 +1,20 @@
-PPU_CTRL   = $2000
-PPU_MASK   = $2001
-PPU_STATUS = $2002
-PPU_SCROLL = $2005
-PPU_ADDR   = $2006
-PPU_DATA   = $2007
-JOYPAD1    = $4016
-MAP_CTRL   = $5000
-BUTTONS    = $5001
+PPU_CTRL    = $2000
+PPU_MASK    = $2001
+PPU_STATUS  = $2002
+PPU_SCROLL  = $2005
+PPU_ADDR    = $2006
+PPU_DATA    = $2007
+JOYPAD1     = $4016
+CTRL_REG    = $5000
+BUTTONS_REG = $5001
+STATUS_REG  = $5002
 
-.segment "STARTUP"
+.segment "ZEROPAGE"
+    zp_buttons:   .res 1
+    zp_ctrl:      .res 1
+    zp_prelaunch: .res 1
+
+.segment "CODE"
 reset:
     ; start initialization
     sei
@@ -46,19 +52,20 @@ reset:
     lda PPU_ADDR ; read PPU status to reset high-low latch
 
     lda #%00000001 ; vblank
-    sta MAP_CTRL
+    sta STATUS_REG
 
 	; load palette data into PPU
     lda #$3F
 	sta PPU_ADDR
 	lda #$00
 	sta PPU_ADDR
-    ldx #4
+    ldx #0
     copy_palete:
         lda initial_palette,x
         sta PPU_DATA
-        dex
-        bne copy_palete
+        inx
+        cpx #4
+        bcc copy_palete
 
     ; fill nametable with a pattern
     lda #$20
@@ -85,46 +92,94 @@ reset:
         inx
         bne fill_nametable2
 
-    ; center viewer
-    lda #0
-    sta PPU_SCROLL
-    sta PPU_SCROLL
-
     lda #%10000000 ; Enable NMI on vblank
 	sta PPU_CTRL
 
     lda #%00001010 ; enbale background rendering
     sta PPU_MASK
 
+    ; center viewer
+    lda #0
+    sta PPU_SCROLL
+    sta PPU_SCROLL
+
     forever:
+        lda CTRL_REG
+        sta zp_ctrl
+
+        and #%00000001
+        bne prelaunch
+
+        lda zp_ctrl
+        and #%00000010
+        bne launch
+
         jmp forever
 
-nmi:
-    lda #%00000001 ; vblank
-    sta MAP_CTRL
+    prelaunch:
+        lda #$01
+        sta zp_prelaunch
+        jmp forever
 
-    lda #$01
-    sta JOYPAD1
-    lda #$00
-    sta JOYPAD1
+    launch:
+        vblank_wait3:
+            bit PPU_STATUS
+            bpl vblank_wait3
 
-    lda #$01
-    read_joypad:
+        ldx #$fd
+        txs ; reset stack pointer
+        lda #$34
         pha
-        lda JOYPAD1
-        lsr a
-        pla
-        rol a
-        bcc read_joypad
-    sta BUTTONS
+        lda #$00
+        ldx #$00
+        ldy #$00
+        plp ; default status register
+        jmp ($FFFC)
 
-    rti
+nmi:
+    ; save registers
+	pha
+
+    lda zp_prelaunch
+    cmp #$01
+    bne nmi_continue
+
+    lda #$00
+    sta PPU_CTRL
+    sta PPU_MASK
+
+    lda #%00000010 ; prelaunch complete
+    sta STATUS_REG
+
+    jmp nmi_end
+
+    nmi_continue:
+        lda #%00000001 ; vblank
+        sta STATUS_REG
+
+        lda #$01
+        sta JOYPAD1
+        sta zp_buttons
+        lsr a
+        sta JOYPAD1
+
+        read_joypad:
+            lda JOYPAD1
+            lsr a ; bit 0 -> Carry
+            rol zp_buttons  ; Carry -> bit 0; bit 7 -> Carry
+            bcc read_joypad
+        lda zp_buttons
+        sta BUTTONS_REG
+    nmi_end:
+	    ; restore registers and return
+        pla
+        rti
 
 irq:
     rti
 
 initial_palette:
-	.byte $1F,$21,$33,$30
+	.byte $0F,$30,$33,$21
 
 .segment "VECTORS"
     .addr nmi, reset, irq

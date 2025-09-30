@@ -13,3 +13,4 @@ bool dirlist_push(const char *subdir);
 bool dirlist_pop();
 uint32_t dirlist_size();
 uint8_t dirlist_select(uint32_t index, uint8_t limit, struct dirlist_entry *out);
+char *dirlist_file_path(struct dirlist_entry *entry);

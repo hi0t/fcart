@@ -37,6 +37,8 @@ module map_mux #(
     logic [ADDR_BITS-1:0] chr_mask;
     logic [7:0] cpu_data_out, ppu_data_out;
     logic loader_buffer_num;
+    logic loader_prelaunch;
+    logic loader_launch;
     logic [7:0] loader_buttons;
 
     // Muxed bus signals
@@ -57,6 +59,8 @@ module map_mux #(
     loader loader (
         .bus(map[0]),
         .buffer_num(loader_buffer_num),
+        .prelaunch(loader_prelaunch),
+        .launch(loader_launch),
         .buttons(loader_buttons)
     );
     NROM NROM (.bus(map[1]));
@@ -76,6 +80,9 @@ module map_mux #(
         assign map[n].ppu_wr = ppu_wr;
         assign map[n].ppu_addr = ppu_addr;
 
+        assign map[n].mirroring = map_args[0];
+        assign map[n].chr_ram = map_args[1];
+
         // unpack interface array
         assign bus_cpu_data_out[n] = map[n].cpu_data_out;
         assign bus_custom_cpu_out[n] = map[n].custom_cpu_out;
@@ -88,9 +95,6 @@ module map_mux #(
         assign bus_chr_ce[n] = map[n].chr_ce;
         assign bus_chr_oe[n] = map[n].chr_oe;
         assign bus_chr_we[n] = map[n].chr_we;
-
-        assign map[n].mirroring = map_args[0];
-        assign map[n].chr_ram = map_args[1];
     end
 
     // mux for outgoing signals
@@ -101,8 +105,7 @@ module map_mux #(
     assign ciram_a10 = bus_ciram_a10[select];
     assign ciram_ce = bus_ciram_ce[select];
     assign ppu_data = ppu_oe ? ppu_data_out : 'z;
-
-    assign chr_mask = (chr_off == 0) ? '0 : ADDR_BITS'(1 << chr_off);
+    assign chr_mask = (chr_off == '0) ? '0 : ADDR_BITS'(1 << chr_off);
 
     prg_ram prg_ram (
         .clk(clk),
@@ -129,19 +132,34 @@ module map_mux #(
     localparam REG_LOADER = 1;
 
     logic [2:0] wr_reg_sync;
+    logic [4:0] pending_select;
+    logic [7:0] prev_cpu_data;
     assign fpga_irq = loader_buttons != '0;
 
-    always_ff @(posedge m2 or posedge async_reset) begin
+    always_ff @(negedge m2 or posedge async_reset) begin
         if (async_reset) begin
             select <= '0;
             chr_off <= '0;
             map_args <= '0;
             loader_buffer_num <= '0;
+            loader_launch <= 0;
         end else begin
+            loader_prelaunch <= 0;
+            prev_cpu_data <= cpu_data;
+
             wr_reg_sync <= {wr_reg_sync[1:0], wr_reg_changed};
             if (wr_reg_sync[1] != wr_reg_sync[2]) begin
-                if (wr_reg_addr == REG_MAPPER) {map_args, chr_off, select} <= wr_reg[11:0];
-                else if (wr_reg_addr == REG_LOADER) loader_buffer_num <= wr_reg[0];
+                if (wr_reg_addr == REG_MAPPER) begin
+                    {map_args, chr_off, pending_select} <= wr_reg[11:0];
+                    loader_launch <= 1;
+                end else if (wr_reg_addr == REG_LOADER) begin
+                    {loader_prelaunch, loader_buffer_num} <= wr_reg[1:0];
+                end
+            end
+
+            if (loader_launch && cpu_data == 'hFF && prev_cpu_data == 'hFC) begin
+                select <= pending_select;
+                loader_launch <= 0;
             end
         end
     end
