@@ -3,7 +3,6 @@ module map_mux #(
 ) (
     input logic clk,
     input logic reset,
-    input logic async_reset,
     sdram_bus.controller ch_prg,
     sdram_bus.controller ch_chr,
     output logic fpga_irq,
@@ -31,6 +30,7 @@ module map_mux #(
 );
     localparam MAP_CNT = 32;
 
+    logic cpu_reset;
     logic [4:0] select;
     logic [4:0] chr_off;
     logic [1:0] map_args;
@@ -136,8 +136,8 @@ module map_mux #(
     logic [7:0] prev_cpu_data;
     assign fpga_irq = loader_buttons != '0;
 
-    always_ff @(negedge m2 or posedge async_reset) begin
-        if (async_reset) begin
+    always_ff @(negedge m2 or posedge cpu_reset) begin
+        if (cpu_reset) begin
             select <= '0;
             chr_off <= '0;
             map_args <= '0;
@@ -165,12 +165,15 @@ module map_mux #(
     end
 
     logic [2:0] m2_sync;
+    logic [7:0] reset_seq;
+    assign cpu_reset = (reset_seq == '1);
 
     always_ff @(posedge clk) begin
         m2_sync <= {m2_sync[1:0], m2};
 
         if (m2_sync[2:1] == 2'b10) begin
             loader_out <= 32'(loader_buttons);
-        end
+            reset_seq  <= '0;
+        end else if (reset_seq != '1) reset_seq <= reset_seq + 1;
     end
 endmodule
