@@ -32,6 +32,18 @@ bit = custom_target(
     console: true,
 )
 
+py = import('python').find_installation(required: true)
+run_target(
+    'summary',
+    command: [
+        py.full_path(),
+        files('summary.py'),
+        'impl/automake.log',
+        'impl/fcart_impl.twr',
+    ],
+    depends: bit,
+)
+
 openfpgaloader = find_program('openfpgaloader', required: false)
 if openfpgaloader.found()
     run_target(

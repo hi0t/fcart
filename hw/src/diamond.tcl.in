@@ -12,9 +12,9 @@ prj_src remove -all
 
 prj_strgy set @STRATEGY@
 prj_strgy set_value -strategy Debug \
-    par_place_iterator=1
-prj_strgy set_value -strategy Release \
     par_place_iterator=2
+prj_strgy set_value -strategy Release \
+    par_place_iterator=4
 
 prj_impl option top @TOP_MODULE@
 if {"@STRATEGY@"=="Debug"} {
