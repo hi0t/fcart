@@ -75,6 +75,11 @@ int rom_load(const char *filename)
     uint8_t chr_off = get_chr_off(prg_size);
 
     fpga_api_write_reg(FPGA_REG_LOADER, 1 << 1U); // prelaunch
+    for (;;) {
+        if ((fpga_api_ev_reg() & (1 << 8U)) == 0) { // waiting for loader to exit
+            break;
+        }
+    }
     fpga_api_write_mem(0, prg_size, file_reader, &fp);
     fpga_api_write_mem(1U << chr_off, chr_size, file_reader, &fp);
 

@@ -14,13 +14,19 @@
 #define FONT_WIDTH 8
 #define VISIBLE_ROWS ROWS - 2
 
+static bool on_menu;
+static bool sd_mounted;
 static FATFS fs;
 static struct dirlist_entry screen_list[VISIBLE_ROWS];
 static uint8_t cursor_pos;
 static uint32_t dir_index;
 
+static void show_error(const char *msg);
+static void redraw_screen();
 static void sd_state(bool present);
 static void process_input(uint8_t buttons);
+static void menu_control(uint8_t buttons);
+static void game_control(uint8_t buttons);
 
 void ui_init()
 {
@@ -28,9 +34,31 @@ void ui_init()
     joypad_set_callback(process_input);
     joypad_can_repeat(BUTTON_UP | BUTTON_DOWN);
 }
+void ui_poll()
+{
+    bool loader_active = (fpga_api_ev_reg() & (1 << 8U)) != 0;
+    if (loader_active && !on_menu) {
+        on_menu = true;
+
+        if (!sd_is_present()) {
+            show_error("No SD card");
+        } else if (!sd_mounted) {
+            sd_state(true);
+        } else {
+            redraw_screen();
+        }
+    }
+
+    on_menu = loader_active;
+    joypad_poll();
+}
 
 static void show_error(const char *msg)
 {
+    if (!on_menu) {
+        return;
+    }
+
     uint16_t len = strlen(msg);
 
     gfx_clear();
@@ -40,6 +68,10 @@ static void show_error(const char *msg)
 
 static void redraw_screen()
 {
+    if (!on_menu) {
+        return;
+    }
+
     uint8_t cnt = dirlist_select(dir_index, ROWS - 2, screen_list);
     if (cnt == 0) {
         return;
@@ -57,6 +89,7 @@ static void redraw_screen()
 
 static void sd_state(bool present)
 {
+    sd_mounted = false;
     if (present) {
         if (f_mount(&fs, "/SD", 1) != FR_OK) {
             show_error("Mount error");
@@ -69,6 +102,7 @@ static void sd_state(bool present)
         dir_index = 0;
         cursor_pos = 0;
         redraw_screen();
+        sd_mounted = true;
     } else {
         f_unmount("/SD");
         show_error("No SD card");
@@ -76,6 +110,15 @@ static void sd_state(bool present)
 }
 
 static void process_input(uint8_t buttons)
+{
+    if (on_menu) {
+        menu_control(buttons);
+    } else {
+        game_control(buttons);
+    }
+}
+
+static void menu_control(uint8_t buttons)
 {
     if (buttons & BUTTON_UP) {
         if (cursor_pos == 0) {
@@ -138,4 +181,8 @@ static void process_input(uint8_t buttons)
         return;
     }
     redraw_screen();
+}
+
+static void game_control(uint8_t buttons)
+{
 }

@@ -51,7 +51,7 @@ reset:
 
     lda PPU_ADDR ; read PPU status to reset high-low latch
 
-    lda #%00000001 ; vblank
+    lda #%00000011 ; running|vblank
     sta STATUS_REG
 
 	; load palette data into PPU
@@ -148,13 +148,13 @@ nmi:
     sta PPU_CTRL
     sta PPU_MASK
 
-    lda #%00000010 ; prelaunch complete
+    lda #%00000000 ; finished
     sta STATUS_REG
 
     jmp nmi_end
 
     nmi_continue:
-        lda #%00000001 ; vblank
+        lda #%00000011 ; running|vblank
         sta STATUS_REG
 
         lda #$01

@@ -45,7 +45,7 @@ module fcart (
     logic [31:0] wr_reg;
     logic [3:0] wr_reg_addr;
     logic wr_reg_changed;
-    logic [31:0] loader_out;
+    logic [31:0] loader_status;
     sdram_bus #(.ADDR_BITS(RAM_ADDR_BITS)) ch_ppu (), ch_cpu (), ch_api ();
 
     map_mux mux (
@@ -53,7 +53,6 @@ module fcart (
         .reset(reset),
         .ch_prg(ch_cpu.controller),
         .ch_chr(ch_ppu.controller),
-        .fpga_irq(FPGA_IRQ),
 
         .m2(M2),
         .cpu_addr({!ROMSEL, CPU_ADDR}),
@@ -70,10 +69,10 @@ module fcart (
         .cpu_oe(CPU_DIR),
         .ppu_oe(PPU_DIR),
 
-        .wr_reg(wr_reg),
+        .wr_reg(wr_reg[11:0]),
         .wr_reg_addr(wr_reg_addr),
         .wr_reg_changed(wr_reg_changed),
-        .loader_out(loader_out)
+        .status_reg(loader_status)
     );
 
     pll pll (
@@ -141,13 +140,14 @@ module fcart (
     );
 
     api api (
-        .clk  (clk),
+        .clk(clk),
         .reset(reset),
+        .fpga_irq(FPGA_IRQ),
 
         .wr_reg(wr_reg),
         .wr_reg_addr(wr_reg_addr),
         .wr_reg_changed(wr_reg_changed),
-        .rd_reg_1(loader_out),
+        .ev_reg(loader_status),
 
         .ram(ch_api.controller),
 

@@ -1,5 +1,6 @@
 #include "fpga_api.h"
 #include <errno.h>
+#include <gpio.h>
 #include <qspi.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -44,4 +45,16 @@ int fpga_api_read_reg(enum fpga_reg_id id, uint32_t *value)
 int fpga_api_write_reg(enum fpga_reg_id id, uint32_t value)
 {
     return qspi_write(CMD_WRITE_REG, id, (uint8_t *)&value, sizeof(value));
+}
+
+uint32_t fpga_api_ev_reg()
+{
+    static uint32_t events;
+
+    if (!irq_called()) {
+        return events;
+    }
+
+    fpga_api_read_reg(FPGA_REG_EVENTS, &events);
+    return events;
 }

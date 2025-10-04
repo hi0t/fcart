@@ -1,10 +1,12 @@
 module api (
-    input logic clk,
-    input logic reset,
+    input  logic clk,
+    input  logic reset,
+    output logic fpga_irq,
+
     output logic [31:0] wr_reg,
     output logic [3:0] wr_reg_addr,
     output logic wr_reg_changed,
-    input logic [31:0] rd_reg_1,
+    input logic [31:0] ev_reg,
 
     sdram_bus.controller ram,
 
@@ -23,7 +25,8 @@ module api (
     enum logic [1:0] {
         STATE_CMD,
         STATE_ADDR,
-        STATE_DATA
+        STATE_DATA,
+        STATE_DONE
     } state;
 
     logic [1:0] byte_cnt;
@@ -31,6 +34,9 @@ module api (
     logic is_upper_nibble;
     logic write_in_progress;
     logic [3:0] rd_reg_addr;
+    logic [31:0] got_reg;
+
+    assign fpga_irq = (got_reg != ev_reg);
 
     always_ff @(posedge clk) begin
         if (reset) begin
@@ -38,14 +44,14 @@ module api (
             ram.we <= 0;
             state <= STATE_CMD;
             wr_reg_changed <= 0;
+            got_reg <= '0;
         end else begin
             rd_ready <= 0;
+            wr_ready <= 0;
 
             if (start) begin
                 state <= STATE_CMD;
-            end
-
-            if (!rd_ready && rd_valid) begin
+            end else if (!rd_ready && rd_valid) begin
                 case (state)
                     STATE_CMD: begin
                         rd_ready <= 1;
@@ -53,6 +59,7 @@ module api (
                         byte_cnt <= 0;
                         state <= STATE_ADDR;
                     end
+
                     STATE_ADDR: begin
                         rd_ready <= 1;
                         byte_cnt <= byte_cnt + 1;
@@ -79,9 +86,8 @@ module api (
                             end
                         endcase
                     end
-                    STATE_DATA: begin
-                        byte_cnt <= byte_cnt + 1;
 
+                    STATE_DATA: begin
                         case (cmd)
                             CMD_WRITE_MEM: begin
                                 if (is_upper_nibble) begin
@@ -103,8 +109,10 @@ module api (
                                     is_upper_nibble <= 1;
                                 end
                             end
+
                             CMD_WRITE_REG: begin
                                 rd_ready <= 1;
+                                byte_cnt <= byte_cnt + 1;
 
                                 case (byte_cnt)
                                     0: wr_reg[7:0] <= rd_data;
@@ -112,34 +120,35 @@ module api (
                                     2: wr_reg[23:16] <= rd_data;
                                     3: wr_reg[31:24] <= rd_data;
                                 endcase
-                                if (byte_cnt == 3) wr_reg_changed <= !wr_reg_changed;
+                                if (byte_cnt == 3) begin
+                                    state <= STATE_DONE;
+                                    wr_reg_changed <= !wr_reg_changed;
+                                end
                             end
                         endcase
                     end
                     default;
                 endcase
-            end
-        end
-    end
+            end else if (!wr_ready && wr_valid) begin
+                if (state == STATE_DATA) begin
+                    if (cmd == CMD_READ_REG) begin
+                        wr_ready <= 1;
+                        byte_cnt <= byte_cnt + 1;
 
-    // respond to reads
-    always_ff @(posedge clk) begin
-        wr_ready <= 0;
+                        case (rd_reg_addr)
+                            1: begin
+                                got_reg <= ev_reg;
 
-        if (!wr_ready && wr_valid) begin
-            if (state == STATE_DATA) begin
-                if (cmd == CMD_READ_REG) begin
-                    case (rd_reg_addr)
-                        1: begin
-                            wr_ready <= 1;
-                            case (byte_cnt)
-                                0: wr_data <= rd_reg_1[7:0];
-                                1: wr_data <= rd_reg_1[15:8];
-                                2: wr_data <= rd_reg_1[23:16];
-                                3: wr_data <= rd_reg_1[31:24];
-                            endcase
-                        end
-                    endcase
+                                case (byte_cnt)
+                                    0: wr_data <= ev_reg[7:0];
+                                    1: wr_data <= ev_reg[15:8];
+                                    2: wr_data <= ev_reg[23:16];
+                                    3: wr_data <= ev_reg[31:24];
+                                endcase
+                                if (byte_cnt == 3) state <= STATE_DONE;
+                            end
+                        endcase
+                    end
                 end
             end
         end

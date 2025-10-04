@@ -23,6 +23,7 @@ int qspi_read(uint8_t cmd, uint32_t address, uint8_t *data, uint32_t size)
         .NbData = size,
         .DataMode = QSPI_DATA_4_LINES,
     };
+
     HAL_StatusTypeDef rc;
 
     if ((rc = HAL_QSPI_Command(&p->hqspi, &cmdcfg, QSPI_TIMEOUT)) != HAL_OK) {
@@ -30,27 +31,32 @@ int qspi_read(uint8_t cmd, uint32_t address, uint8_t *data, uint32_t size)
         return -EIO;
     }
 
-    transmit = true;
-    if ((rc = HAL_QSPI_Receive_DMA(&p->hqspi, data)) != HAL_OK) {
-        LOG_ERR("Failed to receive OSPI data: %d", rc);
-        return -EIO;
-    }
+    if (size > 32) {
+        transmit = true;
+        if ((rc = HAL_QSPI_Receive_DMA(&p->hqspi, data)) != HAL_OK) {
+            LOG_ERR("Failed to receive OSPI data: %d", rc);
+            return -EIO;
+        }
 
-    // wait until the transfer operation is finished
-    uint32_t start = HAL_GetTick();
-    while (transmit) {
-        if (HAL_GetTick() - start > QSPI_TIMEOUT) {
-            LOG_ERR("Timeout waiting for OSPI transfer completion");
+        // wait until the transfer operation is finished
+        uint32_t start = HAL_GetTick();
+        while (transmit) {
+            if (HAL_GetTick() - start > QSPI_TIMEOUT) {
+                LOG_ERR("Timeout waiting for OSPI transfer completion");
+                return -EIO;
+            }
+        }
+        uint32_t status = HAL_QSPI_GetError(&p->hqspi);
+        if (status != HAL_QSPI_ERROR_NONE) {
+            LOG_ERR("OSPI transfer error: 0x%X", status);
+            return -EIO;
+        }
+    } else {
+        if ((rc = HAL_QSPI_Receive(&p->hqspi, data, QSPI_TIMEOUT)) != HAL_OK) {
+            LOG_ERR("Failed to receive OSPI data: %d", rc);
             return -EIO;
         }
     }
-
-    uint32_t status = HAL_QSPI_GetError(&p->hqspi);
-    if (status != HAL_QSPI_ERROR_NONE) {
-        LOG_ERR("OSPI transfer error: 0x%X", status);
-        return -EIO;
-    }
-
     return 0;
 }
 
@@ -73,7 +79,7 @@ int qspi_write(uint8_t cmd, uint32_t address, const uint8_t *data, uint32_t size
         return -EIO;
     }
 
-    if (size > 0) {
+    if (size > 32) {
         transmit = true;
         if ((rc = HAL_QSPI_Transmit_DMA(&p->hqspi, (uint8_t *)data)) != HAL_OK) {
             LOG_ERR("Failed to send OSPI data: %d", rc);
@@ -94,6 +100,11 @@ int qspi_write(uint8_t cmd, uint32_t address, const uint8_t *data, uint32_t size
             LOG_ERR("OSPI transfer error: 0x%X", status);
             return -EIO;
         }
+    } else if (size > 0) {
+        if ((rc = HAL_QSPI_Transmit(&p->hqspi, (uint8_t *)data, QSPI_TIMEOUT)) != HAL_OK) {
+            LOG_ERR("Failed to send OSPI data: %d", rc);
+            return -EIO;
+        }
     }
     return 0;
 }
@@ -104,7 +115,7 @@ void HAL_QSPI_TxCpltCallback(QSPI_HandleTypeDef *hqspi)
     transmit = false;
 }
 
-void HAL_QSPI_RxHalfCpltCallback(QSPI_HandleTypeDef *hqspi)
+void HAL_QSPI_RxCpltCallback(QSPI_HandleTypeDef *hqspi)
 {
     UNUSED(hqspi);
     transmit = false;

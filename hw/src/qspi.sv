@@ -32,7 +32,7 @@ module qspi (
 
     assign qspi_reset = async_reset || qspi_ncs;
     assign rd_valid   = !rx_empty;
-    assign wr_valid   = !tx_full;
+    assign wr_valid   = (state == STATE_SEND) ? !tx_full : 0;
 
     fifo #(
         .DEPTH(16)

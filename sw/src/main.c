@@ -1,5 +1,4 @@
 #include "fpga_cfg.h"
-#include "joypad.h"
 #include "ui.h"
 #include <ff.h>
 #include <gpio.h>
@@ -44,7 +43,7 @@ int main()
 
     for (;;) {
         gpio_poll();
-        joypad_poll();
+        ui_poll();
     }
 
     return 0;

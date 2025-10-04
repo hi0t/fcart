@@ -5,7 +5,6 @@ module map_mux #(
     input logic reset,
     sdram_bus.controller ch_prg,
     sdram_bus.controller ch_chr,
-    output logic fpga_irq,
 
     // Cart interface
     input logic m2,
@@ -23,10 +22,10 @@ module map_mux #(
     output logic cpu_oe,
     output logic ppu_oe,
 
-    input logic [31:0] wr_reg,
+    input logic [11:0] wr_reg,
     input logic [3:0] wr_reg_addr,
     input logic wr_reg_changed,
-    output logic [31:0] loader_out
+    output logic [31:0] status_reg
 );
     localparam MAP_CNT = 32;
 
@@ -39,7 +38,7 @@ module map_mux #(
     logic loader_buffer_num;
     logic loader_prelaunch;
     logic loader_launch;
-    logic [7:0] loader_buttons;
+    logic [8:0] loader_status;
 
     // Muxed bus signals
     logic [7:0] bus_cpu_data_out[MAP_CNT];
@@ -61,7 +60,7 @@ module map_mux #(
         .buffer_num(loader_buffer_num),
         .prelaunch(loader_prelaunch),
         .launch(loader_launch),
-        .buttons(loader_buttons)
+        .status(loader_status)
     );
     NROM NROM (.bus(map[1]));
     MMC1 MMC1 (.bus(map[2]));
@@ -71,7 +70,7 @@ module map_mux #(
     genvar n;
     for (n = 0; n < MAP_CNT; n = n + 1) begin
         // mux for incoming signals
-        assign map[n].reset = (n == select) ? 1'b0 : 1'b1;
+        assign map[n].reset = (n != select) || cpu_reset;
         assign map[n].m2 = m2;
         assign map[n].cpu_addr = cpu_addr;
         assign map[n].cpu_data_in = cpu_data;
@@ -134,7 +133,6 @@ module map_mux #(
     logic [2:0] wr_reg_sync;
     logic [4:0] pending_select;
     logic [7:0] prev_cpu_data;
-    assign fpga_irq = loader_buttons != '0;
 
     always_ff @(negedge m2 or posedge cpu_reset) begin
         if (cpu_reset) begin
@@ -169,11 +167,15 @@ module map_mux #(
     assign cpu_reset = (reset_seq == '1);
 
     always_ff @(posedge clk) begin
-        m2_sync <= {m2_sync[1:0], m2};
+        if (reset) begin
+            status_reg <= '0;
+        end else begin
+            m2_sync <= {m2_sync[1:0], m2};
 
-        if (m2_sync[2:1] == 2'b10) begin
-            loader_out <= 32'(loader_buttons);
-            reset_seq  <= '0;
-        end else if (reset_seq != '1) reset_seq <= reset_seq + 1;
+            if (m2_sync[2:1] == 2'b10) begin
+                status_reg <= 32'(loader_status);
+                reset_seq  <= '0;
+            end else if (reset_seq != '1) reset_seq <= reset_seq + 1;
+        end
     end
 endmodule

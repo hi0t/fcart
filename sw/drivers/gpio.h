@@ -42,6 +42,15 @@ void set_button_callback(void (*cb)());
 void set_sd_callback(void (*cb)(bool));
 
 /**
+ * @brief Checks if the SD card is currently present.
+ *
+ * This function returns true if the SD card is detected as present, false otherwise.
+ *
+ * @return true if the SD card is present, false otherwise
+ */
+bool sd_is_present();
+
+/**
  * @brief Checks if an interrupt has been called.
  *
  * This function returns true if an interrupt has occurred since the last call to this function.

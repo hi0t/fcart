@@ -3,7 +3,7 @@ module loader (
     input logic buffer_num,
     input logic prelaunch,
     input logic launch,
-    output logic [7:0] buttons
+    output logic [8:0] status
 );
     logic [7:0] rom[1024]  /* synthesis syn_romstyle = "EBR" */;
     initial $readmemh("loader/loader.mem", rom);
@@ -46,7 +46,7 @@ module loader (
 
     always_ff @(negedge bus.m2) begin
         if (bus.reset) begin
-            buttons <= '0;
+            status <= '0;
             next_buffer <= 0;
             vblank <= 1;
         end else begin
@@ -59,10 +59,11 @@ module loader (
                         vblank <= 1;
                         next_buffer <= buffer_num;
                     end
+                    status[8] <= bus.cpu_data_in[1];
                 end
                 // read buttons
                 if (bus.cpu_addr == 'h5001) begin
-                    buttons <= bus.cpu_data_in;
+                    status[7:0] <= bus.cpu_data_in;
                 end
             end
         end

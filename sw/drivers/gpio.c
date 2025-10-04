@@ -6,6 +6,8 @@
 #define PRESS 0x000FU
 #define MASK 0xF00FU
 
+static uint16_t sd_history = RESET;
+
 static void (*button_cb)();
 static void (*sd_cb)(bool);
 
@@ -13,9 +15,8 @@ void gpio_poll()
 {
     static uint32_t last_time = RESET;
     static uint16_t btn_history = RESET;
-    static uint16_t sd_history = RESET;
     static bool btn_pressed = false;
-    static uint8_t sd_present = 0xFF; // Unknown state
+    static bool sd_present = false;
     uint32_t now = HAL_GetTick();
 
     if (btn_history == SET) {
@@ -34,12 +35,14 @@ void gpio_poll()
             button_cb();
         }
 
-        if (sd_cb != NULL) {
-            if ((!sd_present || sd_present == 0xFF) && sd_history == SET) {
-                sd_present = 1;
+        if (!sd_present && sd_history == SET) {
+            sd_present = true;
+            if (sd_cb != NULL) {
                 sd_cb(true);
-            } else if (sd_present && sd_history == RESET) {
-                sd_present = 0;
+            }
+        } else if (sd_present && sd_history == RESET) {
+            sd_present = false;
+            if (sd_cb != NULL) {
                 sd_cb(false);
             }
         }
@@ -54,4 +57,9 @@ void set_button_callback(void (*cb)())
 void set_sd_callback(void (*cb)(bool))
 {
     sd_cb = cb;
+}
+
+bool sd_is_present()
+{
+    return sd_history == SET;
 }
