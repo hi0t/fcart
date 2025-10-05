@@ -45,7 +45,7 @@ module fcart (
     logic [31:0] wr_reg;
     logic [3:0] wr_reg_addr;
     logic wr_reg_changed;
-    logic [31:0] loader_status;
+    logic [31:0] launcher_status;
     sdram_bus #(.ADDR_BITS(RAM_ADDR_BITS)) ch_ppu (), ch_cpu (), ch_api ();
 
     map_mux mux (
@@ -72,7 +72,7 @@ module fcart (
         .wr_reg(wr_reg[11:0]),
         .wr_reg_addr(wr_reg_addr),
         .wr_reg_changed(wr_reg_changed),
-        .status_reg(loader_status)
+        .status_reg(launcher_status)
     );
 
     pll pll (
@@ -147,7 +147,7 @@ module fcart (
         .wr_reg(wr_reg),
         .wr_reg_addr(wr_reg_addr),
         .wr_reg_changed(wr_reg_changed),
-        .ev_reg(loader_status),
+        .ev_reg(launcher_status),
 
         .ram(ch_api.controller),
 

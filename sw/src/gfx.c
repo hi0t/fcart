@@ -108,7 +108,7 @@ void gfx_refresh()
     fpga_api_write_mem(addr, FB_SIZE, fb_reader, &offset);
 
     uint32_t args = curr_buffer;
-    fpga_api_write_reg(FPGA_REG_LOADER, args);
+    fpga_api_write_reg(FPGA_REG_LAUNCHER, args);
 }
 
 static bool fb_reader(uint8_t *data, uint32_t size, void *arg)

@@ -10,9 +10,9 @@ BUTTONS_REG = $5001
 STATUS_REG  = $5002
 
 .segment "ZEROPAGE"
-    zp_buttons:   .res 1
-    zp_ctrl:      .res 1
-    zp_prelaunch: .res 1
+    zp_buttons: .res 1
+    zp_ctrl:    .res 1
+    zp_halt:    .res 1
 
 .segment "CODE"
 reset:
@@ -108,20 +108,20 @@ reset:
         sta zp_ctrl
 
         and #%00000001
-        bne prelaunch
+        bne halt
 
         lda zp_ctrl
         and #%00000010
-        bne launch
+        bne load_app
 
         jmp forever
 
-    prelaunch:
+    halt:
         lda #$01
-        sta zp_prelaunch
+        sta zp_halt
         jmp forever
 
-    launch:
+    load_app:
         vblank_wait3:
             bit PPU_STATUS
             bpl vblank_wait3
@@ -140,7 +140,7 @@ nmi:
     ; save registers
 	pha
 
-    lda zp_prelaunch
+    lda zp_halt
     cmp #$01
     bne nmi_continue
 

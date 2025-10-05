@@ -74,7 +74,7 @@ int rom_load(const char *filename)
     uint8_t has_chr_ram = nes20 ? chr_ram_size > 0 : chr_size == 0;
     uint8_t chr_off = get_chr_off(prg_size);
 
-    fpga_api_write_reg(FPGA_REG_LOADER, 1 << 1U); // prelaunch
+    fpga_api_write_reg(FPGA_REG_LAUNCHER, 1 << 1U); // prelaunch
     for (;;) {
         if ((fpga_api_ev_reg() & (1 << 8U)) == 0) { // waiting for loader to exit
             break;

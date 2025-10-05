@@ -1,3 +1,3 @@
-src += files('loader.sv')
+src += files('launcher.sv')
 subdir('generic')
 subdir('MMC1')

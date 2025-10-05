@@ -1,12 +1,12 @@
-module loader (
+module launcher (
     map_bus.mapper bus,
     input logic buffer_num,
-    input logic prelaunch,
-    input logic launch,
+    input logic halt,
+    input logic load_app,
     output logic [8:0] status
 );
     logic [7:0] rom[1024]  /* synthesis syn_romstyle = "EBR" */;
-    initial $readmemh("loader/loader.mem", rom);
+    initial $readmemh("launcher/launcher.mem", rom);
 
     logic vblank;
     logic last_ppu_a13;
@@ -30,7 +30,7 @@ module loader (
         if (bus.reset) begin
             ctrl_reg <= '0;
         end else begin
-            ctrl_reg <= ctrl_reg | {launch, prelaunch};
+            ctrl_reg <= ctrl_reg | {load_app, halt};
 
             if (bus.cpu_rw) begin
                 if (bus.cpu_addr == 'h5000) begin

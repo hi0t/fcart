@@ -5,7 +5,7 @@
 
 enum fpga_reg_id {
     FPGA_REG_MAPPER = 0,
-    FPGA_REG_LOADER = 1,
+    FPGA_REG_LAUNCHER = 1,
     FPGA_REG_EVENTS = 1
 };
 

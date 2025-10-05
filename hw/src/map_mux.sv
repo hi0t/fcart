@@ -35,10 +35,10 @@ module map_mux #(
     logic [1:0] map_args;
     logic [ADDR_BITS-1:0] chr_mask;
     logic [7:0] cpu_data_out, ppu_data_out;
-    logic loader_buffer_num;
-    logic loader_prelaunch;
-    logic loader_launch;
-    logic [8:0] loader_status;
+    logic launcher_buffer_num;
+    logic launcher_halt;
+    logic launcher_load;
+    logic [8:0] launcher_status;
 
     // Muxed bus signals
     logic [7:0] bus_cpu_data_out[MAP_CNT];
@@ -55,12 +55,12 @@ module map_mux #(
 
     map_bus map[MAP_CNT] ();
 
-    loader loader (
+    launcher launcher (
         .bus(map[0]),
-        .buffer_num(loader_buffer_num),
-        .prelaunch(loader_prelaunch),
-        .launch(loader_launch),
-        .status(loader_status)
+        .buffer_num(launcher_buffer_num),
+        .halt(launcher_halt),
+        .load_app(launcher_load),
+        .status(launcher_status)
     );
     NROM NROM (.bus(map[1]));
     MMC1 MMC1 (.bus(map[2]));
@@ -128,7 +128,7 @@ module map_mux #(
     );
 
     localparam REG_MAPPER = 0;
-    localparam REG_LOADER = 1;
+    localparam REG_LAUNCHER = 1;
 
     logic [2:0] wr_reg_sync;
     logic [4:0] pending_select;
@@ -139,25 +139,25 @@ module map_mux #(
             select <= '0;
             chr_off <= '0;
             map_args <= '0;
-            loader_buffer_num <= '0;
-            loader_launch <= 0;
+            launcher_buffer_num <= '0;
+            launcher_load <= 0;
         end else begin
-            loader_prelaunch <= 0;
+            launcher_halt <= 0;
             prev_cpu_data <= cpu_data;
 
-            wr_reg_sync <= {wr_reg_sync[1:0], wr_reg_changed};
+            wr_reg_sync   <= {wr_reg_sync[1:0], wr_reg_changed};
             if (wr_reg_sync[1] != wr_reg_sync[2]) begin
                 if (wr_reg_addr == REG_MAPPER) begin
                     {map_args, chr_off, pending_select} <= wr_reg[11:0];
-                    loader_launch <= 1;
-                end else if (wr_reg_addr == REG_LOADER) begin
-                    {loader_prelaunch, loader_buffer_num} <= wr_reg[1:0];
+                    launcher_load <= 1;
+                end else if (wr_reg_addr == REG_LAUNCHER) begin
+                    {launcher_halt, launcher_buffer_num} <= wr_reg[1:0];
                 end
             end
 
-            if (loader_launch && cpu_data == 'hFF && prev_cpu_data == 'hFC) begin
+            if (launcher_load && cpu_data == 'hFF && prev_cpu_data == 'hFC) begin
                 select <= pending_select;
-                loader_launch <= 0;
+                launcher_load <= 0;
             end
         end
     end
@@ -173,7 +173,7 @@ module map_mux #(
             m2_sync <= {m2_sync[1:0], m2};
 
             if (m2_sync[2:1] == 2'b10) begin
-                status_reg <= 32'(loader_status);
+                status_reg <= 32'(launcher_status);
                 reset_seq  <= '0;
             end else if (reset_seq != '1) reset_seq <= reset_seq + 1;
         end
