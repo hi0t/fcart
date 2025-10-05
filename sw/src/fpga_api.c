@@ -13,24 +13,45 @@ enum {
 
 int fpga_api_write_mem(uint32_t address, uint32_t size, fpga_api_reader_cb cb, void *arg)
 {
-#define BUF_SIZE 1024
-    uint8_t *buf = malloc(BUF_SIZE);
+#define BUF_SIZE 512
+    uint8_t *buf = malloc(BUF_SIZE * 2);
+    if (!buf) {
+        return -ENOMEM;
+    }
+
+    uint8_t *curr_buf = buf;
     uint32_t remain = size;
     uint32_t offset = address;
+    bool pending_write = false;
     int rc = 0;
 
     while (remain > 0) {
         uint32_t chunk = remain > BUF_SIZE ? BUF_SIZE : remain;
-        if (!cb(buf, chunk, arg)) {
+        if (!cb(curr_buf, chunk, arg)) {
             rc = -EIO;
             goto out;
         }
-        // TODO: make parallel transfer
-        if ((rc = qspi_write(CMD_WRITE_MEM, offset, buf, chunk)) != 0) {
+
+        if (pending_write) {
+            if ((rc = qspi_write_end()) != 0) {
+                goto out;
+            }
+        }
+        if ((rc = qspi_write_begin(CMD_WRITE_MEM, offset, curr_buf, chunk)) != 0) {
             goto out;
         }
+        pending_write = true;
+
+        // Swap between two buffers for double-buffering
+        curr_buf = (curr_buf == buf) ? (buf + BUF_SIZE) : buf;
         offset += chunk;
         remain -= chunk;
+    }
+
+    if (pending_write) {
+        if ((rc = qspi_write_end()) != 0) {
+            goto out;
+        }
     }
 out:
     free(buf);
