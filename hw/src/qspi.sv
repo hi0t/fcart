@@ -67,7 +67,7 @@ module qspi (
     );
 
     // RX logic
-    assign rx_en   = (cnt[0] == 1) && (state != STATE_SEND);
+    assign rx_en   = (cnt[0] == 1'b1) && (state != STATE_SEND);
     assign rx_data = {upper_nibble, qspi_io};
     always_ff @(posedge qspi_clk or posedge qspi_reset) begin
         if (qspi_reset) begin
@@ -75,27 +75,27 @@ module qspi (
             state <= STATE_CMD;
             has_resp <= 0;
         end else begin
-            cnt <= cnt + 1;
+            cnt <= cnt + 3'd1;
             if (cnt[0] == 0) upper_nibble <= qspi_io;
 
             if (state == STATE_CMD) begin
                 if (cnt == 1) begin
-                    has_resp <= (qspi_io[0] == 0);  // Detect if the command expects a response
-                    cnt <= 0;
+                    has_resp <= (qspi_io[0] == 1'b0);  // Detect if the command expects a response
+                    cnt <= '0;
                     state <= STATE_RECEIVE;
                 end
             end else if (state == STATE_RECEIVE) begin
-                if (has_resp && cnt == 6) state <= STATE_SEND;
+                if (has_resp && cnt == 3'd6) state <= STATE_SEND;
             end
         end
     end
 
     // TX logic
-    assign tx_en   = (cnt[0] == 1) && (state == STATE_SEND);
+    assign tx_en   = (cnt[0] == 1'b1) && (state == STATE_SEND);
     assign qspi_io = (state == STATE_SEND) ? io_out : 'z;
     always_ff @(negedge qspi_clk) begin
         if (state == STATE_SEND) begin
-            if (cnt[0] == 0) io_out <= tx_data[7:4];
+            if (cnt[0] == 1'b0) io_out <= tx_data[7:4];
             else io_out <= tx_data[3:0];
         end
     end

@@ -111,7 +111,7 @@ module map_mux #(
         .reset(reset),
         .ram(ch_prg),
         .oe(bus_prg_oe[select] && !bus_custom_cpu_out[select]),
-        .addr(bus_prg_addr[select] & ADDR_BITS'((1 << chr_off) - 1)),
+        .addr(bus_prg_addr[select] & ADDR_BITS'((1 << chr_off) - 5'd1)),
         .data_out(cpu_data_out)
     );
 
@@ -127,8 +127,8 @@ module map_mux #(
         .we(bus_chr_we[select])
     );
 
-    localparam REG_MAPPER = 0;
-    localparam REG_LAUNCHER = 1;
+    localparam REG_MAPPER = 4'd0;
+    localparam REG_LAUNCHER = 4'd1;
 
     logic [2:0] wr_reg_sync;
     logic [4:0] pending_select;
@@ -175,7 +175,7 @@ module map_mux #(
             if (m2_sync[2:1] == 2'b10) begin
                 status_reg <= 32'(launcher_status);
                 reset_seq  <= '0;
-            end else if (reset_seq != '1) reset_seq <= reset_seq + 1;
+            end else if (reset_seq != '1) reset_seq <= reset_seq + 1'd1;
         end
     end
 endmodule

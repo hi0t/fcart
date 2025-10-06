@@ -24,14 +24,14 @@ module fifo #(
 
     ////////////////// Write logic ////////////////
     // Write pointer handler
-    assign wr_addr_next = wr_addr + 1;
+    assign wr_addr_next = wr_addr + 1'd1;
     always @(posedge wr_clk or posedge wr_reset) begin
         if (wr_reset) begin
             wr_addr <= '0;
             wr_gray <= '0;
         end else if (wr_en && !full) begin
             wr_addr <= wr_addr_next;
-            wr_gray <= wr_addr_next ^ (wr_addr_next >> 1);
+            wr_gray <= wr_addr_next ^ (wr_addr_next >> 1'd1);
         end
     end
 
@@ -49,14 +49,14 @@ module fifo #(
 
     ////////////////// Read logic ////////////////
     // Read pointer handler
-    assign rd_addr_next = rd_addr + 1;
+    assign rd_addr_next = rd_addr + 1'd1;
     always @(posedge rd_clk or posedge rd_reset) begin
         if (rd_reset) begin
             rd_addr <= '0;
             rd_gray <= '0;
         end else if (rd_en && !empty) begin
             rd_addr <= rd_addr_next;
-            rd_gray <= rd_addr_next ^ (rd_addr_next >> 1);
+            rd_gray <= rd_addr_next ^ (rd_addr_next >> 1'd1);
         end
     end
 

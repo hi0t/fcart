@@ -64,10 +64,10 @@ module MMC1 (
             end else begin
                 if (shift[0]) begin
                     case (bus.cpu_addr[14:13])
-                        0: control <= shift_next;
-                        1: chr_bank_0 <= shift_next;
-                        2: chr_bank_1 <= shift_next;
-                        3: prg_bank <= shift_next[3:0];
+                        2'd0: control <= shift_next;
+                        2'd1: chr_bank_0 <= shift_next;
+                        2'd2: chr_bank_1 <= shift_next;
+                        2'd3: prg_bank <= shift_next[3:0];
                     endcase
                     shift <= 5'b10000;
                 end else shift <= shift_next;

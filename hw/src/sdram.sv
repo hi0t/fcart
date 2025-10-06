@@ -20,26 +20,26 @@ module sdram #(
     output logic sdram_we,
     output logic [1:0] sdram_dqm
 );
-    localparam PRECHARGE_PERIOD = 2;  // tRP 15E-9 * FREQ
-    localparam REGISTER_SET = 2;  // tRSC clocks
-    localparam ACTIVE_TO_CMD = 2;  // tRCD 15E-9 * FREQ
-    localparam CAS_LATENCY = 2;  // 2 or 3 clocks allowed. 3 for >100MHz
-    localparam READ_PERIOD = 6;  // tRAS + tRP
-    localparam WRITE_PERIOD = 8;  // tRAS + tRP + tWR
-    localparam REFRESH_INTERVAL = 1560;  // tREF / 4K 15.625E-6 * FREQ
+    localparam PRECHARGE_PERIOD = 5'd2;  // tRP 15E-9 * FREQ
+    localparam REGISTER_SET = 5'd2;  // tRSC clocks
+    localparam ACTIVE_TO_CMD = 5'd2;  // tRCD 15E-9 * FREQ
+    localparam CAS_LATENCY = 5'd2;  // 2 or 3 clocks allowed. 3 for >100MHz
+    localparam READ_PERIOD = 5'd6;  // tRAS + tRP
+    localparam WRITE_PERIOD = 5'd8;  // tRAS + tRP + tWR
+    localparam REFRESH_INTERVAL = 11'd1560;  // tREF / 4K 15.625E-6 * FREQ
 
     // configure steps
     localparam CONFIGURE_PRECHARGE = PRECHARGE_PERIOD;
     localparam CONFIGURE_SET_MODE = CONFIGURE_PRECHARGE + PRECHARGE_PERIOD;
     localparam CONFIGURE_REFRESH_1 = CONFIGURE_SET_MODE + REGISTER_SET;
     // READ_PERIOD cover the refresh period
-    localparam CONFIGURE_REFRESH_2 = CONFIGURE_REFRESH_1 + READ_PERIOD + 1;
+    localparam CONFIGURE_REFRESH_2 = CONFIGURE_REFRESH_1 + READ_PERIOD + 5'd1;
     localparam CONFIGURE_END = CONFIGURE_REFRESH_2 + READ_PERIOD;
 
     // active steps
-    localparam ACTIVE_START = 1;
+    localparam ACTIVE_START = 5'd1;
     localparam ACTIVE_CMD = ACTIVE_TO_CMD;
-    localparam ACTIVE_READY = ACTIVE_TO_CMD + CAS_LATENCY + 1;
+    localparam ACTIVE_READY = ACTIVE_TO_CMD + CAS_LATENCY + 5'd1;
     localparam ACTIVE_READ_END = READ_PERIOD;
     localparam ACTIVE_WRITE_END = WRITE_PERIOD;
 
@@ -73,7 +73,7 @@ module sdram #(
     assign sdram_dq = (cmd == CMD_WRITE) ? data : 'z;
 
     always_ff @(posedge clk) begin
-        refresh_timer <= refresh_timer + 1;
+        refresh_timer <= refresh_timer + 1'd1;
 
         if (refresh_timer >= REFRESH_INTERVAL || ((refresh_timer >= REFRESH_INTERVAL / 2) && refresh)) begin
             pending_refresh <= 1;
@@ -90,7 +90,7 @@ module sdram #(
         end else begin
             case (state)
                 STATE_CONFIGURE: begin
-                    step <= step + 1;
+                    step <= step + 5'd1;
 
                     case (step)
                         CONFIGURE_PRECHARGE: begin
@@ -113,7 +113,7 @@ module sdram #(
                             cmd <= CMD_AUTO_REFRESH;
                         end
                         CONFIGURE_END: begin
-                            refresh_timer <= 0;
+                            refresh_timer <= '0;
                             pending_refresh <= 0;
                             state <= STATE_IDLE;
                         end
@@ -128,7 +128,7 @@ module sdram #(
                     // prioritize refresh over requests
                     if (pending_refresh) begin
                         pending_refresh <= 0;
-                        refresh_timer <= 0;
+                        refresh_timer <= '0;
                         cmd <= CMD_AUTO_REFRESH;
                         state <= STATE_REFRESH;
                     end else if (ch0.req != ch0.ack) begin
@@ -136,7 +136,7 @@ module sdram #(
                         data <= ch0.data_write;
                         cmd <= CMD_ACTIVATE;
                         state <= STATE_ACTIVE;
-                        curr_ch <= 0;
+                        curr_ch <= 2'd0;
                         we <= ch0.we;
                         wm <= ch0.wm;
                     end else if (ch1.req != ch1.ack) begin
@@ -144,7 +144,7 @@ module sdram #(
                         data <= ch1.data_write;
                         cmd <= CMD_ACTIVATE;
                         state <= STATE_ACTIVE;
-                        curr_ch <= 1;
+                        curr_ch <= 2'd1;
                         we <= ch1.we;
                         wm <= ch1.wm;
                     end else if (ch2.req != ch2.ack) begin
@@ -152,13 +152,13 @@ module sdram #(
                         data <= ch2.data_write;
                         cmd <= CMD_ACTIVATE;
                         state <= STATE_ACTIVE;
-                        curr_ch <= 2;
+                        curr_ch <= 2'd2;
                         we <= ch2.we;
                         wm <= ch2.wm;
                     end
                 end
                 STATE_ACTIVE: begin
-                    step <= step + 1;
+                    step <= step + 5'd1;
 
                     case (step)
                         ACTIVE_CMD: begin
@@ -169,18 +169,19 @@ module sdram #(
                         end
                         ACTIVE_READY: begin
                             case (curr_ch)
-                                0: begin
+                                2'd0: begin
                                     ch0.ack <= ch0.req;
                                     if (!we) ch0.data_read <= sdram_dq;
                                 end
-                                1: begin
+                                2'd1: begin
                                     ch1.ack <= ch1.req;
                                     if (!we) ch1.data_read <= sdram_dq;
                                 end
-                                2: begin
+                                2'd2: begin
                                     ch2.ack <= ch2.req;
                                     if (!we) ch2.data_read <= sdram_dq;
                                 end
+                                default;
                             endcase
                         end
                         ACTIVE_READ_END: if (!we) state <= STATE_IDLE;
@@ -190,7 +191,7 @@ module sdram #(
                 end
                 STATE_REFRESH: begin
                     cmd  <= CMD_NOOP;
-                    step <= step + 1;
+                    step <= step + 5'd1;
                     if (step == READ_PERIOD) state <= STATE_IDLE;
                 end
             endcase

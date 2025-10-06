@@ -18,9 +18,9 @@ module api (
     output logic wr_ready,
     input logic start
 );
-    localparam CMD_WRITE_MEM = 1;
-    localparam CMD_READ_REG = 2;
-    localparam CMD_WRITE_REG = 3;
+    localparam CMD_WRITE_MEM = 8'd1;
+    localparam CMD_READ_REG = 8'd2;
+    localparam CMD_WRITE_REG = 8'd3;
 
     enum logic [1:0] {
         STATE_CMD,
@@ -56,34 +56,36 @@ module api (
                     STATE_CMD: begin
                         rd_ready <= 1;
                         cmd <= rd_data;
-                        byte_cnt <= 0;
+                        byte_cnt <= '0;
                         state <= STATE_ADDR;
                     end
 
                     STATE_ADDR: begin
                         rd_ready <= 1;
-                        byte_cnt <= byte_cnt + 1;
+                        byte_cnt <= byte_cnt + 2'd1;
 
-                        if (byte_cnt == 2) begin
-                            byte_cnt <= 0;
+                        if (byte_cnt == 2'd2) begin
+                            byte_cnt <= '0;
                             state <= STATE_DATA;
                         end
 
                         case (cmd)
                             CMD_WRITE_MEM: begin
                                 case (byte_cnt)
-                                    0: ram.address[21:15] <= rd_data[6:0];
-                                    1: ram.address[14:7] <= rd_data;
-                                    2: {ram.address[6:0], is_upper_nibble} <= rd_data;
+                                    2'd0: ram.address[21:15] <= rd_data[6:0];
+                                    2'd1: ram.address[14:7] <= rd_data;
+                                    2'd2: {ram.address[6:0], is_upper_nibble} <= rd_data;
+                                    default;
                                 endcase
                                 write_in_progress <= 0;
                             end
                             CMD_READ_REG: begin
-                                if (byte_cnt == 2) rd_reg_addr <= rd_data[3:0];
+                                if (byte_cnt == 2'd2) rd_reg_addr <= rd_data[3:0];
                             end
                             CMD_WRITE_REG: begin
-                                if (byte_cnt == 2) wr_reg_addr <= rd_data[3:0];
+                                if (byte_cnt == 2'd2) wr_reg_addr <= rd_data[3:0];
                             end
+                            default;
                         endcase
                     end
 
@@ -112,19 +114,20 @@ module api (
 
                             CMD_WRITE_REG: begin
                                 rd_ready <= 1;
-                                byte_cnt <= byte_cnt + 1;
+                                byte_cnt <= byte_cnt + 2'd1;
 
                                 case (byte_cnt)
-                                    0: wr_reg[7:0] <= rd_data;
-                                    1: wr_reg[15:8] <= rd_data;
-                                    2: wr_reg[23:16] <= rd_data;
-                                    3: wr_reg[31:24] <= rd_data;
+                                    2'd0: wr_reg[7:0] <= rd_data;
+                                    2'd1: wr_reg[15:8] <= rd_data;
+                                    2'd2: wr_reg[23:16] <= rd_data;
+                                    2'd3: wr_reg[31:24] <= rd_data;
                                 endcase
-                                if (byte_cnt == 3) begin
+                                if (byte_cnt == 2'd3) begin
                                     state <= STATE_DONE;
                                     wr_reg_changed <= !wr_reg_changed;
                                 end
                             end
+                            default;
                         endcase
                     end
                     default;
@@ -133,19 +136,19 @@ module api (
                 if (state == STATE_DATA) begin
                     if (cmd == CMD_READ_REG) begin
                         wr_ready <= 1;
-                        byte_cnt <= byte_cnt + 1;
+                        byte_cnt <= byte_cnt + 2'd1;
 
                         case (rd_reg_addr)
                             1: begin
                                 got_reg <= ev_reg;
 
                                 case (byte_cnt)
-                                    0: wr_data <= ev_reg[7:0];
-                                    1: wr_data <= ev_reg[15:8];
-                                    2: wr_data <= ev_reg[23:16];
-                                    3: wr_data <= ev_reg[31:24];
+                                    2'd0: wr_data <= ev_reg[7:0];
+                                    2'd1: wr_data <= ev_reg[15:8];
+                                    2'd2: wr_data <= ev_reg[23:16];
+                                    2'd3: wr_data <= ev_reg[31:24];
                                 endcase
-                                if (byte_cnt == 3) state <= STATE_DONE;
+                                if (byte_cnt == 2'd3) state <= STATE_DONE;
                             end
                         endcase
                     end
