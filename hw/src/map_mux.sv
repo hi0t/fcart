@@ -2,7 +2,6 @@ module map_mux #(
     parameter ADDR_BITS = 23  // SDRAM width + 1
 ) (
     input logic clk,
-    input logic reset,
     sdram_bus.controller ch_prg,
     sdram_bus.controller ch_chr,
 
@@ -108,7 +107,6 @@ module map_mux #(
 
     prg_ram prg_ram (
         .clk(clk),
-        .reset(reset),
         .ram(ch_prg),
         .oe(bus_prg_oe[select] && !bus_custom_cpu_out[select]),
         .addr(bus_prg_addr[select] & ADDR_BITS'((1 << chr_off) - 5'd1)),
@@ -117,7 +115,6 @@ module map_mux #(
 
     chr_ram chr_ram (
         .clk(clk),
-        .reset(reset),
         .ram(ch_chr),
         .addr(bus_chr_addr[select] | chr_mask),
         .data_in(ppu_data),
@@ -167,15 +164,11 @@ module map_mux #(
     assign cpu_reset = (reset_seq == '1);
 
     always_ff @(posedge clk) begin
-        if (reset) begin
-            status_reg <= '0;
-        end else begin
-            m2_sync <= {m2_sync[1:0], m2};
+        m2_sync <= {m2_sync[1:0], m2};
 
-            if (m2_sync[2:1] == 2'b10) begin
-                status_reg <= 32'(launcher_status);
-                reset_seq  <= '0;
-            end else if (reset_seq != '1) reset_seq <= reset_seq + 1'd1;
-        end
+        if (m2_sync[2:1] == 2'b10) begin
+            status_reg <= 32'(launcher_status);
+            reset_seq  <= '0;
+        end else if (reset_seq != '1) reset_seq <= reset_seq + 1'd1;
     end
 endmodule

@@ -23,10 +23,10 @@ module api (
     localparam CMD_WRITE_REG = 8'd3;
 
     enum logic [1:0] {
+        STATE_IDLE,
         STATE_CMD,
         STATE_ADDR,
-        STATE_DATA,
-        STATE_DONE
+        STATE_DATA
     } state;
 
     logic [1:0] byte_cnt;
@@ -40,11 +40,7 @@ module api (
 
     always_ff @(posedge clk) begin
         if (reset) begin
-            ram.req <= 0;
-            ram.we <= 0;
-            state <= STATE_CMD;
-            wr_reg_changed <= 0;
-            got_reg <= '0;
+            state <= STATE_IDLE;
         end else begin
             rd_ready <= 0;
             wr_ready <= 0;
@@ -123,7 +119,7 @@ module api (
                                     2'd3: wr_reg[31:24] <= rd_data;
                                 endcase
                                 if (byte_cnt == 2'd3) begin
-                                    state <= STATE_DONE;
+                                    state <= STATE_IDLE;
                                     wr_reg_changed <= !wr_reg_changed;
                                 end
                             end
@@ -148,7 +144,7 @@ module api (
                                     2'd2: wr_data <= ev_reg[23:16];
                                     2'd3: wr_data <= ev_reg[31:24];
                                 endcase
-                                if (byte_cnt == 2'd3) state <= STATE_DONE;
+                                if (byte_cnt == 2'd3) state <= STATE_IDLE;
                             end
                         endcase
                     end

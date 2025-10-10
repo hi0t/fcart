@@ -71,9 +71,8 @@ module qspi (
     assign rx_data = {upper_nibble, qspi_io};
     always_ff @(posedge qspi_clk or posedge qspi_reset) begin
         if (qspi_reset) begin
-            cnt <= '0;
+            cnt   <= '0;
             state <= STATE_CMD;
-            has_resp <= 0;
         end else begin
             cnt <= cnt + 3'd1;
             if (cnt[0] == 0) upper_nibble <= qspi_io;

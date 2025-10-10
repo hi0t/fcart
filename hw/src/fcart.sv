@@ -50,7 +50,6 @@ module fcart (
 
     map_mux mux (
         .clk(clk),
-        .reset(reset),
         .ch_prg(ch_cpu.controller),
         .ch_chr(ch_ppu.controller),
 
