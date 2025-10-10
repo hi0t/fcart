@@ -16,11 +16,14 @@ prj_strgy set_value -strategy Debug \
     par_stop_zero=True
 
 prj_strgy set_value -strategy Release \
-    syn_pipelining_retiming="Pipelining and Retiming" \
-    par_cdp=1 \
-    par_cdr=1 \
+    syn_res_sharing=False \
+    map_timing_driven=True \
+    map_timing_driven_pack=True \
     par_pathbased_place=On \
-    par_place_iterator=16
+    par_routing_res_opt=6 \
+    par_route_delay_reduction_pass=10 \
+    par_place_iterator=16 \
+    par_routeing_pass=100
 
 prj_impl option top @TOP_MODULE@
 if {"@STRATEGY@"=="Debug"} {
