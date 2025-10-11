@@ -9,7 +9,7 @@ module qspi_tb;
     logic qspi_clk;
     logic clk;
     localparam CYC = 0.5;
-    always #(CYC / 4) clk <= !clk;
+    always #(CYC / 8) clk <= !clk;
 
     logic reset;
     logic [3:0] io_buf;
@@ -20,9 +20,7 @@ module qspi_tb;
 
     logic [7:0] rd_data;
     logic rd_valid;
-    logic rd_ready;
     logic [7:0] wr_data;
-    logic wr_valid;
     logic wr_ready;
     logic start;
 
@@ -32,17 +30,15 @@ module qspi_tb;
         .clk(clk),
         .async_reset(reset),
 
-        .rd_data(rd_data),
-        .rd_valid(rd_valid),
-        .rd_ready(rd_ready),
-        .wr_data(wr_data),
-        .wr_valid(wr_valid),
-        .wr_ready(wr_ready),
-        .start(start),
-
         .qspi_clk(qspi_clk),
         .qspi_ncs(qspi_ncs),
-        .qspi_io (qspi_io)
+        .qspi_io (qspi_io),
+
+        .rd_data(rd_data),
+        .rd_valid(rd_valid),
+        .wr_data(wr_data),
+        .wr_ready(wr_ready),
+        .start(start)
     );
 
     task send_byte(input [7:0] data);
@@ -91,7 +87,7 @@ module qspi_tb;
         end
 
         master_we = 0;
-        repeat (2) dummy_cycle;
+        repeat (1) dummy_cycle;
 
         for (int i = 0; i < 10; i++) begin
             recv_byte(rx_byte);  // Receive some data
@@ -131,45 +127,33 @@ module qspi_tb;
         @(posedge clk iff start);
 
         @(posedge clk iff rd_valid);
-        rd_ready = 1;
         assert (rd_data == 8'h02)
         else $fatal(1, "Invalid received from mcu: %0h", rd_data);
-        @(posedge clk) rd_ready = 0;
 
         for (int i = 0; i < 3; i++) begin
             @(posedge clk iff rd_valid);
-            rd_ready = 1;
-            rx_byte  = req_dataq.pop_front();
+            rx_byte = req_dataq.pop_front();
             assert (rd_data == rx_byte)
             else $fatal(1, "Invalid data received from mcu: expected %0h, got %0h", rx_byte, rd_data);
-            @(posedge clk) rd_ready = 0;
         end
 
-        @(posedge clk);  // 1 clock in reserve
-
         for (int i = 0; i < 10; i++) begin
-            @(posedge clk iff wr_valid);
-            wr_ready = 1;
-            wr_data  = 8'($urandom);
+            @(posedge clk iff wr_ready);
+            wr_data = 8'($urandom);
             resp_dataq.push_back(wr_data);
-            @(posedge clk) wr_ready = 0;
         end
 
         @(posedge clk iff start);
 
         @(posedge clk iff rd_valid);
-        rd_ready = 1;
         assert (rd_data == 8'h03)
         else $fatal(1, "Invalid received from mcu: %0h", rd_data);
-        @(posedge clk) rd_ready = 0;
 
         for (int i = 0; i < 20; i++) begin
             @(posedge clk iff rd_valid);
-            rd_ready = 1;
-            rx_byte  = req_dataq.pop_front();
+            rx_byte = req_dataq.pop_front();
             assert (rd_data == rx_byte)
             else $fatal(1, "Invalid data received from mcu: expected %0h, got %0h", rx_byte, rd_data);
-            @(posedge clk) rd_ready = 0;
         end
 
         wait fork;
