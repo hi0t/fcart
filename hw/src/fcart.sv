@@ -116,26 +116,22 @@ module fcart (
 
     logic [7:0] qspi_rd_data;
     logic qspi_rd_valid;
-    logic qspi_rd_ready;
     logic [7:0] qspi_wr_data;
-    logic qspi_wr_valid;
     logic qspi_wr_ready;
     logic qspi_start;
     qspi qspi (
         .clk(clk),
         .async_reset(!async_nreset),
 
-        .rd_data(qspi_rd_data),
-        .rd_valid(qspi_rd_valid),
-        .rd_ready(qspi_rd_ready),
-        .wr_data(qspi_wr_data),
-        .wr_valid(qspi_wr_valid),
-        .wr_ready(qspi_wr_ready),
-        .start(qspi_start),
-
         .qspi_clk(QSPI_CLK),
         .qspi_ncs(QSPI_NCS),
-        .qspi_io (QSPI_IO)
+        .qspi_io (QSPI_IO),
+
+        .rd_data(qspi_rd_data),
+        .rd_valid(qspi_rd_valid),
+        .wr_data(qspi_wr_data),
+        .wr_ready(qspi_wr_ready),
+        .start(qspi_start)
     );
 
     api api (
@@ -152,9 +148,7 @@ module fcart (
 
         .rd_data(qspi_rd_data),
         .rd_valid(qspi_rd_valid),
-        .rd_ready(qspi_rd_ready),
         .wr_data(qspi_wr_data),
-        .wr_valid(qspi_wr_valid),
         .wr_ready(qspi_wr_ready),
         .start(qspi_start)
     );

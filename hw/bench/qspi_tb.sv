@@ -65,8 +65,6 @@ module qspi_tb;
         qspi_clk = 0;
         #(CYC / 2) qspi_clk = 1;
         #(CYC / 2) qspi_clk = 0;
-        #(CYC / 2) qspi_clk = 1;
-        #(CYC / 2) qspi_clk = 0;
     endtask
 
     task mcu;
@@ -87,7 +85,7 @@ module qspi_tb;
         end
 
         master_we = 0;
-        repeat (1) dummy_cycle;
+        repeat (2) dummy_cycle;
 
         for (int i = 0; i < 10; i++) begin
             recv_byte(rx_byte);  // Receive some data
