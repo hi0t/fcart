@@ -130,27 +130,31 @@ module api (
     );
 
     always_ff @(posedge clk) begin
-        if (start) begin
-            wr_byte <= 1'b0;
-            first_byte <= 1'b1;
-        end
+        if (reset) begin
+            ram.req <= 1'b0;
+        end else begin
+            if (start) begin
+                wr_byte <= 1'b0;
+                first_byte <= 1'b1;
+            end
 
-        if (!wr_fifo_empty && ram.req == ram.ack) begin
-            if (wr_byte) begin
-                ram.data_write[15:8] <= wr_fifo_data;
+            if (!wr_fifo_empty && ram.req == ram.ack) begin
+                if (wr_byte) begin
+                    ram.data_write[15:8] <= wr_fifo_data;
 
-                ram.we <= 1'b1;
-                ram.wm <= 2'b00;
-                ram.req <= !ram.req;
+                    ram.we <= 1'b1;
+                    ram.wm <= 2'b00;
+                    ram.req <= !ram.req;
 
-                if (first_byte) begin
-                    ram.address <= addr[22:1];
-                    first_byte  <= 1'b0;
-                end else begin
-                    ram.address <= ram.address + 1'd1;
-                end
-            end else ram.data_write[7:0] <= wr_fifo_data;
-            wr_byte <= !wr_byte;
+                    if (first_byte) begin
+                        ram.address <= addr[22:1];
+                        first_byte  <= 1'b0;
+                    end else begin
+                        ram.address <= ram.address + 1'd1;
+                    end
+                end else ram.data_write[7:0] <= wr_fifo_data;
+                wr_byte <= !wr_byte;
+            end
         end
     end
 

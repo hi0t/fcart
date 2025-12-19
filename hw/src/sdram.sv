@@ -81,8 +81,11 @@ module sdram #(
 
         if (reset) begin
             state <= STATE_CONFIGURE;
-            cmd   <= CMD_NOOP;
-            step  <= '0;
+            cmd <= CMD_NOOP;
+            step <= '0;
+            ch0.ack <= 1'b0;
+            ch1.ack <= 1'b0;
+            ch2.ack <= 1'b0;
         end else begin
             case (state)
                 STATE_CONFIGURE: begin
