@@ -9,7 +9,7 @@ module qspi (
     output logic [7:0] rd_data,
     output logic rd_valid,
     input logic [7:0] wr_data,
-    output logic wr_ready,
+    output logic wr_valid,
     output logic start
 );
     enum logic [1:0] {
@@ -22,7 +22,7 @@ module qspi (
     logic [2:0] cnt;
     logic [3:0] upper_nibble;
     logic [2:0] start_sync, rd_sync, wr_sync;
-    logic rx_done, tx_ready;
+    logic rx_done;
     logic [7:0] io_out;
     logic has_resp;
     logic rx_sw;
@@ -44,13 +44,10 @@ module qspi (
                 rx_done <= 1'b1;
             end
 
-            if (state == STATE_CMD) begin
-                if (cnt == 3'd1) begin
-                    has_resp <= (qspi_io[0] == 1'b0);  // Detect if the command expects a response
-                    cnt <= 3'd0;
-                    state <= STATE_RECEIVE;
-                end
-            end else if (state == STATE_RECEIVE && has_resp && cnt == 3'd5) begin  // Capture 24-bit address
+            if (state == STATE_CMD && cnt == 3'd1) begin
+                has_resp <= (qspi_io[0] == 1'b0);  // Detect if the command expects a response
+                state <= STATE_RECEIVE;
+            end else if (state == STATE_RECEIVE && cnt == 3'd7 && has_resp) begin  // Capture 24-bit address
                 state <= STATE_SEND;
             end
         end
@@ -64,16 +61,15 @@ module qspi (
             io_out <= wr_data;
             rx_sw  <= 1'b1;
         end
-        tx_ready <= (state == STATE_SEND && cnt[0] == 1'b0);
     end
 
     // QSPI clock domain to system clock domain synchronization
     assign start = (start_sync[2:1] == 2'b10);
     assign rd_valid = (rd_sync[2:1] == 2'b01);
-    assign wr_ready = (wr_sync[2:1] == 2'b01);
+    assign wr_valid = (wr_sync[2:1] == 2'b01);
     always_ff @(posedge clk) begin
         start_sync <= {start_sync[1:0], qspi_ncs};
         rd_sync    <= {rd_sync[1:0], rx_done};
-        wr_sync    <= {wr_sync[1:0], tx_ready};
+        wr_sync    <= {wr_sync[1:0], rx_sw};
     end
 endmodule

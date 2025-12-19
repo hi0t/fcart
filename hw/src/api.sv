@@ -13,7 +13,7 @@ module api (
     input logic [7:0] rd_data,
     input logic rd_valid,
     output logic [7:0] wr_data,
-    input logic wr_ready,
+    input logic wr_valid,
     input logic start
 );
     localparam CMD_READ_MEM = 8'd0;
@@ -90,7 +90,7 @@ module api (
                 endcase
             end
 
-            if (wr_ready && state == STATE_DATA) begin
+            if (wr_valid && state == STATE_DATA) begin
                 if (cmd == CMD_READ_REG) begin
                     byte_cnt <= byte_cnt + 2'd1;
 

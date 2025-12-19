@@ -117,7 +117,7 @@ module fcart (
     logic [7:0] qspi_rd_data;
     logic qspi_rd_valid;
     logic [7:0] qspi_wr_data;
-    logic qspi_wr_ready;
+    logic qspi_wr_valid;
     logic qspi_start;
     qspi qspi (
         .clk(clk),
@@ -130,7 +130,7 @@ module fcart (
         .rd_data(qspi_rd_data),
         .rd_valid(qspi_rd_valid),
         .wr_data(qspi_wr_data),
-        .wr_ready(qspi_wr_ready),
+        .wr_valid(qspi_wr_valid),
         .start(qspi_start)
     );
 
@@ -149,7 +149,7 @@ module fcart (
         .rd_data(qspi_rd_data),
         .rd_valid(qspi_rd_valid),
         .wr_data(qspi_wr_data),
-        .wr_ready(qspi_wr_ready),
+        .wr_valid(qspi_wr_valid),
         .start(qspi_start)
     );
 endmodule

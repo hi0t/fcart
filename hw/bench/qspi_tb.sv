@@ -21,7 +21,7 @@ module qspi_tb;
     logic [7:0] rd_data;
     logic rd_valid;
     logic [7:0] wr_data;
-    logic wr_ready;
+    logic wr_valid;
     logic start;
 
     assign qspi_io = master_we ? io_buf : 'z;
@@ -37,7 +37,7 @@ module qspi_tb;
         .rd_data(rd_data),
         .rd_valid(rd_valid),
         .wr_data(wr_data),
-        .wr_ready(wr_ready),
+        .wr_valid(wr_valid),
         .start(start)
     );
 
@@ -136,7 +136,7 @@ module qspi_tb;
         end
 
         for (int i = 0; i < 10; i++) begin
-            @(posedge clk iff wr_ready);
+            @(posedge clk iff wr_valid);
             wr_data = 8'($urandom);
             resp_dataq.push_back(wr_data);
         end
