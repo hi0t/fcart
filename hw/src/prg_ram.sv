@@ -23,17 +23,18 @@ module prg_ram #(
     assign data_out = addr[0] ? ram.data_read[15:8] : ram.data_read[7:0];
 
     always_ff @(posedge clk) begin
+        ram.req   <= 1'b0;
         read_sync <= {read_sync[2:0], oe};
 
-        if (ram.req == ram.ack && read_sync[3:1] == 3'b011 && addr_mismatch) begin
-            ram.we <= 0;
+        if (read_sync[3:1] == 3'b011 && addr_mismatch) begin
+            ram.we <= 1'b0;
             ram.address <= addr[ADDR_BITS-1:1];
-            ram.req <= !ram.req;
+            ram.req <= 1'b1;
             addr_cached <= addr[ADDR_BITS-1:1];
         end
     end
 
 `ifdef DEBUG
-    logic debug_ram_busy = ram.req != ram.ack;
+    logic debug_ram_ack = ram.ack;
 `endif
 endmodule

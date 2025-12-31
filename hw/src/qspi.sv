@@ -15,6 +15,7 @@ module qspi (
     enum logic [1:0] {
         STATE_CMD,
         STATE_RECEIVE,
+        STATE_DUMMY,
         STATE_SEND
     } state;
 
@@ -25,7 +26,7 @@ module qspi (
     logic rx_done;
     logic [7:0] io_out;
     logic has_resp;
-    logic rx_sw;
+    logic tx_sw;
 
     assign qspi_reset = async_reset || qspi_ncs;
 
@@ -39,7 +40,7 @@ module qspi (
             rx_done <= 1'b0;
 
             if (cnt[0] == 1'b0) upper_nibble <= qspi_io;
-            else if (state != STATE_SEND) begin
+            else if (state != STATE_DUMMY && state != STATE_SEND) begin
                 rd_data <= {upper_nibble, qspi_io};
                 rx_done <= 1'b1;
             end
@@ -47,19 +48,26 @@ module qspi (
             if (state == STATE_CMD && cnt == 3'd1) begin
                 has_resp <= (qspi_io[0] == 1'b0);  // Detect if the command expects a response
                 state <= STATE_RECEIVE;
-            end else if (state == STATE_RECEIVE && cnt == 3'd7 && has_resp) begin  // Capture 24-bit address
+            end
+
+            if (state == STATE_RECEIVE && cnt == 3'd7 && has_resp) begin  // Capture 24-bit address
+                state <= STATE_DUMMY;
+            end
+
+            if (state == STATE_DUMMY && cnt == 3'd3) begin
                 state <= STATE_SEND;
             end
         end
     end
 
     // TX logic
-    assign qspi_io = (state == STATE_SEND) ? (rx_sw ? io_out[7:4] : io_out[3:0]) : 4'bz;
+    assign qspi_io = (state == STATE_SEND) ? (tx_sw ? io_out[7:4] : io_out[3:0]) : 4'bz;
     always_ff @(negedge qspi_clk) begin
-        rx_sw <= 1'b0;
-        if (state == STATE_SEND && !rx_sw) begin
+        tx_sw <= 1'b0;
+
+        if (state == STATE_SEND && !tx_sw) begin
             io_out <= wr_data;
-            rx_sw  <= 1'b1;
+            tx_sw  <= 1'b1;
         end
     end
 
@@ -70,6 +78,6 @@ module qspi (
     always_ff @(posedge clk) begin
         start_sync <= {start_sync[1:0], qspi_ncs};
         rd_sync    <= {rd_sync[1:0], rx_done};
-        wr_sync    <= {wr_sync[1:0], rx_sw};
+        wr_sync    <= {wr_sync[1:0], (state == STATE_DUMMY && cnt == 3'd3) || (state == STATE_SEND && cnt[0] == 1'b1)};
     end
 endmodule

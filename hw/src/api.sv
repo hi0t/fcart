@@ -30,8 +30,10 @@ module api (
 
     logic [1:0] byte_cnt;
     logic [7:0] cmd;
-    logic [22:0] addr;
     logic [31:0] got_reg;
+    logic [7:0] wr_buf;
+    logic [7:0] rd_buf;
+    logic [3:0] reg_addr;
 
     assign fpga_irq = (got_reg != ev_reg);
 
@@ -42,6 +44,8 @@ module api (
             if (start) begin
                 state <= STATE_CMD;
             end
+
+            ram.req <= 1'b0;
 
             if (rd_valid) begin
                 case (state)
@@ -54,23 +58,34 @@ module api (
                     STATE_ADDR: begin
                         byte_cnt <= byte_cnt + 2'd1;
 
-                        case (byte_cnt)
-                            2'd0: addr[22:16] <= rd_data[6:0];
-                            2'd1: addr[15:8] <= rd_data;
-                            2'd2: addr[7:0] <= rd_data;
-                            default;
-                        endcase
+                        if (cmd == CMD_READ_MEM || cmd == CMD_WRITE_MEM) begin
+                            case (byte_cnt)
+                                2'd0: ram.address[21:15] <= rd_data[6:0];
+                                2'd1: ram.address[14:7] <= rd_data;
+                                2'd2: ram.address[6:0] <= rd_data[7:1];
+                                default;
+                            endcase
+                        end
 
                         if (byte_cnt == 2'd2) begin
+                            if (cmd == CMD_READ_REG || cmd == CMD_WRITE_REG) begin
+                                reg_addr <= rd_data[3:0];
+                            end
+
+                            if (cmd == CMD_READ_MEM) begin
+                                ram.we  <= 1'b0;
+                                ram.req <= 1'b1;
+                            end
+
                             byte_cnt <= 2'd0;
                             state <= STATE_DATA;
                         end
                     end
 
                     STATE_DATA: begin
-                        if (cmd == CMD_WRITE_REG) begin
-                            byte_cnt <= byte_cnt + 2'd1;
+                        byte_cnt <= byte_cnt + 2'd1;
 
+                        if (cmd == CMD_WRITE_REG) begin
                             case (byte_cnt)
                                 2'd0: wr_reg[7:0] <= rd_data;
                                 2'd1: wr_reg[15:8] <= rd_data;
@@ -80,9 +95,19 @@ module api (
 
                             if (byte_cnt == 2'd3) begin
                                 state <= STATE_IDLE;
-                                wr_reg_addr <= addr[3:0];
+                                wr_reg_addr <= reg_addr;
                                 wr_reg_changed <= !wr_reg_changed;
                             end
+                        end else if (cmd == CMD_WRITE_MEM) begin
+                            case (byte_cnt[0])
+                                1'b0: wr_buf <= rd_data;
+                                1'b1: begin
+                                    ram.data_write <= {rd_data, wr_buf};
+                                    ram.we <= 1'b1;
+                                    ram.wm <= 2'b00;
+                                    ram.req <= 1'b1;
+                                end
+                            endcase
                         end
                     end
 
@@ -91,10 +116,10 @@ module api (
             end
 
             if (wr_valid && state == STATE_DATA) begin
-                if (cmd == CMD_READ_REG) begin
-                    byte_cnt <= byte_cnt + 2'd1;
+                byte_cnt <= byte_cnt + 2'd1;
 
-                    case (addr[3:0])
+                if (cmd == CMD_READ_REG) begin
+                    case (reg_addr)
                         4'd1: begin
                             got_reg <= ev_reg;
                             case (byte_cnt)
@@ -106,60 +131,27 @@ module api (
                         end
                         default: wr_data <= 8'd0;
                     endcase
-
                     if (byte_cnt == 2'd3) state <= STATE_IDLE;
+                end else if (cmd == CMD_READ_MEM) begin
+                    case (byte_cnt[0])
+                        1'b0: begin
+                            wr_data <= ram.data_read[7:0];
+                            rd_buf  <= ram.data_read[15:8];
+                            ram.req <= 1'b1;
+                        end
+                        1'b1: wr_data <= rd_buf;
+                    endcase
                 end
             end
-        end
-    end
 
-
-    logic wr_fifo_empty;
-    logic [7:0] wr_fifo_data;
-    logic wr_byte;
-    logic first_byte;
-    fifo wr_fifo (
-        .clk(clk),
-        .reset(start),
-        .wr_data(rd_data),
-        .wr_en(rd_valid && state == STATE_DATA && cmd == CMD_WRITE_MEM),
-        .full(),
-        .rd_data(wr_fifo_data),
-        .rd_en(!wr_fifo_empty && ram.req == ram.ack),
-        .empty(wr_fifo_empty)
-    );
-
-    always_ff @(posedge clk) begin
-        if (reset) begin
-            ram.req <= 1'b0;
-        end else begin
-            if (start) begin
-                wr_byte <= 1'b0;
-                first_byte <= 1'b1;
-            end
-
-            if (!wr_fifo_empty && ram.req == ram.ack) begin
-                if (wr_byte) begin
-                    ram.data_write[15:8] <= wr_fifo_data;
-
-                    ram.we <= 1'b1;
-                    ram.wm <= 2'b00;
-                    ram.req <= !ram.req;
-
-                    if (first_byte) begin
-                        ram.address <= addr[22:1];
-                        first_byte  <= 1'b0;
-                    end else begin
-                        ram.address <= ram.address + 1'd1;
-                    end
-                end else ram.data_write[7:0] <= wr_fifo_data;
-                wr_byte <= !wr_byte;
+            if (ram.ack) begin
+                ram.address <= ram.address + 1'd1;
             end
         end
     end
 
 `ifdef DEBUG
-    logic debug_ram_busy = ram.req != ram.ack;
+    logic debug_ram_ack = ram.ack;
     logic [21:0] debug_ram_address = ram.address;
     logic [15:0] debug_ram_data = ram.data_write;
     logic [1:0] debug_state = state;

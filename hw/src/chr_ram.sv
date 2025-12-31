@@ -20,9 +20,10 @@ module chr_ram #(
     assign data_out = addr[0] ? ram.data_read[15:8] : ram.data_read[7:0];
 
     always_ff @(posedge clk) begin
-        read_sync  <= {read_sync[0], ce && !oe};
+        ram.req <= 1'b0;
+        read_sync <= {read_sync[0], ce && !oe};
         write_sync <= {write_sync[2:0], ce && we};
-        addr_gray  <= {addr_gray[1:0], addr ^ (addr >> 1)};
+        addr_gray <= {addr_gray[1:0], addr ^ (addr >> 1)};
 
         if (read_sync[1] && addr_gray[2] == addr_gray[1]) begin
             match_addr <= {match_addr[1:0], 1'b1};
@@ -30,21 +31,21 @@ module chr_ram #(
             match_addr <= '0;
         end
 
-        if (ram.req == ram.ack && match_addr == 3'b011) begin
-            ram.we <= 0;
+        if (match_addr == 3'b011) begin
+            ram.we <= 1'b0;
             ram.address <= addr[ADDR_BITS-1:1];
-            ram.req <= !ram.req;
-        end else if (ram.req == ram.ack && write_sync[3:1] == 3'b100) begin
-            ram.we <= 1;
+            ram.req <= 1'b1;
+        end else if (write_sync[3:1] == 3'b100) begin
+            ram.we <= 1'b1;
             ram.address <= addr[ADDR_BITS-1:1];
             ram.data_write <= {data_in, data_in};
             ram.wm <= addr[0] ? 2'b01 : 2'b10;
-            ram.req <= !ram.req;
+            ram.req <= 1'b1;
         end
     end
 
 `ifdef DEBUG
-    logic debug_ram_busy = ram.req != ram.ack;
+    logic debug_ram_ack = ram.ack;
     logic debug_ram_we = ram.we;
 `endif
 endmodule

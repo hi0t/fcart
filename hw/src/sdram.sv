@@ -67,6 +67,7 @@ module sdram #(
     logic [1:0] curr_ch;
     logic we;
     logic [1:0] wm;
+    logic [2:0] pending_req;
 
     assign {sdram_ras, sdram_cas, sdram_we} = cmd;
     assign sdram_cs = (cmd == CMD_NOOP);
@@ -79,13 +80,16 @@ module sdram #(
             pending_refresh <= 1;
         end
 
+        pending_req <= pending_req | {ch2.req, ch1.req, ch0.req};
+        ch0.ack <= 1'b0;
+        ch1.ack <= 1'b0;
+        ch2.ack <= 1'b0;
+
         if (reset) begin
             state <= STATE_CONFIGURE;
             cmd <= CMD_NOOP;
             step <= '0;
-            ch0.ack <= 1'b0;
-            ch1.ack <= 1'b0;
-            ch2.ack <= 1'b0;
+            pending_req <= 3'b000;
         end else begin
             case (state)
                 STATE_CONFIGURE: begin
@@ -130,7 +134,7 @@ module sdram #(
                         refresh_timer <= '0;
                         cmd <= CMD_AUTO_REFRESH;
                         state <= STATE_REFRESH;
-                    end else if (ch0.req != ch0.ack) begin
+                    end else if (ch0.req || pending_req[0]) begin
                         {sdram_ba, column, sdram_addr} <= ch0.address;
                         data <= ch0.data_write;
                         cmd <= CMD_ACTIVATE;
@@ -138,7 +142,8 @@ module sdram #(
                         curr_ch <= 2'd0;
                         we <= ch0.we;
                         wm <= ch0.wm;
-                    end else if (ch1.req != ch1.ack) begin
+                        pending_req[0] <= 1'b0;
+                    end else if (ch1.req || pending_req[1]) begin
                         {sdram_ba, column, sdram_addr} <= ch1.address;
                         data <= ch1.data_write;
                         cmd <= CMD_ACTIVATE;
@@ -146,7 +151,8 @@ module sdram #(
                         curr_ch <= 2'd1;
                         we <= ch1.we;
                         wm <= ch1.wm;
-                    end else if (ch2.req != ch2.ack) begin
+                        pending_req[1] <= 1'b0;
+                    end else if (ch2.req || pending_req[2]) begin
                         {sdram_ba, column, sdram_addr} <= ch2.address;
                         data <= ch2.data_write;
                         cmd <= CMD_ACTIVATE;
@@ -154,6 +160,7 @@ module sdram #(
                         curr_ch <= 2'd2;
                         we <= ch2.we;
                         wm <= ch2.wm;
+                        pending_req[2] <= 1'b0;
                     end
                 end
                 STATE_ACTIVE: begin
@@ -169,15 +176,15 @@ module sdram #(
                         ACTIVE_READY: begin
                             case (curr_ch)
                                 2'd0: begin
-                                    ch0.ack <= ch0.req;
+                                    ch0.ack <= 1'b1;
                                     if (!we) ch0.data_read <= sdram_dq;
                                 end
                                 2'd1: begin
-                                    ch1.ack <= ch1.req;
+                                    ch1.ack <= 1'b1;
                                     if (!we) ch1.data_read <= sdram_dq;
                                 end
                                 2'd2: begin
-                                    ch2.ack <= ch2.req;
+                                    ch2.ack <= 1'b1;
                                     if (!we) ch2.data_read <= sdram_dq;
                                 end
                                 default;

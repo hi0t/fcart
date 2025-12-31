@@ -1,13 +1,13 @@
-`timescale 1us / 1ns
+`timescale 1ns / 1ps
 
 module api_tb;
     // Clock generation
     logic clk;
     logic qspi_clk;
-    localparam CYC = 0.5;  // 2MHz QSPI clock period
+    localparam CYC = 40;  // 25MHz QSPI clock period
 
-    // System clock (8MHz)
-    always #(CYC / 8) clk = (clk === 1'b0);
+    // System clock (100MHz)
+    always #(CYC / 8) clk <= !clk;
 
     // Signals
     logic reset;
@@ -31,9 +31,9 @@ module api_tb;
     logic start;
 
     // SDRAM interface
-    sdram_bus #(.ADDR_BITS(24)) ram ();
-    sdram_bus #(.ADDR_BITS(24)) bus1 ();
-    sdram_bus #(.ADDR_BITS(24)) bus2 ();
+    sdram_bus ram ();
+    sdram_bus bus1 ();
+    sdram_bus bus2 ();
 
     wire [15:0] sdram_dq;
     wire [12:0] sdram_addr;
@@ -186,7 +186,7 @@ module api_tb;
         send_byte(addr[7:0]);
 
         master_we = 0;
-        repeat (2) dummy_cycle;  // Turnaround? qspi.sv switches to send at cnt=7.
+        repeat (4) dummy_cycle;
 
         // Let's try receiving immediately.
         recv_byte(b0);
@@ -220,6 +220,34 @@ module api_tb;
 
         master_we = 0;
         qspi_ncs  = 1;
+        #(CYC * 2);
+    endtask
+
+    task read_mem(input [23:0] start_addr, output [15:0] data1, output [15:0] data2);
+        logic [7:0] b0, b1, b2, b3;
+        $display("Reading Memory: Addr=%h", start_addr);
+        qspi_ncs  = 0;
+        master_we = 1;
+
+        send_byte(8'h00);  // CMD_READ_MEM
+        send_byte(start_addr[23:16]);
+        send_byte(start_addr[15:8]);
+        send_byte(start_addr[7:0]);
+
+        master_we = 0;
+        repeat (4) dummy_cycle;
+
+        // Read Data 1
+        recv_byte(b0);
+        recv_byte(b1);
+        data1 = {b1, b0};
+
+        // Read Data 2
+        recv_byte(b2);
+        recv_byte(b3);
+        data2 = {b3, b2};
+
+        qspi_ncs = 1;
         #(CYC * 2);
     endtask
 
@@ -268,39 +296,19 @@ module api_tb;
         #(CYC * 4);
 
         // 3. Write SDRAM
-        // We need to monitor ram interface to verify
-        fork
-            write_mem(24'h001000, 16'hAAAA, 16'h5555);
-            begin
-                // Monitor RAM writes
-                // Expect 2 writes
-                // Wait for first write
-                wait (ram.req != ram.ack);
-                #(CYC / 8);  // Wait for stable
-                assert (ram.we == 1)
-                else $error("RAM WE not set");
-                assert (ram.data_write == 16'hAAAA)
-                else $error("RAM Data1 mismatch: %h", ram.data_write);
-                // Address check: api.sv: ram.address <= addr[22:1];
-                // 0x001000 >> 1 = 0x000800
-                assert (ram.address == 24'h000800)
-                else $error("RAM Addr1 mismatch: %h", ram.address);
+        write_mem(24'h001000, 16'h1234, 16'h5678);
 
-                // Wait for ack (handled by always block)
-                wait (ram.req == ram.ack);
+        #(CYC * 4);
 
-                // Wait for second write
-                wait (ram.req != ram.ack);
-                #(CYC / 8);
-                assert (ram.we == 1)
-                else $error("RAM WE not set");
-                assert (ram.data_write == 16'h5555)
-                else $error("RAM Data2 mismatch: %h", ram.data_write);
-                // Address should increment
-                assert (ram.address == 24'h000801)
-                else $error("RAM Addr2 mismatch: %h", ram.address);
-            end
-        join
+        // 4. Read SDRAM
+        begin
+            logic [15:0] r1, r2;
+            read_mem(24'h001000, r1, r2);
+            assert (r1 == 16'h1234)
+            else $error("Read Mem Data1 mismatch: Expected 1234, got %h", r1);
+            assert (r2 == 16'h5678)
+            else $error("Read Mem Data2 mismatch: Expected 5678, got %h", r2);
+        end
 
         #(CYC * 10);
         $display("Testbench completed");

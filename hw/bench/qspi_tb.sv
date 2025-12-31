@@ -8,7 +8,7 @@ module qspi_tb;
 
     logic qspi_clk;
     logic clk;
-    localparam CYC = 0.5;
+    localparam CYC = 8;
     always #(CYC / 8) clk <= !clk;
 
     logic reset;
@@ -85,7 +85,7 @@ module qspi_tb;
         end
 
         master_we = 0;
-        repeat (2) dummy_cycle;
+        repeat (4) dummy_cycle;
 
         for (int i = 0; i < 10; i++) begin
             recv_byte(rx_byte);  // Receive some data
