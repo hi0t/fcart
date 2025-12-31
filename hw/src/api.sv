@@ -58,19 +58,15 @@ module api (
                     STATE_ADDR: begin
                         byte_cnt <= byte_cnt + 2'd1;
 
-                        if (cmd == CMD_READ_MEM || cmd == CMD_WRITE_MEM) begin
-                            case (byte_cnt)
-                                2'd0: ram.address[21:15] <= rd_data[6:0];
-                                2'd1: ram.address[14:7] <= rd_data;
-                                2'd2: ram.address[6:0] <= rd_data[7:1];
-                                default;
-                            endcase
-                        end
+                        case (byte_cnt)
+                            2'd0: ram.address[21:15] <= rd_data[6:0];
+                            2'd1: ram.address[14:7] <= rd_data;
+                            2'd2: ram.address[6:0] <= rd_data[7:1];
+                            default;
+                        endcase
 
                         if (byte_cnt == 2'd2) begin
-                            if (cmd == CMD_READ_REG || cmd == CMD_WRITE_REG) begin
-                                reg_addr <= rd_data[3:0];
-                            end
+                            reg_addr <= rd_data[3:0];
 
                             if (cmd == CMD_READ_MEM) begin
                                 ram.we  <= 1'b0;
