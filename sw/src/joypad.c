@@ -4,7 +4,6 @@
 #include <soc.h>
 
 #define SCAN_PERIOD_MS 20
-static bool reading;
 static uint32_t last_time;
 static uint8_t last_buttons;
 static uint8_t repeat_buttons;

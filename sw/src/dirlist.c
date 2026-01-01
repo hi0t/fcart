@@ -1,14 +1,34 @@
 #include "dirlist.h"
+#include "drivers/qspi.h"
 #include <ff.h>
 #include <stdlib.h>
 #include <string.h>
 
-static uint32_t *dirs;
-static uint32_t dirs_capacity;
-static uint32_t dirs_count;
-static uint32_t *files;
-static uint32_t files_capacity;
-static uint32_t files_count;
+#define CMD_WRITE_MEM 1
+#define SDRAM_NAMES_BASE 0x100000
+
+struct arr {
+    uint32_t *entries;
+    uint16_t capacity;
+    uint16_t count;
+};
+
+#define arr_append(a, v)                                                                   \
+    do {                                                                                   \
+        if ((a).count >= (a).capacity) {                                                   \
+            uint16_t new_capacity = ((a).capacity == 0) ? 16 : (a).capacity * 2;           \
+            void *new_entries = realloc((a).entries, new_capacity * sizeof(*(a).entries)); \
+            if (new_entries == NULL) {                                                     \
+                break;                                                                     \
+            }                                                                              \
+            (a).entries = new_entries;                                                     \
+            (a).capacity = new_capacity;                                                   \
+        }                                                                                  \
+        (a).entries[(a).count++] = (v);                                                    \
+    } while (0)
+
+static struct arr dirs;
+static struct arr files;
 static char *names;
 static uint32_t names_capacity;
 static char *curr_path;
@@ -18,18 +38,6 @@ static bool readdir();
 
 bool dirlist_load()
 {
-    if (dirs != NULL) {
-        free(dirs);
-    }
-    dirs = malloc(32 * sizeof(uint32_t));
-    dirs_capacity = 32;
-
-    if (files != NULL) {
-        free(files);
-    }
-    files = malloc(256 * sizeof(uint32_t));
-    files_capacity = 256;
-
     if (names != NULL) {
         free(names);
     }
@@ -77,26 +85,26 @@ bool dirlist_pop()
 
 uint32_t dirlist_size()
 {
-    return dirs_count + files_count;
+    return dirs.count + files.count;
 }
 
 uint8_t dirlist_select(uint32_t index, uint8_t limit, struct dirlist_entry *out)
 {
-    if (index >= dirs_count + files_count) {
+    if (index >= dirs.count + files.count) {
         return 0; // Index out of bounds
     }
 
     uint8_t count = 0;
     uint32_t curr_index = index;
 
-    while ((count < limit) && (curr_index < dirs_count + files_count)) {
-        if (curr_index < dirs_count) {
+    while ((count < limit) && (curr_index < dirs.count + files.count)) {
+        if (curr_index < dirs.count) {
             // Directory
-            out[count].name = &names[dirs[curr_index]];
+            out[count].name = &names[dirs.entries[curr_index]];
             out[count].is_dir = true;
         } else {
             // File
-            out[count].name = &names[files[curr_index - dirs_count]];
+            out[count].name = &names[files.entries[curr_index - dirs.count]];
             out[count].is_dir = false;
         }
         count++;
@@ -141,8 +149,6 @@ static bool readdir()
         return false;
     }
 
-    dirs_count = 0;
-    files_count = 0;
     uint32_t name_offset = 0;
     for (;;) {
         if (f_readdir(&dir, &fno) != FR_OK || fno.fname[0] == 0) {
@@ -169,37 +175,17 @@ static bool readdir()
 
         if (fno.fattrib & AM_DIR) {
             // Handle directory
-            if (dirs_count >= dirs_capacity) {
-                uint32_t *new_dirs = realloc(dirs, dirs_capacity * 2 * sizeof(uint32_t));
-                if (new_dirs == NULL) {
-                    r = false;
-                    goto out;
-                }
-                dirs = new_dirs;
-                dirs_capacity *= 2;
-            }
-            dirs[dirs_count] = name_offset;
-            dirs_count++;
+            arr_append(dirs, name_offset);
         } else {
             // Handle file
-            if (files_count >= files_capacity) {
-                uint32_t *new_files = realloc(files, files_capacity * 2 * sizeof(uint32_t));
-                if (new_files == NULL) {
-                    r = false;
-                    goto out;
-                }
-                files = new_files;
-                files_capacity *= 2;
-            }
-            files[files_count] = name_offset;
-            files_count++;
+            arr_append(files, name_offset);
         }
 
         name_offset += name_len + 1;
     }
 
-    qsort(dirs, dirs_count, sizeof(uint32_t), names_cmp);
-    qsort(files, files_count, sizeof(uint32_t), names_cmp);
+    qsort(dirs.entries, dirs.count, sizeof(uint32_t), names_cmp);
+    qsort(files.entries, files.count, sizeof(uint32_t), names_cmp);
 out:
     f_closedir(&dir);
     return r;

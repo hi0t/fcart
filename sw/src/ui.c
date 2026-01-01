@@ -185,4 +185,5 @@ static void menu_control(uint8_t buttons)
 
 static void game_control(uint8_t buttons)
 {
+    (void)buttons;
 }
