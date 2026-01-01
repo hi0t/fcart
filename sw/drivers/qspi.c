@@ -2,7 +2,6 @@
 #include "internal.h"
 #include "log.h"
 #include <errno.h>
-#include <stdbool.h>
 
 LOG_MODULE(qspi);
 

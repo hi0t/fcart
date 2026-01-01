@@ -3,7 +3,6 @@
 #include <errno.h>
 #include <soc.h>
 #include <spi.h>
-#include <stdbool.h>
 #include <string.h>
 
 LOG_MODULE(fpga_cfg);

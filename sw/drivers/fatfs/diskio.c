@@ -1,7 +1,6 @@
 #include "diskio.h"
 #include "internal.h"
 #include "log.h"
-#include <stdbool.h>
 
 LOG_MODULE(diskio);
 
