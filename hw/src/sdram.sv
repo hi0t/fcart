@@ -81,9 +81,6 @@ module sdram #(
         end
 
         pending_req <= pending_req | {ch2.req, ch1.req, ch0.req};
-        ch0.ack <= 1'b0;
-        ch1.ack <= 1'b0;
-        ch2.ack <= 1'b0;
 
         if (reset) begin
             state <= STATE_CONFIGURE;
@@ -176,15 +173,12 @@ module sdram #(
                         ACTIVE_READY: begin
                             case (curr_ch)
                                 2'd0: begin
-                                    ch0.ack <= 1'b1;
                                     if (!we) ch0.data_read <= sdram_dq;
                                 end
                                 2'd1: begin
-                                    ch1.ack <= 1'b1;
                                     if (!we) ch1.data_read <= sdram_dq;
                                 end
                                 2'd2: begin
-                                    ch2.ack <= 1'b1;
                                     if (!we) ch2.data_read <= sdram_dq;
                                 end
                                 default;

@@ -33,8 +33,4 @@ module prg_ram #(
             addr_cached <= addr[ADDR_BITS-1:1];
         end
     end
-
-`ifdef DEBUG
-    logic debug_ram_ack = ram.ack;
-`endif
 endmodule

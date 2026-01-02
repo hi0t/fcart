@@ -43,9 +43,4 @@ module chr_ram #(
             ram.req <= 1'b1;
         end
     end
-
-`ifdef DEBUG
-    logic debug_ram_ack = ram.ack;
-    logic debug_ram_we = ram.we;
-`endif
 endmodule
