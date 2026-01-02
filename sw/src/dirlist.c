@@ -1,11 +1,10 @@
 #include "dirlist.h"
 #include "drivers/qspi.h"
+#include "fpga_api.h"
+#include "gfx.h"
 #include <ff.h>
 #include <stdlib.h>
 #include <string.h>
-
-#define CMD_WRITE_MEM 1
-#define SDRAM_NAMES_BASE 0x100000
 
 struct arr {
     uint32_t *entries;
@@ -29,6 +28,7 @@ struct arr {
 
 static struct arr dirs;
 static struct arr files;
+static uint8_t buffer[2][512];
 static char *names;
 static uint32_t names_capacity;
 static char *curr_path;
@@ -136,7 +136,11 @@ static int names_cmp(const void *a, const void *b)
 {
     uint32_t offset_a = *(const uint32_t *)a;
     uint32_t offset_b = *(const uint32_t *)b;
-    return strcmp(&names[offset_a], &names[offset_b]);
+
+    qspi_read(CMD_READ_MEM, offset_a, buffer[0], 256);
+    qspi_read(CMD_READ_MEM, offset_b, buffer[1], 256);
+
+    return strcmp((char *)buffer[0], (char *)buffer[1]);
 }
 
 static bool readdir()
@@ -144,12 +148,19 @@ static bool readdir()
     DIR dir;
     FILINFO fno;
     bool r = true;
+    uint8_t buf_idx = 0;
+    uint16_t buf_pos = 0;
+    uint32_t sdram_addr = FB_SIZE; // Start after framebuffer
+    bool transfer_active = false;
 
     if (f_opendir(&dir, curr_path) != FR_OK) {
         return false;
     }
 
-    uint32_t name_offset = 0;
+    // Reset lists
+    dirs.count = 0;
+    files.count = 0;
+
     for (;;) {
         if (f_readdir(&dir, &fno) != FR_OK || fno.fname[0] == 0) {
             break;
@@ -159,29 +170,59 @@ static bool readdir()
         }
         uint8_t name_len = strlen(fno.fname);
 
-        // Check if we need to expand the names buffer
-        if (name_offset + name_len + 1 > names_capacity) {
-            char *new_names = realloc(names, names_capacity + 8192);
-            if (new_names == NULL) {
+        // Check if buffer full (ensure we have space for name + null + potential padding)
+        if (buf_pos + name_len + 2 > 512) {
+            // Wait for previous transfer to complete
+            if (transfer_active) {
+                qspi_write_end();
+                transfer_active = false;
+            }
+
+            if (qspi_write_begin(CMD_WRITE_MEM, sdram_addr, buffer[buf_idx], buf_pos) != 0) {
                 r = false;
                 goto out;
             }
-            names = new_names;
-            names_capacity += 8192;
+            transfer_active = true;
+
+            sdram_addr += buf_pos;
+            buf_pos = 0;
+            buf_idx = !buf_idx;
         }
 
-        // Copy name to shared buffer
-        memcpy(&names[name_offset], fno.fname, name_len + 1);
+        // Copy name to buffer
+        memcpy(&buffer[buf_idx][buf_pos], fno.fname, name_len + 1);
+
+        // Store offset (absolute SDRAM address)
+        uint32_t current_offset = sdram_addr + buf_pos;
 
         if (fno.fattrib & AM_DIR) {
             // Handle directory
-            arr_append(dirs, name_offset);
+            arr_append(dirs, current_offset);
         } else {
             // Handle file
-            arr_append(files, name_offset);
+            arr_append(files, current_offset);
         }
 
-        name_offset += name_len + 1;
+        buf_pos += name_len + 1;
+        if (buf_pos % 2 != 0) {
+            buffer[buf_idx][buf_pos++] = 0;
+        }
+    }
+
+    // Wait for any active transfer
+    if (transfer_active) {
+        if (qspi_write_end() != 0) {
+            r = false;
+            goto out;
+        }
+    }
+
+    // Flush remaining
+    if (buf_pos > 0) {
+        if (qspi_write(CMD_WRITE_MEM, sdram_addr, buffer[buf_idx], buf_pos) != 0) {
+            r = false;
+            goto out;
+        }
     }
 
     qsort(dirs.entries, dirs.count, sizeof(uint32_t), names_cmp);

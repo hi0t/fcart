@@ -103,7 +103,7 @@ void gfx_refresh()
 
     curr_buffer = !curr_buffer;
     if (curr_buffer) {
-        addr = 1U << 14;
+        addr = FB_SIZE / 2;
     }
     fpga_api_write_mem(addr, FB_SIZE, fb_reader, &offset);
 

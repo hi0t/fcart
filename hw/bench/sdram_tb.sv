@@ -83,8 +83,8 @@ module sdram_tb;
         @(posedge clk);
         bus0.req = 0;
         bus1.req = 0;
-        @(posedge clk iff bus0.ack);
-        @(posedge clk iff bus1.ack);
+        @(posedge clk iff ram.step == ram.ACTIVE_WRITE_END);
+        @(posedge clk iff ram.step == ram.ACTIVE_WRITE_END);
 
         // Parallel read
         bus0.data_read = 'x;

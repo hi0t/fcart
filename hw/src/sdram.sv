@@ -203,4 +203,9 @@ module sdram #(
             endcase
         end
     end
+
+`ifdef DEBUG
+    logic debug_busy = (state == STATE_ACTIVE);
+    logic debug_refresh = (state == STATE_REFRESH);
+`endif
 endmodule

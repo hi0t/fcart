@@ -4,6 +4,7 @@ module map_mux #(
     input logic clk,
     sdram_bus.controller ch_prg,
     sdram_bus.controller ch_chr,
+    output logic refresh,
 
     // Cart interface
     input logic m2,
@@ -161,14 +162,23 @@ module map_mux #(
 
     logic [2:0] m2_sync;
     logic [7:0] reset_seq;
+    logic [1:0] launcher_active;
     assign cpu_reset = (reset_seq == '1);
 
     always_ff @(posedge clk) begin
         m2_sync <= {m2_sync[1:0], m2};
+        launcher_active <= {launcher_active[0], select == 'd0};
+
+        refresh <= 1'b0;
 
         if (m2_sync[2:1] == 2'b10) begin
             status_reg <= 32'(launcher_status);
             reset_seq  <= '0;
-        end else if (reset_seq != '1) reset_seq <= reset_seq + 1'd1;
+
+            // Refresh is performed after the OE cycle is completed.
+            if (!launcher_active[1]) refresh <= 1'b1;
+        end else if (reset_seq != '1) begin
+            reset_seq <= reset_seq + 1'd1;
+        end
     end
 endmodule

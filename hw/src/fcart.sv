@@ -46,12 +46,14 @@ module fcart (
     logic [3:0] wr_reg_addr;
     logic wr_reg_changed;
     logic [31:0] launcher_status;
+    logic api_refresh, cpu_refresh;
     sdram_bus #(.ADDR_BITS(RAM_ADDR_BITS)) ch_ppu (), ch_cpu (), ch_api ();
 
     map_mux mux (
         .clk(clk),
         .ch_prg(ch_cpu.controller),
         .ch_chr(ch_ppu.controller),
+        .refresh(cpu_refresh),
 
         .m2(M2),
         .cpu_addr({!ROMSEL, CPU_ADDR}),
@@ -90,20 +92,13 @@ module fcart (
         end
     end
 
-    logic [2:0] refresh_sync;
-    always_ff @(posedge clk)
-        // Refresh is performed after the OE cycle is completed.
-        refresh_sync <= {
-            refresh_sync[1:0], !M2
-        };
-
     sdram sdram (
         .clk(clk),
         .reset(reset),
         .ch0(ch_cpu.memory),
         .ch1(ch_ppu.memory),
         .ch2(ch_api.memory),
-        .refresh(!refresh_sync[2] && refresh_sync[1]),
+        .refresh(cpu_refresh || api_refresh),
         .sdram_cs(SDRAM_CS),
         .sdram_addr(SDRAM_ADDR),
         .sdram_ba(SDRAM_BA),
@@ -145,6 +140,7 @@ module fcart (
         .ev_reg(launcher_status),
 
         .ram(ch_api.controller),
+        .ram_refresh(api_refresh),
 
         .rd_data(qspi_rd_data),
         .rd_valid(qspi_rd_valid),

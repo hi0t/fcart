@@ -169,7 +169,7 @@ static void qspi_init()
     HAL_StatusTypeDef rc;
 
     dev.hqspi.Instance = QUADSPI;
-    dev.hqspi.Init.ClockPrescaler = 3; // QSPI_CLK = HCLK / (Prescaler + 1)
+    dev.hqspi.Init.ClockPrescaler = 7; // QSPI_CLK = HCLK / (Prescaler + 1)
     dev.hqspi.Init.FifoThreshold = 1;
     dev.hqspi.Init.SampleShifting = QSPI_SAMPLE_SHIFTING_NONE;
     dev.hqspi.Init.FlashSize = 22; // 2^(FlashSize+1) bytes

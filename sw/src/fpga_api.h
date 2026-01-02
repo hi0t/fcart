@@ -2,6 +2,13 @@
 
 #include <stdint.h>
 
+enum {
+    CMD_READ_MEM = 0,
+    CMD_WRITE_MEM,
+    CMD_READ_REG,
+    CMD_WRITE_REG
+};
+
 enum fpga_reg_id {
     FPGA_REG_MAPPER = 0,
     FPGA_REG_LAUNCHER = 1,

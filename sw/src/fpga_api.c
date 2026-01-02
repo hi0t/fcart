@@ -5,21 +5,11 @@
 #include <stddef.h>
 #include <stdlib.h>
 
-enum {
-    CMD_WRITE_MEM = 1,
-    CMD_READ_REG,
-    CMD_WRITE_REG
-};
-
 int fpga_api_write_mem(uint32_t address, uint32_t size, fpga_api_reader_cb cb, void *arg)
 {
 #define BUF_SIZE 512
-    uint8_t *buf = malloc(BUF_SIZE * 2);
-    if (!buf) {
-        return -ENOMEM;
-    }
-
-    uint8_t *curr_buf = buf;
+    static uint8_t buf[2][BUF_SIZE * 2];
+    uint8_t buf_idx = 0;
     uint32_t remain = size;
     uint32_t offset = address;
     bool pending_write = false;
@@ -27,7 +17,7 @@ int fpga_api_write_mem(uint32_t address, uint32_t size, fpga_api_reader_cb cb, v
 
     while (remain > 0) {
         uint32_t chunk = remain > BUF_SIZE ? BUF_SIZE : remain;
-        if (!cb(curr_buf, chunk, arg)) {
+        if (!cb(buf[buf_idx], chunk, arg)) {
             rc = -EIO;
             goto out;
         }
@@ -37,13 +27,13 @@ int fpga_api_write_mem(uint32_t address, uint32_t size, fpga_api_reader_cb cb, v
                 goto out;
             }
         }
-        if ((rc = qspi_write_begin(CMD_WRITE_MEM, offset, curr_buf, chunk)) != 0) {
+        if ((rc = qspi_write_begin(CMD_WRITE_MEM, offset, buf[buf_idx], chunk)) != 0) {
             goto out;
         }
         pending_write = true;
 
         // Swap between two buffers for double-buffering
-        curr_buf = (curr_buf == buf) ? (buf + BUF_SIZE) : buf;
+        buf_idx = !buf_idx;
         offset += chunk;
         remain -= chunk;
     }

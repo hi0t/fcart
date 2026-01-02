@@ -9,6 +9,7 @@ module api (
     input logic [31:0] ev_reg,
 
     sdram_bus.controller ram,
+    output logic ram_refresh,
 
     input logic [7:0] rd_data,
     input logic rd_valid,
@@ -34,18 +35,20 @@ module api (
     logic [7:0] wr_buf;
     logic [7:0] rd_buf;
     logic [3:0] reg_addr;
+    logic first_req;
 
     assign fpga_irq = (got_reg != ev_reg);
 
     always_ff @(posedge clk) begin
+        ram.req <= 1'b0;
+        ram_refresh <= 1'b0;
+
         if (reset) begin
             state <= STATE_IDLE;
         end else begin
             if (start) begin
                 state <= STATE_CMD;
             end
-
-            ram.req <= 1'b0;
 
             if (rd_valid) begin
                 case (state)
@@ -56,7 +59,8 @@ module api (
                     end
 
                     STATE_ADDR: begin
-                        byte_cnt <= byte_cnt + 2'd1;
+                        byte_cnt  <= byte_cnt + 2'd1;
+                        first_req <= 1'b1;
 
                         case (byte_cnt)
                             2'd0: ram.address[21:15] <= rd_data[6:0];
@@ -64,6 +68,8 @@ module api (
                             2'd2: ram.address[6:0] <= rd_data[7:1];
                             default;
                         endcase
+
+                        if (byte_cnt == 2'd0) ram_refresh <= 1'b1;
 
                         if (byte_cnt == 2'd2) begin
                             reg_addr <= rd_data[3:0];
@@ -96,12 +102,18 @@ module api (
                             end
                         end else if (cmd == CMD_WRITE_MEM) begin
                             case (byte_cnt[0])
-                                1'b0: wr_buf <= rd_data;
+                                1'b0: begin
+                                    wr_buf <= rd_data;
+                                    ram_refresh <= 1'b1;
+                                end
                                 1'b1: begin
                                     ram.data_write <= {rd_data, wr_buf};
                                     ram.we <= 1'b1;
                                     ram.wm <= 2'b00;
                                     ram.req <= 1'b1;
+
+                                    if (first_req) first_req <= 1'b0;
+                                    else ram.address <= ram.address + 1'd1;
                                 end
                             endcase
                         end
@@ -132,24 +144,24 @@ module api (
                     case (byte_cnt[0])
                         1'b0: begin
                             wr_data <= ram.data_read[7:0];
-                            rd_buf  <= ram.data_read[15:8];
+                            rd_buf <= ram.data_read[15:8];
                             ram.req <= 1'b1;
+                            ram.address <= ram.address + 1'd1;
                         end
-                        1'b1: wr_data <= rd_buf;
+                        1'b1: begin
+                            wr_data <= rd_buf;
+                            ram_refresh <= 1'b1;
+                        end
                     endcase
                 end
-            end
-
-            if (ram.ack) begin
-                ram.address <= ram.address + 1'd1;
             end
         end
     end
 
 `ifdef DEBUG
-    logic debug_ram_ack = ram.ack;
     logic [21:0] debug_ram_address = ram.address;
-    logic [15:0] debug_ram_data = ram.data_write;
-    logic [1:0] debug_state = state;
+    logic [15:0] debug_ram_data_read = ram.data_read;
+    logic [15:0] debug_ram_data_write = ram.data_write;
+    logic [ 1:0] debug_state = state;
 `endif
 endmodule
