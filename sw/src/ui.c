@@ -20,9 +20,9 @@ static bool sd_mounted;
 static FATFS fs;
 static struct dirlist_entry screen_list[VISIBLE_ROWS];
 static uint8_t cursor_pos;
-static uint32_t dir_index;
+static uint16_t dir_index;
 
-static void show_error(const char *msg);
+static void show_message(const char *msg);
 static void redraw_screen();
 static void sd_state(bool present);
 static void process_input(uint8_t buttons);
@@ -43,7 +43,7 @@ void ui_poll()
         on_menu = true;
 
         if (!sd_is_present()) {
-            show_error("No SD card");
+            show_message("No SD card");
         } else if (!sd_mounted) {
             sd_state(true);
         } else {
@@ -55,7 +55,7 @@ void ui_poll()
     joypad_poll();
 }
 
-static void show_error(const char *msg)
+static void show_message(const char *msg)
 {
     if (!on_menu) {
         return;
@@ -94,11 +94,11 @@ static void sd_state(bool present)
     sd_mounted = false;
     if (present) {
         if (f_mount(&fs, "/SD", 1) != FR_OK) {
-            show_error("Mount error");
+            show_message("Mount error");
             return;
         }
-        if (!dirlist_load()) {
-            show_error("Open dir error");
+        if (dirlist_load() != 0) {
+            show_message("Open dir error");
             return;
         }
         dir_index = 0;
@@ -107,7 +107,7 @@ static void sd_state(bool present)
         sd_mounted = true;
     } else {
         f_unmount("/SD");
-        show_error("No SD card");
+        show_message("No SD card");
     }
 }
 
@@ -154,8 +154,10 @@ static void menu_control(uint8_t buttons)
     } else if (buttons & BUTTON_A) {
         struct dirlist_entry *entry = &screen_list[cursor_pos];
         if (entry->is_dir) {
-            if (!dirlist_push(entry->name)) {
-                show_error("Open dir error");
+            show_message("Reading directory...");
+
+            if (dirlist_push(entry->name) != 0) {
+                show_message("Open dir error");
                 return;
             }
             dir_index = 0;
@@ -163,18 +165,20 @@ static void menu_control(uint8_t buttons)
         } else {
             char *full_path = dirlist_file_path(entry);
             if (full_path == NULL) {
-                show_error("Memory error");
+                show_message("Memory error");
                 return;
             }
             int err = rom_load(full_path);
             free(full_path);
             if (err != 0) {
-                show_error("Load ROM error");
+                show_message("Load ROM error");
             }
             return;
         }
     } else if (buttons & BUTTON_B) {
-        if (!dirlist_pop()) {
+        show_message("Reading directory...");
+
+        if (dirlist_pop() != 0) {
             return;
         }
         dir_index = 0;
