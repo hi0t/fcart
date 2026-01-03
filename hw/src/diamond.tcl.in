@@ -18,7 +18,6 @@ prj_strgy set_value -strategy Debug \
 prj_strgy set_value -strategy Release \
     syn_res_sharing=False \
     map_timing_driven=True \
-    map_timing_driven_pack=True \
     par_pathbased_place=On \
     par_routing_res_opt=6 \
     par_route_delay_reduction_pass=10 \

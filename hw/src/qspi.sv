@@ -24,9 +24,7 @@ module qspi (
     logic [3:0] upper_nibble;
     logic [2:0] start_sync, rd_sync, wr_sync;
     logic rx_done;
-    logic [7:0] io_out;
     logic has_resp;
-    logic tx_sw;
 
     assign qspi_reset = async_reset || qspi_ncs;
 
@@ -61,13 +59,28 @@ module qspi (
     end
 
     // TX logic
-    assign qspi_io = (state == STATE_SEND) ? (tx_sw ? io_out[7:4] : io_out[3:0]) : 4'bz;
-    always_ff @(negedge qspi_clk) begin
-        tx_sw <= 1'b0;
+    logic [3:0] io_out, next_io_out;
+    logic tx_sw;
+    logic qspi_oe;
 
-        if (state == STATE_SEND && !tx_sw) begin
-            io_out <= wr_data;
-            tx_sw  <= 1'b1;
+    assign qspi_io = qspi_oe ? io_out : 4'bz;
+
+    always_ff @(negedge qspi_clk or posedge qspi_reset) begin
+        if (qspi_reset) begin
+            qspi_oe <= 1'b0;
+        end else begin
+            tx_sw <= 1'b0;
+
+            if (state == STATE_SEND) begin
+                qspi_oe <= 1'b1;
+                if (!tx_sw) begin
+                    io_out <= wr_data[7:4];
+                    next_io_out <= wr_data[3:0];
+                    tx_sw <= 1'b1;
+                end else begin
+                    io_out <= next_io_out;
+                end
+            end
         end
     end
 
@@ -80,4 +93,15 @@ module qspi (
         rd_sync    <= {rd_sync[1:0], rx_done};
         wr_sync    <= {wr_sync[1:0], (state == STATE_DUMMY && cnt == 3'd3) || (state == STATE_SEND && cnt[0] == 1'b1)};
     end
+
+`ifdef DEBUG
+    logic [3:0] debug_cnt;
+    always_ff @(negedge qspi_clk or posedge qspi_reset) begin
+        if (qspi_reset) begin
+            debug_cnt <= 4'd0;
+        end else begin
+            debug_cnt <= debug_cnt + 4'd1;
+        end
+    end
+`endif
 endmodule
