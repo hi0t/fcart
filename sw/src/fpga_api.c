@@ -44,7 +44,6 @@ int fpga_api_write_mem(uint32_t address, uint32_t size, fpga_api_reader_cb cb, v
         }
     }
 out:
-    free(buf);
     return rc;
 }
 
@@ -58,11 +57,11 @@ int fpga_api_write_reg(enum fpga_reg_id id, uint32_t value)
     return qspi_write(CMD_WRITE_REG, id, (uint8_t *)&value, sizeof(value));
 }
 
-uint32_t fpga_api_ev_reg()
+uint32_t fpga_api_ev_reg(bool force)
 {
     static uint32_t events;
 
-    if (!irq_called()) {
+    if (!irq_called() && !force) {
         return events;
     }
 

@@ -12,8 +12,9 @@
 #define ROWS 30
 #define COLS 32
 #define FONT_WIDTH 8
-#define VISIBLE_ROWS ROWS - 2
+#define VISIBLE_ROWS ROWS - 4
 
+static bool first_poll = true;
 static bool on_menu;
 static bool sd_mounted;
 static FATFS fs;
@@ -36,7 +37,8 @@ void ui_init()
 }
 void ui_poll()
 {
-    bool loader_active = (fpga_api_ev_reg() & (1 << 8U)) != 0;
+    bool loader_active = (fpga_api_ev_reg(first_poll) & (1 << 8U)) != 0;
+    first_poll = false;
     if (loader_active && !on_menu) {
         on_menu = true;
 
@@ -72,7 +74,7 @@ static void redraw_screen()
         return;
     }
 
-    uint8_t cnt = dirlist_select(dir_index, ROWS - 2, screen_list);
+    uint8_t cnt = dirlist_select(dir_index, VISIBLE_ROWS, screen_list);
     if (cnt == 0) {
         return;
     }
@@ -80,9 +82,9 @@ static void redraw_screen()
     gfx_clear();
     for (uint8_t i = 0; i < cnt; i++) {
         if (i == cursor_pos) {
-            gfx_fill_rect(FONT_WIDTH, (i + 1) * FONT_WIDTH, (COLS - 2) * FONT_WIDTH, FONT_WIDTH, 3);
+            gfx_fill_rect(FONT_WIDTH, (i + 2) * FONT_WIDTH, (COLS - 2) * FONT_WIDTH, FONT_WIDTH, 3);
         }
-        gfx_text(FONT_WIDTH, (i + 1) * FONT_WIDTH, screen_list[i].name, COLS - 2, screen_list[i].is_dir ? 2 : 1);
+        gfx_text(FONT_WIDTH, (i + 2) * FONT_WIDTH, screen_list[i].name, COLS - 2, screen_list[i].is_dir ? 2 : 1);
     }
     gfx_refresh();
 }

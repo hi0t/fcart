@@ -12,25 +12,18 @@ struct arr {
     uint16_t count;
 };
 
-#define arr_append(a, v)                                                                   \
-    do {                                                                                   \
-        if ((a).count >= (a).capacity) {                                                   \
-            uint16_t new_capacity = ((a).capacity == 0) ? 16 : (a).capacity * 2;           \
-            void *new_entries = realloc((a).entries, new_capacity * sizeof(*(a).entries)); \
-            if (new_entries == NULL) {                                                     \
-                break;                                                                     \
-            }                                                                              \
-            (a).entries = new_entries;                                                     \
-            (a).capacity = new_capacity;                                                   \
-        }                                                                                  \
-        (a).entries[(a).count++] = (v);                                                    \
+#define arr_append(a, v)                                                     \
+    do {                                                                     \
+        if (a.count >= a.capacity) {                                         \
+            a.capacity = a.capacity == 0 ? 256 : a.capacity * 2;             \
+            a.entries = realloc(a.entries, a.capacity * sizeof(*a.entries)); \
+        }                                                                    \
+        a.entries[a.count++] = v;                                            \
     } while (0)
 
 static struct arr dirs;
 static struct arr files;
-static uint8_t buffer[2][512];
-static char *names;
-static uint32_t names_capacity;
+static uint8_t buffer[512];
 static char *curr_path;
 
 static int names_cmp(const void *a, const void *b);
@@ -38,12 +31,6 @@ static bool readdir();
 
 bool dirlist_load()
 {
-    if (names != NULL) {
-        free(names);
-    }
-    names = malloc(8192); // TODO: place names in SDRAM
-    names_capacity = 8192;
-
     if (curr_path != NULL) {
         free(curr_path);
     }
@@ -100,17 +87,17 @@ uint8_t dirlist_select(uint32_t index, uint8_t limit, struct dirlist_entry *out)
     while ((count < limit) && (curr_index < dirs.count + files.count)) {
         if (curr_index < dirs.count) {
             // Directory
-            out[count].name = &names[dirs.entries[curr_index]];
+            qspi_read(CMD_READ_MEM, dirs.entries[curr_index], (uint8_t *)out[count].name, sizeof(out[count].name));
             out[count].is_dir = true;
         } else {
             // File
-            out[count].name = &names[files.entries[curr_index - dirs.count]];
+            qspi_read(CMD_READ_MEM, files.entries[curr_index - dirs.count], (uint8_t *)out[count].name, sizeof(out[count].name));
             out[count].is_dir = false;
         }
+
         count++;
         curr_index++;
     }
-
     return count; // Return number of entries filled
 }
 
@@ -137,10 +124,13 @@ static int names_cmp(const void *a, const void *b)
     uint32_t offset_a = *(const uint32_t *)a;
     uint32_t offset_b = *(const uint32_t *)b;
 
-    qspi_read(CMD_READ_MEM, offset_a, buffer[0], 256);
-    qspi_read(CMD_READ_MEM, offset_b, buffer[1], 256);
+    uint8_t *buf_a = buffer;
+    uint8_t *buf_b = buffer + 256;
 
-    return strcmp((char *)buffer[0], (char *)buffer[1]);
+    qspi_read(CMD_READ_MEM, offset_a, buf_a, 256);
+    qspi_read(CMD_READ_MEM, offset_b, buf_b, 256);
+
+    return strcmp((char *)buf_a, (char *)buf_b);
 }
 
 static bool readdir()
@@ -148,10 +138,7 @@ static bool readdir()
     DIR dir;
     FILINFO fno;
     bool r = true;
-    uint8_t buf_idx = 0;
-    uint16_t buf_pos = 0;
-    uint32_t sdram_addr = FB_SIZE; // Start after framebuffer
-    bool transfer_active = false;
+    uint32_t sdram_addr = FRAMEBUFFER_CAPACITY; // Start after framebuffer
 
     if (f_opendir(&dir, curr_path) != FR_OK) {
         return false;
@@ -168,61 +155,26 @@ static bool readdir()
         if (fno.fname[0] == '.' || (fno.fattrib & AM_HID) || (fno.fattrib & AM_SYS)) {
             continue; // Skip hidden files
         }
-        uint8_t name_len = strlen(fno.fname);
 
-        // Check if buffer full (ensure we have space for name + null + potential padding)
-        if (buf_pos + name_len + 2 > 512) {
-            // Wait for previous transfer to complete
-            if (transfer_active) {
-                qspi_write_end();
-                transfer_active = false;
-            }
-
-            if (qspi_write_begin(CMD_WRITE_MEM, sdram_addr, buffer[buf_idx], buf_pos) != 0) {
-                r = false;
-                goto out;
-            }
-            transfer_active = true;
-
-            sdram_addr += buf_pos;
-            buf_pos = 0;
-            buf_idx = !buf_idx;
+        uint16_t name_len = strlen(fno.fname) + 1;
+        memcpy(buffer, fno.fname, name_len);
+        if (name_len % 2 != 0) {
+            buffer[name_len++] = 0;
         }
-
-        // Copy name to buffer
-        memcpy(&buffer[buf_idx][buf_pos], fno.fname, name_len + 1);
-
-        // Store offset (absolute SDRAM address)
-        uint32_t current_offset = sdram_addr + buf_pos;
+        if (qspi_write(CMD_WRITE_MEM, sdram_addr, buffer, name_len) != 0) {
+            r = false;
+            goto out;
+        }
 
         if (fno.fattrib & AM_DIR) {
             // Handle directory
-            arr_append(dirs, current_offset);
+            arr_append(dirs, sdram_addr);
         } else {
             // Handle file
-            arr_append(files, current_offset);
+            arr_append(files, sdram_addr);
         }
 
-        buf_pos += name_len + 1;
-        if (buf_pos % 2 != 0) {
-            buffer[buf_idx][buf_pos++] = 0;
-        }
-    }
-
-    // Wait for any active transfer
-    if (transfer_active) {
-        if (qspi_write_end() != 0) {
-            r = false;
-            goto out;
-        }
-    }
-
-    // Flush remaining
-    if (buf_pos > 0) {
-        if (qspi_write(CMD_WRITE_MEM, sdram_addr, buffer[buf_idx], buf_pos) != 0) {
-            r = false;
-            goto out;
-        }
+        sdram_addr += name_len;
     }
 
     qsort(dirs.entries, dirs.count, sizeof(uint32_t), names_cmp);

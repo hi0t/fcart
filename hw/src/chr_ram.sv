@@ -14,7 +14,7 @@ module chr_ram #(
     logic [1:0] read_sync;
     logic [3:0] write_sync;
     logic [2:0][ADDR_BITS-1:0] addr_gray;
-    logic [2:0] match_addr;
+    logic [3:0] match_addr;
 
     initial addr_gray = '1;
     assign data_out = addr[0] ? ram.data_read[15:8] : ram.data_read[7:0];
@@ -26,12 +26,12 @@ module chr_ram #(
         addr_gray <= {addr_gray[1:0], addr ^ (addr >> 1)};
 
         if (read_sync[1] && addr_gray[2] == addr_gray[1]) begin
-            match_addr <= {match_addr[1:0], 1'b1};
+            match_addr <= {match_addr[2:0], 1'b1};
         end else begin
             match_addr <= '0;
         end
 
-        if (match_addr == 3'b011) begin
+        if (match_addr == 4'b0111) begin
             ram.we <= 1'b0;
             ram.address <= addr[ADDR_BITS-1:1];
             ram.req <= 1'b1;

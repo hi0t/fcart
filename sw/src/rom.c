@@ -75,7 +75,7 @@ int rom_load(const char *filename)
 
     fpga_api_write_reg(FPGA_REG_LAUNCHER, 1 << 1U); // prelaunch
     for (;;) {
-        if ((fpga_api_ev_reg() & (1 << 8U)) == 0) { // waiting for loader to exit
+        if ((fpga_api_ev_reg(false) & (1 << 8U)) == 0) { // waiting for loader to exit
             break;
         }
     }

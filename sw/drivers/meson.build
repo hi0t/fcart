@@ -10,8 +10,8 @@ drivers_src = files(
 )
 
 linker_cfg = configuration_data()
-linker_cfg.set('HEAP_SIZE', get_option('heap_size'))
-linker_cfg.set('STACK_SIZE', get_option('stack_size'))
+linker_cfg.set('MIN_HEAP_SIZE', '0x200')
+linker_cfg.set('MIN_STACK_SIZE', '0x400')
 linker_cfg.set('RAM_ORIGIN', '0x20000000')
 linker_cfg.set('RAM_SIZE', get_option('ram_size'))
 linker_cfg.set('FLASH_ORIGIN', '0x8000000')
