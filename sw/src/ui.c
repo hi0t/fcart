@@ -14,7 +14,6 @@
 #define FONT_WIDTH 8
 #define VISIBLE_ROWS ROWS - 4
 
-static bool first_poll = true;
 static bool on_menu;
 static bool sd_mounted;
 static FATFS fs;
@@ -37,18 +36,11 @@ void ui_init()
 }
 void ui_poll()
 {
-    bool loader_active = (fpga_api_ev_reg(first_poll) & (1 << 8U)) != 0;
-    first_poll = false;
+    bool loader_active = (fpga_api_ev_reg() & (1 << 8U)) != 0;
+
     if (loader_active && !on_menu) {
         on_menu = true;
-
-        if (!sd_is_present()) {
-            show_message("No SD card");
-        } else if (!sd_mounted) {
-            sd_state(true);
-        } else {
-            redraw_screen();
-        }
+        sd_state(sd_is_present());
     }
 
     on_menu = loader_active;
@@ -91,7 +83,6 @@ static void redraw_screen()
 
 static void sd_state(bool present)
 {
-    sd_mounted = false;
     if (present) {
         if (f_mount(&fs, "/SD", 1) != FR_OK) {
             show_message("Mount error");
@@ -104,7 +95,6 @@ static void sd_state(bool present)
         dir_index = 0;
         cursor_pos = 0;
         redraw_screen();
-        sd_mounted = true;
     } else {
         f_unmount("/SD");
         show_message("No SD card");

@@ -23,7 +23,7 @@ void joypad_can_repeat(uint8_t buttons)
 
 void joypad_poll()
 {
-    uint8_t buttons = fpga_api_ev_reg(false) & 0xFF;
+    uint8_t buttons = fpga_api_ev_reg() & 0xFF;
     if (buttons == 0) {
         last_time = 0;
         last_buttons = 0;
