@@ -35,8 +35,6 @@ module fcart (
     output logic CPU_DIR,
     output logic PPU_DIR
 );
-    assign SND_SYN = 1'b0;
-
     localparam RAM_ADDR_BITS = 22;  // SDRAM row + col + bank bits
 
     logic clk;
@@ -47,6 +45,7 @@ module fcart (
     logic wr_reg_changed;
     logic [31:0] launcher_status;
     logic api_refresh, cpu_refresh;
+    logic [15:0] pcm;
     sdram_bus #(.ADDR_BITS(RAM_ADDR_BITS)) ch_ppu (), ch_cpu (), ch_api ();
 
     map_mux mux (
@@ -74,6 +73,14 @@ module fcart (
         .wr_reg_addr(wr_reg_addr),
         .wr_reg_changed(wr_reg_changed),
         .status_reg(launcher_status)
+    );
+
+    snd_dac snd_dac (
+        .clk(clk),
+        .m2(M2),
+        .pcm_in(pcm),
+        .volume(8'd128),
+        .pdm_out(SND_SYN)
     );
 
     pll pll (

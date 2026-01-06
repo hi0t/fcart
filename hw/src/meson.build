@@ -9,6 +9,7 @@ src = files(
     'prg_ram.sv',
     'qspi.sv',
     'sdram.sv',
+    'snd_dac.sv',
 )
 
 subdir('mappers')
