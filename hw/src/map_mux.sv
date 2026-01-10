@@ -25,7 +25,8 @@ module map_mux #(
     input logic [11:0] wr_reg,
     input logic [3:0] wr_reg_addr,
     input logic wr_reg_changed,
-    output logic [31:0] status_reg
+    output logic [31:0] status_reg,
+    output logic [15:0] audio
 );
     localparam MAP_CNT = 32;
 
@@ -52,6 +53,7 @@ module map_mux #(
     logic bus_chr_ce[MAP_CNT];
     logic bus_chr_oe[MAP_CNT];
     logic bus_chr_we[MAP_CNT];
+    logic [15:0] bus_audio[MAP_CNT];
 
     map_bus map[MAP_CNT] ();
 
@@ -66,6 +68,7 @@ module map_mux #(
     MMC1 MMC1 (.bus(map[2]));
     UxROM UxROM (.bus(map[3]));
     CNROM CNROM (.bus(map[4]));
+    VRC6 VRC6 (.bus(map[5]));
 
     genvar n;
     for (n = 0; n < MAP_CNT; n = n + 1) begin
@@ -94,6 +97,7 @@ module map_mux #(
         assign bus_chr_ce[n] = map[n].chr_ce;
         assign bus_chr_oe[n] = map[n].chr_oe;
         assign bus_chr_we[n] = map[n].chr_we;
+        assign bus_audio[n] = map[n].audio;
     end
 
     // mux for outgoing signals
@@ -101,6 +105,7 @@ module map_mux #(
     assign ppu_oe = bus_chr_ce[select] && bus_chr_oe[select];
     assign cpu_data = cpu_oe ? (bus_custom_cpu_out[select] ? bus_cpu_data_out[select] : cpu_data_out) : 'z;
     assign irq = bus_irq[select];
+    assign audio = bus_audio[select];
     assign ciram_a10 = bus_ciram_a10[select];
     assign ciram_ce = bus_ciram_ce[select];
     assign ppu_data = ppu_oe ? ppu_data_out : 'z;

@@ -29,13 +29,17 @@ interface map_bus #(
     logic chr_ram;
     logic mirroring;
 
+    // Audio
+    logic [15:0] audio;
+
     // Defaults
     initial begin
         custom_cpu_out = 0;
+        audio = 0;
     end
 
     modport mapper(
         input reset, m2, cpu_addr, cpu_data_in, cpu_rw, ppu_rd, ppu_wr, ppu_addr, chr_ram, mirroring,
-        output custom_cpu_out, cpu_data_out, irq, ciram_a10, ciram_ce, prg_addr, prg_oe, chr_addr, chr_ce, chr_oe, chr_we
+        output custom_cpu_out, cpu_data_out, irq, ciram_a10, ciram_ce, prg_addr, prg_oe, chr_addr, chr_ce, chr_oe, chr_we, audio
     );
 endinterface

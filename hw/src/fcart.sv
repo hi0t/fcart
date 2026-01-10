@@ -72,14 +72,14 @@ module fcart (
         .wr_reg(wr_reg[11:0]),
         .wr_reg_addr(wr_reg_addr),
         .wr_reg_changed(wr_reg_changed),
-        .status_reg(launcher_status)
+        .status_reg(launcher_status),
+        .audio(pcm)
     );
 
     snd_dac snd_dac (
-        .clk(clk),
         .m2(M2),
         .pcm_in(pcm),
-        .volume(8'd128),
+        .volume(8'd255),
         .pdm_out(SND_SYN)
     );
 

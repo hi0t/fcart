@@ -44,7 +44,7 @@ int rom_load(const char *filename)
     uint32_t prg_size = header[4];
     uint32_t chr_size = header[5];
     uint32_t chr_ram_size = 0;
-    uint16_t mapper_id = (header[7] & 0x0F) | (header[6] >> 4U);
+    uint16_t mapper_id = (header[7] & 0xF0) | (header[6] >> 4U);
 
     if (nes20) {
         if ((header[9] & 0x0F) == 0x0F) {
@@ -135,6 +135,10 @@ static uint16_t choose_mapper(uint16_t id)
         return 3;
     case 3:
         return 4;
+    case 24:
+        return 5;
+    case 26:
+        return 5;
     default:
         return 0;
     }
