@@ -17,12 +17,16 @@ cc = meson.get_compiler('c')
 assert(cc.get_id() == 'gcc', 'fcart-sw must be compiled with GCC')
 
 subdir('drivers')
+subdir('bootloader')
 subdir('src')
 
 size = find_program('size')
 objcopy = find_program('objcopy')
 
-fcart_elf = executable('fcart_sw.elf', dependencies: fcart_sw)
+fcart_elf = executable(
+    'fcart.elf',
+    dependencies: fcart_sw,
+)
 custom_target(
     output: fs.replace_suffix(fcart_elf.name(), '.bin'),
     input: fcart_elf,
@@ -31,7 +35,25 @@ custom_target(
     build_by_default: true,
 )
 run_target(
-    'size',
+    'fcart_size',
     command: [size, fcart_elf.full_path(), '-B'],
     depends: fcart_elf,
+)
+
+bootloader_elf = executable(
+    'bootloader.elf',
+    dependencies: bootloader_sw,
+)
+
+custom_target(
+    output: fs.replace_suffix(bootloader_elf.name(), '.bin'),
+    input: bootloader_elf,
+    command: [objcopy, ['-O', 'binary', '-S', '@INPUT@', '@OUTPUT@']],
+    depends: bootloader_elf,
+    build_by_default: true,
+)
+run_target(
+    'bootloader_size',
+    command: [size, bootloader_elf.full_path(), '-B'],
+    depends: bootloader_elf,
 )

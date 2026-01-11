@@ -40,7 +40,7 @@ void ui_poll()
 
     if (loader_active && !on_menu) {
         on_menu = true;
-        sd_state(sd_is_present());
+        sd_state(is_sd_present());
     }
 
     on_menu = loader_active;

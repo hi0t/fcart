@@ -7,17 +7,29 @@
 #define MASK 0xF00FU
 
 static uint16_t sd_history = RESET;
+static uint32_t led_blink_interval = 0;
 
 static void (*button_cb)();
 static void (*sd_cb)(bool);
 
+void set_blink_interval(uint32_t interval_ms)
+{
+    led_blink_interval = interval_ms;
+}
+
 void gpio_poll()
 {
     static uint32_t last_time = RESET;
+    static uint32_t last_blink_time = 0;
     static uint16_t btn_history = RESET;
     static bool btn_pressed = false;
     static bool sd_present = false;
     uint32_t now = HAL_GetTick();
+
+    if (led_blink_interval > 0 && (now - last_blink_time >= led_blink_interval)) {
+        last_blink_time = now;
+        HAL_GPIO_TogglePin(GPIO_LED_PORT, GPIO_LED_PIN);
+    }
 
     if (btn_history == SET) {
         btn_pressed = true;
@@ -29,7 +41,7 @@ void gpio_poll()
         last_time = now;
 
         btn_history = (btn_history << 1) | (HAL_GPIO_ReadPin(GPIO_BTN_PORT, GPIO_BTN_PIN) == GPIO_PIN_SET);
-        sd_history = (sd_history << 1) | (HAL_GPIO_ReadPin(GPIO_SD_CD_PORT, GPIO_SD_CD_PIN) == GPIO_PIN_RESET);
+        sd_history = (sd_history << 1) | is_sd_present();
 
         if (button_cb != NULL && !btn_pressed && (btn_history & MASK) == PRESS) {
             button_cb();
@@ -59,7 +71,7 @@ void set_sd_callback(void (*cb)(bool))
     sd_cb = cb;
 }
 
-bool sd_is_present()
+bool is_sd_present()
 {
-    return sd_history == SET;
+    return HAL_GPIO_ReadPin(GPIO_SD_CD_PORT, GPIO_SD_CD_PIN) == GPIO_PIN_RESET;
 }

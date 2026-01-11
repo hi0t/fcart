@@ -2,9 +2,9 @@ option('pinctrl', type: 'array', description: ' Pin control')
 option('heap_size', type: 'string', description: 'Heap size')
 option('stack_size', type: 'string', description: 'Stack size')
 option('ram_origin', type: 'string', description: 'RAM origin')
-option('ram_size', type: 'string', description: 'RAM size')
+option('ram_size', type: 'integer', description: 'RAM size')
 option('flash_origin', type: 'string', description: 'Flash origin')
-option('flash_size', type: 'string', description: 'Flash size')
+option('flash_size', type: 'integer', description: 'Flash size')
 option('hse_freq', type: 'string', description: 'HSE frequency')
 option(
     'pll_divm',

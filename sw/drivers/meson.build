@@ -9,21 +9,6 @@ drivers_src = files(
     'spi.c',
 )
 
-linker_cfg = configuration_data()
-linker_cfg.set('MIN_HEAP_SIZE', '0x200')
-linker_cfg.set('MIN_STACK_SIZE', '0x400')
-linker_cfg.set('RAM_ORIGIN', '0x20000000')
-linker_cfg.set('RAM_SIZE', get_option('ram_size'))
-linker_cfg.set('FLASH_ORIGIN', '0x8000000')
-linker_cfg.set('FLASH_SIZE', get_option('flash_size'))
-# if mcu uses ccram need to add this section to .ld
-
-configure_file(
-    input: 'linker.ld.in',
-    output: 'linker.ld',
-    configuration: linker_cfg,
-)
-
 compile_args = []
 compile_args += '-DUSE_FULL_ASSERT'
 compile_args += '-DDEFAULT_LOG_LEVEL=@0@'.format(get_option('default_log_level'))
@@ -41,7 +26,8 @@ if get_option('buildtype') == 'debug'
 endif
 
 link_args = []
-link_args += ['-T' + meson.current_build_dir() / 'linker.ld']
+link_args += '-Wl,--defsym=RAM_SIZE=@0@K'.format(get_option('ram_size'))
+link_args += ['-T', meson.current_source_dir() / 'linker.ld']
 link_args += '-lc'
 
 if get_option('enable_semihosting')

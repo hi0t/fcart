@@ -15,6 +15,13 @@ static inline void led_on(bool on)
 }
 
 /**
+ * @brief Sets the interval for the LED to blink.
+ *
+ * @param interval_ms Blink interval in milliseconds. Set to 0 to disable blinking.
+ */
+void set_blink_interval(uint32_t interval_ms);
+
+/**
  * @brief Periodically polls GPIO pins to detect button presses and SD card presence.
  *
  * This function should be called regularly (e.g., from a timer interrupt or main loop).
@@ -47,7 +54,7 @@ void set_sd_callback(void (*cb)(bool));
  *
  * @return true if the SD card is present, false otherwise
  */
-bool sd_is_present();
+bool is_sd_present();
 
 /**
  * @brief Checks if an interrupt has been called.
