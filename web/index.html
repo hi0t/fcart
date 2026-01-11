@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <link rel="stylesheet" href="pico.min.css">
+    <title>fcart flasher</title>
+</head>
+
+<body>
+    <main class="container">
+        <h1>fcart flasher</h1>
+
+        <article>
+            <header><strong>Flash firmware</strong></header>
+            <p>
+                <strong>Instructions:</strong>
+            <ol>
+                <li>Hold the button on the cartridge.</li>
+                <li>While holding the button, connect the USB cable. The device will enter DFU mode.</li>
+                <li>Click the button below, then select the device in the popup window to start flashing.</li>
+            </ol>
+            <p>
+                <small>
+                    <strong>Windows Users:</strong> You may need to install the WinUSB driver for the "STM32 BOOTLOADER"
+                    device using <a href="https://zadig.akeo.ie/" target="_blank">Zadig</a> if the device does not
+                    appear or fails to connect.
+                </small>
+            </p>
+
+            <button id="autoFlashBtn">Download & Flash Latest</button>
+
+            <hr>
+
+            <details>
+                <summary><strong>Advanced: Flash Local File</strong></summary>
+                <label for="fileInput">Select Firmware File (.bin)</label>
+                <input type="file" id="fileInput" accept=".bin">
+                <button id="manualFlashBtn" class="secondary">Flash Local File</button>
+            </details>
+
+            <label for="progressBar">Progress:</label>
+            <progress id="progressBar" value="0" max="100"></progress>
+
+            <pre id="log">Log output...</pre>
+        </article>
+    </main>
+
+    <script type="module">
+        import { DFULoader } from './dfu.js';
+
+        const autoFlashBtn = document.getElementById('autoFlashBtn');
+        const manualFlashBtn = document.getElementById('manualFlashBtn');
+        const fileInput = document.getElementById('fileInput');
+        const progressBar = document.getElementById('progressBar');
+        const logEl = document.getElementById('log');
+
+        const FIRMWARE_URL = "https://github.com/hi0t/fcart/releases/download/dummy/fcart_bootloader.bin";
+
+        function log(message) {
+            logEl.textContent += message + '\n';
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        // Define the progress handler
+        function updateProgress(percent) {
+            progressBar.value = percent;
+        }
+
+        autoFlashBtn.addEventListener('click', async () => {
+            const dfu = new DFULoader();
+            dfu.setLogger(log);
+            dfu.setProgressCallback(updateProgress);
+
+            try {
+                log("Starting auto-flash process...");
+                // 1. Connect
+                log("Please select the STM32 DFU device in the popup.");
+                await dfu.connect();
+
+                // 2. Download firmware
+                log(`Downloading firmware from ${FIRMWARE_URL}...`);
+                const response = await fetch(FIRMWARE_URL);
+                if (!response.ok) {
+                    throw new Error(`Download failed: ${response.status} ${response.statusText}`);
+                }
+                const data = await response.arrayBuffer();
+                log(`Downloaded ${data.byteLength} bytes.`);
+
+                //
+                await dfu.runUpdateSequence(data);
+            } catch (error) {
+                log("Error: " + (error.message || error));
+            }
+        });
+
+        manualFlashBtn.addEventListener('click', async () => {
+            if (fileInput.files.length === 0) {
+                alert("Please select a firmware file first.");
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+
+            reader.onload = async function (e) {
+                const data = e.target.result;
+                const dfu = new DFULoader();
+                dfu.setLogger(log);
+                dfu.setProgressCallback(updateProgress);
+
+                try {
+                    log("Starting manual flash...");
+                    log("Please select the STM32 DFU device in the popup.");
+                    await dfu.connect();
+
+                    await dfu.runUpdateSequence(data);
+                } catch (error) {
+                    log("Error: " + (error.message || error));
+                }
+            };
+
+            reader.readAsArrayBuffer(file);
+        });
+    </script>
+</body>
+
+</html>

@@ -1,4 +1,4 @@
-# Open source flash cartridge for Fami
+# Open source flash cartridge for FC
 
 **⚠️ This project is currently in active development stage**
 
@@ -8,7 +8,7 @@
 - **MachXO2 FPGA** - Main logic implemented in Lattice MachXO2 FPGA
 - **ARM processor** - Dedicated ARM processor handles ROM loading from SD card and system management
 - **Simple PCB design** - Circuit design optimized for hand assembly and DIY builds
-- **USB programming port** - USB interface for firmware updates and development
+- **USB programming port** - USB interface for firmware updates
 
 ## Current Status
 
