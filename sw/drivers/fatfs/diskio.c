@@ -2,6 +2,8 @@
 #include "internal.h"
 #include "log.h"
 
+#ifdef ENABLE_SD_FS
+
 LOG_MODULE(diskio);
 
 #define SD_TIMEOUT 10 * 1000U
@@ -217,3 +219,5 @@ void HAL_SD_ErrorCallback(SD_HandleTypeDef *hsd)
     UNUSED(hsd);
     transmit = false;
 }
+
+#endif // ENABLE_SD_FS

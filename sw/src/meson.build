@@ -14,6 +14,7 @@ src = files(
 fcart_sw = declare_dependency(
     sources: src,
     dependencies: drivers_dep,
+    compile_args: ['-DENABLE_SD_FS', '-DCFG_TUD_CDC=1'],
     link_args: [
         '-Wl,--defsym=FLASH_ORIGIN=0x8010000',
         '-Wl,--defsym=FLASH_SIZE=@0@K'.format(get_option('flash_size') - 64),

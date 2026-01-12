@@ -33,7 +33,9 @@ void hw_init()
     gpio_init();
     dma_init();
     qspi_init();
+#ifdef ENABLE_SD_FS
     sdio_init();
+#endif
     rtc_init();
     spi_init();
     tim6_init();

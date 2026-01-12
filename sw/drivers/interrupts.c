@@ -54,11 +54,13 @@ void QUADSPI_IRQHandler(void)
     HAL_QSPI_IRQHandler(&p->hqspi);
 }
 
+#ifdef ENABLE_SD_FS
 void SDIO_IRQHandler()
 {
     struct peripherals *p = get_peripherals();
     HAL_SD_IRQHandler(&p->hsdio);
 }
+#endif
 
 void SPI1_IRQHandler()
 {
