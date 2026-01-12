@@ -1,4 +1,4 @@
-project('stm32-hal-f4', version: '1.8.3', meson_version: '>=1.1.0')
+project('stm32-hal-f4', version: '1.8.5', meson_version: '>=1.1.0')
 
 family = 'F4'
 

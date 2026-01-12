@@ -2,6 +2,7 @@
 #include "internal.h"
 #include "log.h"
 #include <errno.h>
+#include <tusb.h>
 
 LOG_MODULE(soc);
 
@@ -15,6 +16,7 @@ static void sdio_init();
 static void rtc_init();
 static void spi_init();
 static void tim6_init();
+static void usb_init();
 
 #ifdef ENABLE_SEMIHOSTING
 extern void initialise_monitor_handles();
@@ -35,8 +37,12 @@ void hw_init()
     rtc_init();
     spi_init();
     tim6_init();
+    usb_init();
 
     HAL_TIM_Base_Start(&dev.htim6);
+
+    tusb_rhport_init_t dev_init = { .role = TUSB_ROLE_DEVICE, .speed = TUSB_SPEED_AUTO };
+    tusb_init(BOARD_TUD_RHPORT, &dev_init);
 }
 
 void delay_us(uint16_t us)
@@ -255,6 +261,27 @@ static void tim6_init()
     };
     if ((rc = HAL_TIMEx_MasterConfigSynchronization(&dev.htim6, &master)) != HAL_OK) {
         LOG_ERR("HAL_TIMEx_MasterConfigSynchronization() failed: %d", rc);
+        LOG_PANIC();
+    }
+}
+
+static void usb_init()
+{
+    HAL_StatusTypeDef rc;
+
+    dev.hpcd.Instance = USB_OTG_FS;
+    dev.hpcd.Init.dev_endpoints = 6;
+    dev.hpcd.Init.speed = PCD_SPEED_FULL;
+    dev.hpcd.Init.dma_enable = DISABLE;
+    dev.hpcd.Init.phy_itface = PCD_PHY_EMBEDDED;
+    dev.hpcd.Init.Sof_enable = DISABLE;
+    dev.hpcd.Init.low_power_enable = DISABLE;
+    dev.hpcd.Init.lpm_enable = DISABLE;
+    dev.hpcd.Init.battery_charging_enable = DISABLE;
+    dev.hpcd.Init.vbus_sensing_enable = DISABLE;
+    dev.hpcd.Init.use_dedicated_ep1 = DISABLE;
+    if ((rc = HAL_PCD_Init(&dev.hpcd)) != HAL_OK) {
+        LOG_ERR("HAL_PCD_Init() failed: %d", rc);
         LOG_PANIC();
     }
 }

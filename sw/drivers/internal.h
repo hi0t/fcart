@@ -13,6 +13,7 @@ struct peripherals {
     RTC_HandleTypeDef hrtc;
     SPI_HandleTypeDef hspi;
     TIM_HandleTypeDef htim6;
+    PCD_HandleTypeDef hpcd;
     bool lse_ready;
 };
 

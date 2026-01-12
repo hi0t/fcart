@@ -1,5 +1,6 @@
 #include <gpio.h>
 #include <soc.h>
+#include <tusb.h>
 
 static bool is_firmware_present();
 static void jump_to_application();
@@ -17,6 +18,7 @@ int main()
 
     for (;;) {
         gpio_poll();
+        tud_task();
     }
 
     return 0;

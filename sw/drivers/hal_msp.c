@@ -280,3 +280,34 @@ void HAL_TIM_Base_MspInit(TIM_HandleTypeDef *htim)
         __HAL_RCC_TIM6_CLK_ENABLE();
     }
 }
+
+void HAL_PCD_MspInit(PCD_HandleTypeDef *hpcd)
+{
+    HAL_StatusTypeDef rc;
+    GPIO_InitTypeDef gpio = {
+        .Pin = GPIO_PIN_11 | GPIO_PIN_12,
+        .Mode = GPIO_MODE_AF_PP,
+        .Pull = GPIO_NOPULL,
+        .Speed = GPIO_SPEED_FREQ_VERY_HIGH,
+        .Alternate = GPIO_AF10_OTG_FS,
+    };
+    RCC_PeriphCLKInitTypeDef clk = {
+        .PeriphClockSelection = RCC_PERIPHCLK_CLK48,
+        .Clk48ClockSelection = RCC_CLK48CLKSOURCE_PLLQ,
+    };
+
+    if (hpcd->Instance != USB_OTG_FS) {
+        return;
+    }
+
+    if ((rc = HAL_RCCEx_PeriphCLKConfig(&clk)) != HAL_OK) {
+        LOG_ERR("HAL_RCCEx_PeriphCLKConfig() failed: %d", rc);
+        LOG_PANIC();
+    }
+
+    HAL_GPIO_Init(GPIOA, &gpio);
+
+    __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
+    HAL_NVIC_SetPriority(OTG_FS_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(OTG_FS_IRQn);
+}

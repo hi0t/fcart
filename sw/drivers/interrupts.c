@@ -1,4 +1,5 @@
 #include "internal.h"
+#include <tusb.h>
 
 void NMI_Handler()
 {
@@ -63,6 +64,11 @@ void SPI1_IRQHandler()
 {
     struct peripherals *p = get_peripherals();
     HAL_SPI_IRQHandler(&p->hspi);
+}
+
+void OTG_FS_IRQHandler()
+{
+    tud_int_handler(0);
 }
 
 void DMA2_Stream0_IRQHandler()
