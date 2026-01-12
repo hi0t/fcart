@@ -270,22 +270,41 @@ static void tim6_init()
 static void usb_init()
 {
     HAL_StatusTypeDef rc;
+    GPIO_InitTypeDef gpio = {
+        .Pin = GPIO_PIN_11 | GPIO_PIN_12,
+        .Mode = GPIO_MODE_AF_PP,
+        .Pull = GPIO_NOPULL,
+        .Speed = GPIO_SPEED_FREQ_VERY_HIGH,
+        .Alternate = GPIO_AF10_OTG_FS,
+    };
+    RCC_PeriphCLKInitTypeDef clk = {
+        .PeriphClockSelection = RCC_PERIPHCLK_CLK48,
+        .Clk48ClockSelection = RCC_CLK48CLKSOURCE_PLLQ,
+    };
 
-    dev.hpcd.Instance = USB_OTG_FS;
-    dev.hpcd.Init.dev_endpoints = 6;
-    dev.hpcd.Init.speed = PCD_SPEED_FULL;
-    dev.hpcd.Init.dma_enable = DISABLE;
-    dev.hpcd.Init.phy_itface = PCD_PHY_EMBEDDED;
-    dev.hpcd.Init.Sof_enable = DISABLE;
-    dev.hpcd.Init.low_power_enable = DISABLE;
-    dev.hpcd.Init.lpm_enable = DISABLE;
-    dev.hpcd.Init.battery_charging_enable = DISABLE;
-    dev.hpcd.Init.vbus_sensing_enable = DISABLE;
-    dev.hpcd.Init.use_dedicated_ep1 = DISABLE;
-    if ((rc = HAL_PCD_Init(&dev.hpcd)) != HAL_OK) {
-        LOG_ERR("HAL_PCD_Init() failed: %d", rc);
+// VBUS Sensing setup
+#ifdef ENABLE_USB_VBUS_SENSING
+    // Enable HW VBUS sensing
+    USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBDEN;
+#else
+    // Deactivate VBUS Sensing B
+    USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_VBDEN;
+
+    // B-peripheral session valid override enable
+    USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOEN;
+    USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
+#endif
+
+    if ((rc = HAL_RCCEx_PeriphCLKConfig(&clk)) != HAL_OK) {
+        LOG_ERR("HAL_RCCEx_PeriphCLKConfig() failed: %d", rc);
         LOG_PANIC();
     }
+
+    HAL_GPIO_Init(GPIOA, &gpio);
+
+    __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
+    HAL_NVIC_SetPriority(OTG_FS_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(OTG_FS_IRQn);
 }
 
 struct peripherals *get_peripherals()
