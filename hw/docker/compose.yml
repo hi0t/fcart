@@ -15,8 +15,8 @@ x-app-template: &app-template
 services:
   build:
     <<: *app-template
-    working_dir: /workspace/hw/builddir
+    working_dir: /workspace/builddir
 
   bench:
     <<: *app-template
-    working_dir: /workspace/hw/builddir/bench
+    working_dir: /workspace/builddir/hw/bench

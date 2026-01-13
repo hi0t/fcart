@@ -19,7 +19,7 @@ sdc = files('fcart.sdc')
 
 rtl_sorces = [src, lpf, sdc]
 
-build_dir = meson.project_build_root()
+build_dir = meson.project_build_root() / 'hw'
 fs = import('fs')
 src_list = []
 foreach f : src

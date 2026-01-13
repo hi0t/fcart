@@ -1,4 +1,0 @@
-stm32-*/
-tinyusb/
-!packagefiles/**/
-.wraplock

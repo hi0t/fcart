@@ -1,3 +1,5 @@
+cd hw
+
 if [file exists "@PROJECT_NAME@.ldf"] {
     prj_project open "@PROJECT_NAME@.ldf"
 } else {

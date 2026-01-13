@@ -9,21 +9,16 @@ if questa_path == ''
     questa_path = []
 endif
 
-vlog = get_option('vlog_custom_cmd')
-if vlog.length() == 0
-    vlog = [find_program('vlog', 'vlog.exe', dirs: questa_path, required: true)]
-endif
-
-vsim = get_option('vsim_custom_cmd')
-if vsim.length() == 0
+if get_option('hw_use_docker')
+    py = import('python').find_installation(required: true)
+    docker_cmd = meson.project_source_root() / 'hw/docker/docker_cmd.py'
+    vlog_exe = [py, docker_cmd, 'build', 'vlog']
+    vsim_exe = py
+    vsim_args = [docker_cmd, 'bench', 'vsim']
+else
+    vlog_exe = [find_program('vlog', 'vlog.exe', dirs: questa_path, required: true)]
     vsim_exe = find_program('vsim', 'vsim.exe', dirs: questa_path, required: true)
     vsim_args = []
-else
-    vsim_exe = find_program(vsim[0], required: true)
-    vsim_args = []
-    foreach i : range(1, vsim.length())
-        vsim_args += vsim[i]
-    endforeach
 endif
 
 fs = import('fs')
@@ -32,10 +27,10 @@ work = custom_target(
     'sim_work',
     build_always_stale: true,
     command: [
-        vlog,
+        vlog_exe,
         '+libext+.sv+.vp+.v',
         '-work', '@OUTPUT@',
-        '-y', fs.relative_to(meson.project_source_root() / 'src', build_dir),
+        '-y', fs.relative_to(meson.project_source_root() / 'hw' / 'src', build_dir),
         '-y', fs.relative_to(meson.current_source_dir(), build_dir),
         '@INPUT@',
     ],

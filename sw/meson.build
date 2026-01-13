@@ -1,13 +1,3 @@
-project(
-    'fcart-sw',
-    'c',
-    version: '0.1',
-    default_options: ['b_ndebug=if-release'],
-    meson_version: '>=1.1.0',
-)
-
-fs = import('fs')
-
 assert(
     meson.is_cross_build(),
     'fcart-sw must be cross-compiled. Add --cross-file=build.ini to meson command line',
@@ -21,7 +11,6 @@ subdir('bootloader')
 subdir('src')
 
 size = find_program('size')
-objcopy = find_program('objcopy')
 
 fcart_elf = executable(
     'fcart.elf',
@@ -39,8 +28,18 @@ bootloader_elf = executable(
     dependencies: bootloader_sw,
 )
 
+objcopy = find_program('objcopy', native: false, required: true)
+custom_target(
+    'bootloader.bin',
+    output: 'bootloader.bin',
+    command: [objcopy, '-O', 'binary', '@INPUT@', '-S', '@OUTPUT@'],
+    input: bootloader_elf,
+    build_by_default: true,
+)
+
 run_target(
     'bootloader_size',
     command: [size, bootloader_elf.full_path(), '-B'],
     depends: bootloader_elf,
 )
+

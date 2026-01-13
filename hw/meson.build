@@ -1,45 +1,45 @@
-project(
-    'fcart-hw',
-    version: '0.1',
-    meson_version: '>=1.3',
-)
-
 diamond_prj = 'fcart'
 
 subdir('bench')
 subdir('src')
 subdir('launcher')
 
+py = import('python').find_installation(required: true)
+
 diamond_path = get_option('diamond_search_path')
 if diamond_path == ''
     diamond_path = []
 endif
 
-diamondc = get_option('diamondc_custom_cmd')
-if diamondc.length() == 0
-    diamondc = [
-        find_program('pnmainc.exe', 'diamondc', dirs: diamond_path, required: true),
+if get_option('hw_use_docker')
+    diamondc_cmd = [
+        py,
+        meson.project_source_root() / 'hw/docker/docker_cmd.py',
+        'build',
+        'diamondc',
     ]
+else
+    diamondc = find_program('pnmainc.exe', 'diamondc', dirs: diamond_path, required: true)
+    diamondc_cmd = [diamondc]
 endif
 
 bit = custom_target(
     f'@diamond_prj@.bit',
     input: tcl,
     output: f'@diamond_prj@.bit',
-    command: [diamondc, '@INPUT@'],
+    command: diamondc_cmd + ['@INPUT@'],
     depend_files: rtl_sorces,
     depends: launcher_mem,
     console: true,
 )
 
-py = import('python').find_installation(required: true)
 run_target(
     'summary',
     command: [
         py.full_path(),
         files('summary.py'),
-        'impl/automake.log',
-        'impl/fcart_impl.twr',
+        'hw/impl/automake.log',
+        'hw/impl/fcart_impl.twr',
     ],
     depends: bit,
 )

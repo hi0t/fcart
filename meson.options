@@ -1,3 +1,4 @@
+# SW (Firmware) options
 option('pinctrl', type: 'array', description: ' Pin control')
 option('heap_size', type: 'string', description: 'Heap size')
 option('stack_size', type: 'string', description: 'Stack size')
@@ -27,4 +28,36 @@ option(
     type: 'boolean',
     value: false,
     description: 'Enable semihosting',
+)
+
+# HW (FPGA) options
+option(
+    'diamond_search_path',
+    type: 'string',
+    description: 'Path to Lattice Diamond binary',
+)
+option(
+    'questa_search_path',
+    type: 'string',
+    description: 'Path to Questasim binary',
+)
+option(
+    'device',
+    type: 'string',
+    value: 'LCMXO2-4000HC-4TG144C',
+    description: 'FPGA device',
+)
+
+option(
+    'hw_use_docker',
+    type: 'boolean',
+    value: true,
+    description: 'Run FPGA tools and simulations in Docker containers',
+)
+
+option(
+    'fpga_cable',
+    type: 'string',
+    value: 'ft2232',
+    description: 'FPGA cable type',
 )
