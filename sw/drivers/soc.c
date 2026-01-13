@@ -12,7 +12,9 @@ static void system_clock_init();
 static void gpio_init();
 static void dma_init();
 static void qspi_init();
+#ifdef ENABLE_SD_FS
 static void sdio_init();
+#endif
 static void rtc_init();
 static void spi_init();
 static void tim6_init();
@@ -191,6 +193,7 @@ static void qspi_init()
     }
 }
 
+#ifdef ENABLE_SD_FS
 static void sdio_init()
 {
     dev.hsdio.Instance = SDIO;
@@ -201,6 +204,7 @@ static void sdio_init()
     dev.hsdio.Init.HardwareFlowControl = SDIO_HARDWARE_FLOW_CONTROL_DISABLE;
     dev.hsdio.Init.ClockDiv = 0; // SDIO_CLK = SDIO_MUX / (ClockDiv + 2)
 }
+#endif
 
 static void rtc_init()
 {

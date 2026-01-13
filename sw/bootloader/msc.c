@@ -1,3 +1,4 @@
+#include "virt_fat.h"
 #include <tusb.h>
 
 // Invoked when received SCSI_CMD_INQUIRY, v2 with full inquiry response
@@ -23,7 +24,6 @@ uint32_t tud_msc_inquiry2_cb(uint8_t lun, scsi_inquiry_resp_t *inquiry_resp, uin
 bool tud_msc_test_unit_ready_cb(uint8_t lun)
 {
     (void)lun;
-
     return true;
 }
 
@@ -32,8 +32,8 @@ bool tud_msc_test_unit_ready_cb(uint8_t lun)
 void tud_msc_capacity_cb(uint8_t lun, uint32_t *block_count, uint16_t *block_size)
 {
     (void)lun;
-    *block_count = 1;
-    *block_size = 512;
+    *block_count = virt_fat_get_block_count();
+    *block_size = virt_fat_get_block_size();
 }
 
 // Invoked when received Start Stop Unit command
@@ -45,7 +45,6 @@ bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, boo
     (void)power_condition;
     (void)start;
     (void)load_eject;
-
     return true;
 }
 
@@ -54,17 +53,34 @@ bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, boo
 int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void *buffer, uint32_t bufsize)
 {
     (void)lun;
-    (void)lba;
     (void)offset;
-    (void)buffer;
 
-    return 0;
+    // We assume offset is 0 and block-aligned reads usually
+    // But for robustness, we should respect lba + size.
+    // Given the simple API of virt_fat_read (reads 1 block), we iterate.
+
+    uint8_t *buf = (uint8_t *)buffer;
+    uint32_t bytes_read = 0;
+
+    // We assume buffer is large enough for bufsize
+    // We assume offset is 0 for simplicity in this implementation,
+    // real MSC stack usually requests full blocks.
+
+    uint16_t block_size = virt_fat_get_block_size();
+
+    while (bytes_read < bufsize) {
+        virt_fat_read(lba, buf + bytes_read);
+        bytes_read += block_size;
+        lba++;
+    }
+
+    return bytes_read;
 }
 
 bool tud_msc_is_writable_cb(uint8_t lun)
 {
     (void)lun;
-    return false;
+    return true;
 }
 
 // Callback invoked when received WRITE10 command.
@@ -73,10 +89,20 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t *
 {
     (void)lun;
     (void)lba;
-    (void)offset;
-    (void)buffer;
+    (void)offset; // Assume 0
 
-    return 0;
+    // We always return success to the host to allow the OS to perform its
+    // metadata writes (which we silently ignore) without throwing errors.
+    virt_fat_write(buffer, bufsize);
+
+    return bufsize;
+}
+
+// Invoked when WRITE10 command is complete (all data written)
+void tud_msc_write10_complete_cb(uint8_t lun)
+{
+    (void)lun;
+    virt_fat_flush();
 }
 
 // Callback invoked when received an SCSI command not in built-in list below

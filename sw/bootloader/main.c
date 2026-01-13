@@ -1,3 +1,4 @@
+#include "uf2.h"
 #include <gpio.h>
 #include <soc.h>
 #include <tusb.h>
@@ -22,6 +23,14 @@ int main()
     }
 
     return 0;
+}
+
+void bootloader_flash_success_cb()
+{
+    // Flash completed successfully.
+    // Turn on the LED permanently to indicate success.
+    set_blink_interval(0);
+    led_on(true);
 }
 
 // Check if valid firmware is present at APP_ADDRESS

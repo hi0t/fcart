@@ -27,13 +27,7 @@ fcart_elf = executable(
     'fcart.elf',
     dependencies: fcart_sw,
 )
-custom_target(
-    output: fs.replace_suffix(fcart_elf.name(), '.bin'),
-    input: fcart_elf,
-    command: [objcopy, ['-O', 'binary', '-S', '@INPUT@', '@OUTPUT@']],
-    depends: fcart_elf,
-    build_by_default: true,
-)
+
 run_target(
     'fcart_size',
     command: [size, fcart_elf.full_path(), '-B'],
@@ -45,13 +39,6 @@ bootloader_elf = executable(
     dependencies: bootloader_sw,
 )
 
-custom_target(
-    output: fs.replace_suffix(bootloader_elf.name(), '.bin'),
-    input: bootloader_elf,
-    command: [objcopy, ['-O', 'binary', '-S', '@INPUT@', '@OUTPUT@']],
-    depends: bootloader_elf,
-    build_by_default: true,
-)
 run_target(
     'bootloader_size',
     command: [size, bootloader_elf.full_path(), '-B'],
