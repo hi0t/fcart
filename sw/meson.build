@@ -42,4 +42,3 @@ run_target(
     command: [size, bootloader_elf.full_path(), '-B'],
     depends: bootloader_elf,
 )
-

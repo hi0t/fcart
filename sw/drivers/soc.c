@@ -71,6 +71,18 @@ uint32_t uptime_ms()
     return HAL_GetTick();
 }
 
+bool get_sw_version(uint32_t base_addr, uint8_t *major, uint8_t *minor)
+{
+    uint32_t *p = (uint32_t *)(base_addr + 0x200);
+    if (p[0] != APP_HEADER_MAGIC) { // "FCRT"
+        return false;
+    }
+    uint8_t *v = (uint8_t *)(p + 1);
+    *major = v[0];
+    *minor = v[1];
+    return true;
+}
+
 static void system_clock_init()
 {
     HAL_StatusTypeDef rc;

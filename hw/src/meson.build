@@ -9,7 +9,7 @@ src = files(
     'prg_ram.sv',
     'qspi.sv',
     'sdram.sv',
-    'snd_dac.sv'
+    'snd_dac.sv',
 )
 
 subdir('mappers')
@@ -37,5 +37,6 @@ tcl = configure_file(
         'SRL_LIST': '\n'.join(src_list),
         'TOP_MODULE': diamond_prj,
         'STRATEGY': get_option('debug') ? 'Debug' : 'Release',
+        'VERSION': meson.project_version(),
     },
 )

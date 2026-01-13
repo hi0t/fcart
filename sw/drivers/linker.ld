@@ -56,6 +56,18 @@ SECTIONS
     . = ALIGN(4);
   } >FLASH
 
+  /* Application Header */
+  .app_header (READONLY) :
+  {
+    . = ORIGIN(FLASH) + 0x200;
+    __app_header_start__ = .;
+    LONG(APP_HEADER_MAGIC);
+    BYTE(PROJECT_VERSION_MAJOR);
+    BYTE(PROJECT_VERSION_MINOR);
+    __app_header_end__ = .;
+    . = ALIGN(4);
+  } >FLASH
+
   /* The program code and other data goes into FLASH */
   .text :
   {

@@ -1,3 +1,7 @@
+`ifndef FCART_VERSION
+`define FCART_VERSION 16'h0000
+`endif
+
 module api (
     input  logic clk,
     input  logic reset,
@@ -17,6 +21,7 @@ module api (
     input logic wr_valid,
     input logic start
 );
+    localparam [15:0] VERSION = `FCART_VERSION;
     localparam CMD_READ_MEM = 8'd0;
     localparam CMD_WRITE_MEM = 8'd1;
     localparam CMD_READ_REG = 8'd2;
@@ -135,6 +140,14 @@ module api (
                                 2'd1: wr_data <= ev_reg[15:8];
                                 2'd2: wr_data <= ev_reg[23:16];
                                 2'd3: wr_data <= ev_reg[31:24];
+                            endcase
+                        end
+                        4'd2: begin
+                            case (byte_cnt)
+                                2'd0: wr_data <= VERSION[7:0];
+                                2'd1: wr_data <= VERSION[15:8];
+                                2'd2: wr_data <= 8'd0;
+                                2'd3: wr_data <= 8'd0;
                             endcase
                         end
                         default: wr_data <= 8'd0;

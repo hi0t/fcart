@@ -28,11 +28,16 @@ prj_strgy set_value -strategy Release \
     par_routeing_pass=100
 
 prj_impl option top @TOP_MODULE@
+
+scan "@VERSION@" "%d.%d" major minor
+set version_hex [format "16'h%02x%02x" $major $minor]
+
+set DIRECTIVES "FCART_VERSION=$version_hex"
 if {"@STRATEGY@"=="Debug"} {
-    prj_impl option VERILOG_DIRECTIVES DEBUG
-} else {
-    prj_impl option -rem VERILOG_DIRECTIVES
+    append DIRECTIVES " DEBUG"
 }
+prj_impl option VERILOG_DIRECTIVES "$DIRECTIVES"
+
 prj_project save
 prj_run Export -impl impl -task Bitgen
 prj_project close

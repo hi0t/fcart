@@ -7,6 +7,18 @@ option('ram_size', type: 'integer', description: 'RAM size')
 option('flash_origin', type: 'string', description: 'Flash origin')
 option('flash_size', type: 'integer', description: 'Flash size')
 option('hse_freq', type: 'string', description: 'HSE frequency')
+option('bootloader_size', type: 'integer', description: 'Bootloader size')
+option(
+    'bootloader_address',
+    type: 'string',
+    description: 'Bootloader start address',
+)
+option('app_address', type: 'string', description: 'Application start address')
+option(
+    'app_header_magic',
+    type: 'string',
+    description: 'Application header magic number',
+)
 option(
     'pll_divm',
     type: 'integer',

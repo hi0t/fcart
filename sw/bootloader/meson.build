@@ -1,11 +1,32 @@
-bootloader = files('main.c', 'msc.c', 'virt_fat.c', 'uf2.c', 'fpga_cfg.c')
+bootloader_version = '0.1'
+
+bootloader = files(
+    'fpga_cfg.c',
+    'main.c',
+    'msc.c',
+    'uf2.c',
+    'virt_fat.c',
+)
+
+compile_args = [
+    '-DBOOTLOADER_ADDRESS=@0@'.format(get_option('bootloader_address')),
+    '-DAPP_ADDRESS=@0@'.format(get_option('app_address')),
+]
+if get_option('buildtype') == 'debug'
+    compile_args += ['-O1']
+endif
+
+ver = bootloader_version.split('.')
 
 bootloader_sw = declare_dependency(
     sources: bootloader,
     dependencies: drivers_dep,
-    compile_args: ['-DAPP_ADDRESS=0x08010000'],
+    compile_args: compile_args,
     link_args: [
-        '-Wl,--defsym=FLASH_ORIGIN=0x8000000',
-        '-Wl,--defsym=FLASH_SIZE=64K',
+        '-Wl,--defsym=FLASH_ORIGIN=@0@'.format(get_option('bootloader_address')),
+        '-Wl,--defsym=FLASH_SIZE=@0@K'.format(get_option('bootloader_size')),
+        '-Wl,--defsym=APP_HEADER_MAGIC=@0@'.format(get_option('app_header_magic')),
+        '-Wl,--defsym=PROJECT_VERSION_MAJOR=@0@'.format(ver[0]),
+        '-Wl,--defsym=PROJECT_VERSION_MINOR=@0@'.format(ver[1]),
     ],
 )

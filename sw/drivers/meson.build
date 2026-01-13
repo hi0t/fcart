@@ -11,6 +11,7 @@ drivers_src = files(
 )
 
 compile_args = []
+compile_args += '-DAPP_HEADER_MAGIC=@0@'.format(get_option('app_header_magic'))
 compile_args += '-DUSE_FULL_ASSERT'
 compile_args += '-DDEFAULT_LOG_LEVEL=@0@'.format(get_option('default_log_level'))
 compile_args += '-DHSE_VALUE=@0@'.format(get_option('hse_freq'))
@@ -24,7 +25,7 @@ endforeach
 compile_args += '-DCFG_TUSB_MCU=OPT_MCU_STM32F4'
 
 if get_option('buildtype') == 'debug'
-    compile_args += ['-g', '-gdwarf-2']
+    compile_args += ['-g3', '-gdwarf-2']
 endif
 
 link_args = []

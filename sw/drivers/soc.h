@@ -43,3 +43,16 @@ void delay_ms(uint16_t ms);
  * @return The system uptime in milliseconds.
  */
 uint32_t uptime_ms();
+
+/**
+ * @brief Retrieves the software version from the application header in flash.
+ *
+ * This function checks the magic number in the application header and, if valid,
+ * extracts the major and minor version numbers.
+ *
+ * @param base_addr The base address of the application in flash.
+ * @param major Pointer to store the major version number.
+ * @param minor Pointer to store the minor version number.
+ * @return true if the magic number is valid and version is retrieved, false otherwise.
+ */
+bool get_sw_version(uint32_t base_addr, uint8_t *major, uint8_t *minor);
