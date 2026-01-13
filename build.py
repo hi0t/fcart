@@ -43,9 +43,8 @@ def main():
     uf2_path = os.path.join(BUILD_DIR, f"{TARGET}.uf2")
 
     # ELF -> BIN
-    if not os.path.exists(bin_path):
-        print("Converting ELF to BIN...")
-        run_command(f"arm-none-eabi-objcopy -O binary {elf_path} -S {bin_path}")
+    print("Converting ELF to BIN...")
+    run_command(f"arm-none-eabi-objcopy -O binary {elf_path} -S {bin_path}")
 
     # BIN -> UF2
     print(f"Generating {uf2_path}...")
@@ -60,39 +59,56 @@ def main():
 
         # Target address (see sw/bootloader/meson.build)
         APP_ADDRESS = 0x08010000
+        FPGA_ADDRESS = 0x09000000
 
         with open(bin_path, "rb") as f:
-            content = f.read()
+            fw_content = f.read()
 
-        num_blocks = (len(content) + 255) // 256
+        bit_path = os.path.join("hw", "builddir", "fcart.bit")
+        bit_content = b""
+        if os.path.exists(bit_path):
+            with open(bit_path, "rb") as f:
+                bit_content = f.read()
+        else:
+            print(f"Warning: Bitstream {bit_path} not found")
+
+        fw_blocks = (len(fw_content) + 255) // 256
+        bit_blocks = (len(bit_content) + 255) // 256
+        total_blocks = fw_blocks + bit_blocks
 
         with open(uf2_path, "wb") as f:
-            for blockno in range(num_blocks):
-                ptr = 256 * blockno
-                chunk = content[ptr : ptr + 256]
-
-                # Header
+            # Helper to write block
+            def write_block(f, data, addr, blockno, num_blocks):
                 hd = struct.pack(
                     "<IIIIIIII",
                     UF2_MAGIC_START0,
                     UF2_MAGIC_START1,
                     FLAGS,
-                    APP_ADDRESS + ptr,
-                    256,  # payload size
+                    addr,
+                    256,
                     blockno,
                     num_blocks,
                     FAMILY_ID_STM32F4,
                 )
-
-                # Data (padded to 476 bytes)
-                data_padded = chunk + b"\x00" * (476 - len(chunk))
-
-                # Footer
+                data_padded = data + b"\x00" * (476 - len(data))
                 ft = struct.pack("<I", UF2_MAGIC_END)
-
                 f.write(hd + data_padded + ft)
 
-        print(f"Successfully created {uf2_path}")
+            # Write Firmware
+            for i in range(fw_blocks):
+                ptr = 256 * i
+                chunk = fw_content[ptr : ptr + 256]
+                write_block(f, chunk, APP_ADDRESS + ptr, i, total_blocks)
+
+            # Write FPGA
+            for i in range(bit_blocks):
+                ptr = 256 * i
+                chunk = bit_content[ptr : ptr + 256]
+                write_block(f, chunk, FPGA_ADDRESS + ptr, fw_blocks + i, total_blocks)
+
+        print(
+            f"Successfully created {uf2_path} with {fw_blocks} FW blocks and {bit_blocks} FPGA blocks"
+        )
 
     except Exception as e:
         print(f"Failed to create UF2: {e}")

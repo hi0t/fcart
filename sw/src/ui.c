@@ -15,7 +15,6 @@
 #define VISIBLE_ROWS ROWS - 4
 
 static bool on_menu;
-static bool sd_mounted;
 static bool usb_mode;
 static FATFS fs;
 static struct dirlist_entry screen_list[VISIBLE_ROWS];

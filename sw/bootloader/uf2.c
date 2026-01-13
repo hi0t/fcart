@@ -1,4 +1,5 @@
 #include "uf2.h"
+#include "fpga_cfg.h"
 #include <stm32f4xx_hal.h>
 #include <string.h>
 
@@ -30,6 +31,7 @@ static uint32_t erased_sectors_mask;
 static uint8_t first_block_buf[512];
 static bool has_buffered_first_block;
 static bool transfer_complete;
+static bool fpga_programming_active;
 
 static uint32_t get_sector(uint32_t address)
 {
@@ -74,6 +76,17 @@ static bool write_uf2_content(UF2_Block *uf2)
 {
     uint32_t addr = uf2->targetAddr;
     uint32_t size = uf2->payloadSize;
+
+    // Check for FPGA bitstream address (0x09000000)
+    if ((addr & 0xFF000000) == 0x09000000) {
+        if (!fpga_programming_active) {
+            if (fpga_cfg_start() != 0) {
+                return false;
+            }
+            fpga_programming_active = true;
+        }
+        return fpga_cfg_write(uf2->data, size) == 0;
+    }
 
     // Bootloader protection
     if (addr < APP_ADDRESS) {
@@ -122,6 +135,7 @@ void uf2_write_block(const uint8_t *data)
         erased_sectors_mask = 0;
         has_buffered_first_block = false;
         transfer_complete = false;
+        fpga_programming_active = false;
         // Buffer first block to write it at the end.
         // This ensures that if flashing fails in the middle, the old firmware
         // (or at least its start) might still be somewhat preserved,
@@ -151,6 +165,10 @@ void uf2_on_write_complete()
     if (transfer_complete) {
         if (has_buffered_first_block) {
             write_uf2_content((UF2_Block *)first_block_buf);
+        }
+        if (fpga_programming_active) {
+            fpga_cfg_done();
+            fpga_programming_active = false;
         }
         bootloader_flash_success_cb();
         transfer_complete = false;

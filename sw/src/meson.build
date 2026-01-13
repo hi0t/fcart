@@ -2,7 +2,6 @@ src = files(
     'dirlist.c',
     'err.c',
     'fpga_api.c',
-    'fpga_cfg.c',
     'gfx.c',
     'joypad.c',
     'main.c',

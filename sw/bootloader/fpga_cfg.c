@@ -40,7 +40,8 @@ static void dump_status(uint32_t status);
 
 int fpga_cfg_start()
 {
-    uint32_t id, status;
+    uint32_t id;
+    uint32_t status = 0;
     int rc;
 
     LOG_INF("Initializing FPGA flash...");
@@ -86,7 +87,7 @@ int fpga_cfg_write(uint8_t *data, uint32_t len)
 {
     uint8_t tail_buf[PAGE_SIZE] = { [0 ... PAGE_SIZE - 1] = 0xFF };
     uint8_t *tx;
-    uint32_t status;
+    uint32_t status = 0;
     int rc;
 
     LOG_INF("Writing %u bytes to FPGA flash", len);
