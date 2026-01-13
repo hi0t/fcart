@@ -3,6 +3,7 @@
 #include <ff.h>
 #include <gpio.h>
 #include <soc.h>
+#include <tusb.h>
 
 static void fpga_file_cfg(const char *filename)
 {
@@ -44,6 +45,7 @@ int main()
     for (;;) {
         gpio_poll();
         ui_poll();
+        tud_task();
     }
 
     return 0;

@@ -16,6 +16,7 @@
 
 static bool on_menu;
 static bool sd_mounted;
+static bool usb_mode;
 static FATFS fs;
 static struct dirlist_entry screen_list[VISIBLE_ROWS];
 static uint8_t cursor_pos;
@@ -34,6 +35,16 @@ void ui_init()
     joypad_set_callback(process_input);
     joypad_can_repeat(BUTTON_UP | BUTTON_DOWN);
 }
+void ui_set_usb_mode(bool enabled)
+{
+    usb_mode = enabled;
+    if (enabled) {
+        show_message("USB Mode");
+    } else {
+        sd_state(is_sd_present());
+    }
+}
+
 void ui_poll()
 {
     bool loader_active = (fpga_api_ev_reg() & (1 << 8U)) != 0;
@@ -62,7 +73,7 @@ static void show_message(const char *msg)
 
 static void redraw_screen()
 {
-    if (!on_menu) {
+    if (!on_menu || usb_mode) {
         return;
     }
 
@@ -103,6 +114,10 @@ static void sd_state(bool present)
 
 static void process_input(uint8_t buttons)
 {
+    if (usb_mode) {
+        return;
+    }
+
     if (on_menu) {
         menu_control(buttons);
     } else {
