@@ -106,19 +106,22 @@ reset:
     forever:
         lda CTRL_REG
         sta zp_ctrl
+        beq forever         ; If 0, nothing to do
 
-        and #%00000001
-        bne halt
-
+    check_halt:
         lda zp_ctrl
-        and #%00000010
-        bne load_app
-
-        jmp forever
-
-    halt:
+        and #%00000001      ; Check bit 0
+        beq check_load      ; If 0, skip halt action
         lda #$01
-        sta zp_halt
+        sta zp_halt         ; Execute halt action
+
+    check_load:
+        lda zp_ctrl
+        and #%00000010      ; Check bit 1
+        beq end_loop        ; If 0, skip load action
+        jmp load_app        ; Execute load action
+
+    end_loop:
         jmp forever
 
     load_app:
@@ -179,7 +182,7 @@ irq:
     rti
 
 initial_palette:
-	.byte $0F,$30,$33,$21
+	.byte $0F,$30,$28,$21
 
 .segment "VECTORS"
     .addr nmi, reset, irq

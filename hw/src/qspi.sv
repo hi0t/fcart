@@ -24,6 +24,7 @@ module qspi (
     logic [3:0] upper_nibble;
     logic [2:0] start_sync, rd_sync, wr_sync;
     logic rx_done;
+    logic tx_latch;
     logic has_resp;
 
     assign qspi_reset = async_reset || qspi_ncs;
@@ -36,6 +37,7 @@ module qspi (
         end else begin
             cnt <= cnt + 3'd1;
             rx_done <= 1'b0;
+            tx_latch <= 1'b0;
 
             if (cnt[0] == 1'b0) upper_nibble <= qspi_io;
             else if (state != STATE_DUMMY && state != STATE_SEND) begin
@@ -54,6 +56,10 @@ module qspi (
 
             if (state == STATE_DUMMY && cnt == 3'd3) begin
                 state <= STATE_SEND;
+            end
+
+            if ((state == STATE_DUMMY && cnt == 3'd2) || (state == STATE_SEND && cnt[0] == 1'b0)) begin
+                tx_latch <= 1'b1;
             end
         end
     end
@@ -91,7 +97,7 @@ module qspi (
     always_ff @(posedge clk) begin
         start_sync <= {start_sync[1:0], qspi_ncs};
         rd_sync    <= {rd_sync[1:0], rx_done};
-        wr_sync    <= {wr_sync[1:0], (state == STATE_DUMMY && cnt == 3'd3) || (state == STATE_SEND && cnt[0] == 1'b1)};
+        wr_sync    <= {wr_sync[1:0], tx_latch};
     end
 
 `ifdef DEBUG

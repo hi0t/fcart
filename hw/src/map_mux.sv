@@ -108,7 +108,7 @@ module map_mux #(
     assign audio = bus_audio[select];
     assign ciram_a10 = bus_ciram_a10[select];
     assign ciram_ce = bus_ciram_ce[select];
-    assign ppu_data = ppu_oe ? ppu_data_out : 'z;
+    assign ppu_data = ppu_oe ? (video_enable || select != 0 ? ppu_data_out : '0) : 'z;
     assign chr_mask = (chr_off == '0) ? '0 : ADDR_BITS'(1 << chr_off);
 
     prg_ram prg_ram (
@@ -135,6 +135,7 @@ module map_mux #(
 
     logic [2:0] wr_reg_sync;
     logic [4:0] pending_select;
+    logic video_enable;
 
     always_ff @(negedge m2 or posedge cpu_reset) begin
         if (cpu_reset) begin
@@ -143,6 +144,7 @@ module map_mux #(
             map_args <= '0;
             launcher_buffer_num <= '0;
             launcher_load <= 0;
+            video_enable <= 0;
         end else begin
             launcher_halt <= 0;
 
@@ -153,6 +155,7 @@ module map_mux #(
                     launcher_load <= 1;
                 end else if (wr_reg_addr == REG_LAUNCHER) begin
                     {launcher_halt, launcher_buffer_num} <= wr_reg[1:0];
+                    video_enable <= !launcher_halt;
                 end
             end
 

@@ -7,7 +7,7 @@ module api_tb;
     localparam CYC = 40;  // 25MHz QSPI clock period
 
     // System clock (100MHz)
-    always #(CYC / 8) clk <= !clk;
+    always #5 clk <= !clk;
 
     // Signals
     logic reset;
