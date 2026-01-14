@@ -5,6 +5,7 @@
 
 static bool is_firmware_present();
 static void jump_to_application();
+static uint32_t eject_time = 0; // Trigger for delayed tasks
 
 int main()
 {
@@ -20,17 +21,22 @@ int main()
     for (;;) {
         gpio_poll();
         tud_task();
-    }
 
+        // Handle delayed disconnect after flashing
+        if (eject_time > 0 && uptime_ms() >= eject_time) {
+            tud_disconnect();
+            set_blink_interval(0);
+            led_on(true); // Indicate finish
+            eject_time = 0;
+        }
+    }
     return 0;
 }
 
 void bootloader_flash_success_cb()
 {
-    // Flash completed successfully.
-    // Turn on the LED permanently to indicate success.
-    set_blink_interval(0);
-    led_on(true);
+    // Schedule disconnect in 1000ms to allow host to detect removal and unmount
+    eject_time = uptime_ms() + 1000;
 }
 
 // Check if valid firmware is present at APP_ADDRESS

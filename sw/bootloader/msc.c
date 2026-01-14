@@ -19,12 +19,15 @@ uint32_t tud_msc_inquiry2_cb(uint8_t lun, scsi_inquiry_resp_t *inquiry_resp, uin
     return sizeof(scsi_inquiry_resp_t); // 36 bytes
 }
 
+// Medium has been ejected by us
+static bool msc_medium_ejected = false;
+
 // Invoked when received Test Unit Ready command.
 // return true allowing host to read/write this LUN e.g SD card inserted
 bool tud_msc_test_unit_ready_cb(uint8_t lun)
 {
     (void)lun;
-    return true;
+    return !msc_medium_ejected;
 }
 
 // Invoked when received SCSI_CMD_READ_CAPACITY_10 and SCSI_CMD_READ_FORMAT_CAPACITY to determine the disk size
@@ -43,8 +46,11 @@ bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, boo
 {
     (void)lun;
     (void)power_condition;
-    (void)start;
-    (void)load_eject;
+
+    if (load_eject && !start) {
+        msc_medium_ejected = true;
+        tud_disconnect();
+    }
     return true;
 }
 
@@ -103,6 +109,7 @@ void tud_msc_write10_complete_cb(uint8_t lun)
 {
     (void)lun;
     virt_fat_flush();
+    msc_medium_ejected = true;
 }
 
 // Callback invoked when received an SCSI command not in built-in list below
