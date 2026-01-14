@@ -57,16 +57,15 @@ int fpga_api_write_reg(enum fpga_reg_id id, uint32_t value)
     return qspi_write(CMD_WRITE_REG, id, (uint8_t *)&value, sizeof(value));
 }
 
-uint32_t fpga_api_ev_reg()
+uint32_t fpga_api_ev_reg(void)
 {
-    static uint32_t events;
-    static bool first_read = true;
+    static uint32_t cached_events;
+    static bool events_initialized;
 
-    if (!irq_called() && !first_read) {
-        return events;
+    if (irq_called() || !events_initialized) {
+        if (fpga_api_read_reg(FPGA_REG_EVENTS, &cached_events) == 0) {
+            events_initialized = true;
+        }
     }
-    if (fpga_api_read_reg(FPGA_REG_EVENTS, &events) == 0) {
-        first_read = false;
-    }
-    return events;
+    return cached_events;
 }

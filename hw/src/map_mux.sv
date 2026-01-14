@@ -135,7 +135,6 @@ module map_mux #(
 
     logic [2:0] wr_reg_sync;
     logic [4:0] pending_select;
-    logic [7:0] prev_cpu_data;
 
     always_ff @(negedge m2 or posedge cpu_reset) begin
         if (cpu_reset) begin
@@ -146,7 +145,6 @@ module map_mux #(
             launcher_load <= 0;
         end else begin
             launcher_halt <= 0;
-            prev_cpu_data <= cpu_data;
 
             wr_reg_sync   <= {wr_reg_sync[1:0], wr_reg_changed};
             if (wr_reg_sync[1] != wr_reg_sync[2]) begin
@@ -158,7 +156,7 @@ module map_mux #(
                 end
             end
 
-            if (launcher_load && cpu_data == 'hFF && prev_cpu_data == 'hFC) begin
+            if (launcher_load && cpu_addr == 'hFFFC && cpu_rw) begin
                 select <= pending_select;
                 launcher_load <= 0;
             end

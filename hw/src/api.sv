@@ -49,7 +49,8 @@ module api (
         ram_refresh <= 1'b0;
 
         if (reset) begin
-            state <= STATE_IDLE;
+            state   <= STATE_IDLE;
+            got_reg <= '1;
         end else begin
             if (start) begin
                 state <= STATE_CMD;

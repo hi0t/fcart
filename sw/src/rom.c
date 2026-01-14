@@ -3,6 +3,7 @@
 #include "fpga_api.h"
 #include <errno.h>
 #include <ff.h>
+#include <soc.h>
 #include <stddef.h>
 
 #define SIZE_8K 0x2000
