@@ -47,10 +47,11 @@ static bool is_firmware_present()
     if (msp_value == 0xFFFFFFFF) {
         return false;
     }
-    if ((msp_value & 0x2FF00000) == SRAM1_BASE) {
-        return true;
+    if ((msp_value & 0x2FF00000) != SRAM1_BASE) {
+        return false;
     }
-    return false;
+    // Also check if we can read version info
+    return get_sw_version(APP_ADDRESS, NULL, NULL);
 }
 
 // Jump to the application located at APP_ADDRESS

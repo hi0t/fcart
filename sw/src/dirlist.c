@@ -187,7 +187,7 @@ static int readdir()
         cached_entry_t entry;
         entry.addr = sdram_addr + buf_len;
         entry.is_dir = (fno.fattrib & AM_DIR) ? 1 : 0;
-        strncpy(entry.cache, fno.fname, sizeof(entry.cache));
+        memcpy(entry.cache, fno.fname, sizeof(entry.cache));
 
         arr_append(cache_entries, entry);
         if (cache_entries.items == NULL || cache_entries.count == UINT16_MAX) {

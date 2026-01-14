@@ -12,9 +12,6 @@ compile_args = [
     '-DBOOTLOADER_ADDRESS=@0@'.format(get_option('bootloader_address')),
     '-DAPP_ADDRESS=@0@'.format(get_option('app_address')),
 ]
-if get_option('buildtype') == 'debug'
-    compile_args += ['-O1']
-endif
 
 ver = bootloader_version.split('.')
 

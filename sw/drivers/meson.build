@@ -25,7 +25,9 @@ endforeach
 compile_args += '-DCFG_TUSB_MCU=OPT_MCU_STM32F4'
 
 if get_option('buildtype') == 'debug'
-    compile_args += ['-g3', '-gdwarf-2']
+    compile_args += ['-Og', '-g', '-gdwarf-2']
+elif get_option('buildtype') == 'release'
+    compile_args += ['-O2']
 endif
 
 link_args = []

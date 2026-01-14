@@ -77,6 +77,9 @@ bool get_sw_version(uint32_t base_addr, uint8_t *major, uint8_t *minor)
     if (p[0] != APP_HEADER_MAGIC) { // "FCRT"
         return false;
     }
+    if (major == NULL || minor == NULL) {
+        return true;
+    }
     uint8_t *v = (uint8_t *)(p + 1);
     *major = v[0];
     *minor = v[1];
