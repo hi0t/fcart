@@ -60,11 +60,11 @@
       ],
       "drc_exclusions": [
         [
-          "silk_edge_clearance|156125000|68000000|41fb22dd-aa69-4dfe-ac90-683bdc6d4971|53dfb540-0f30-40da-afca-118ddb6617d8",
+          "silk_edge_clearance|156125000|68000000|41fb22dd-aa69-4dfe-ac90-683bdc6d4971|18558926-ee85-4587-b86e-82529b888e4f",
           ""
         ],
         [
-          "silk_edge_clearance|170875000|68000000|41fb22dd-aa69-4dfe-ac90-683bdc6d4971|a4d07a17-10f1-46ad-85b9-df307fca5737",
+          "silk_edge_clearance|170875000|68000000|41fb22dd-aa69-4dfe-ac90-683bdc6d4971|88d5780c-ef01-4d2b-ab14-4c868c2f2eee",
           ""
         ],
         [
