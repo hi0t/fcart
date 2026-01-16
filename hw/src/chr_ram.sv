@@ -16,11 +16,12 @@ module chr_ram #(
     logic [2:0][ADDR_BITS-1:0] addr_gray;
     logic [3:0] match_addr;
 
-    initial addr_gray = '1;
     assign data_out = addr[0] ? ram.data_read[15:8] : ram.data_read[7:0];
 
     always_ff @(posedge clk) begin
         ram.req <= 1'b0;
+        // Prefetch on address setup triggered by CE before OE (read strobe)
+        // to hide SDRAM latency.
         read_sync <= {read_sync[0], ce && !oe};
         write_sync <= {write_sync[2:0], ce && we};
         addr_gray <= {addr_gray[1:0], addr ^ (addr >> 1)};

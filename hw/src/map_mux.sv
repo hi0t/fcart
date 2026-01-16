@@ -29,9 +29,10 @@ module map_mux #(
     output logic [15:0] audio
 );
     localparam MAP_CNT = 32;
+    localparam WRAM_MASK = {6'b111111, {ADDR_BITS - 6{1'b0}}};  // 128KB for any writeable CPU RAM
 
     logic cpu_reset;
-    logic [4:0] select;
+    logic [4:0] select_reg, select;
     logic [4:0] chr_off;
     logic [1:0] map_args;
     logic [ADDR_BITS-1:0] chr_mask;
@@ -40,6 +41,8 @@ module map_mux #(
     logic launcher_halt;
     logic launcher_load;
     logic [8:0] launcher_status;
+    logic video_enable;
+    logic switching;
 
     // Muxed bus signals
     logic [7:0] bus_cpu_data_out[MAP_CNT];
@@ -49,6 +52,8 @@ module map_mux #(
     logic bus_ciram_ce[MAP_CNT];
     logic [ADDR_BITS-1:0] bus_prg_addr[MAP_CNT];
     logic bus_prg_oe[MAP_CNT];
+    logic bus_prg_we[MAP_CNT];
+    logic bus_wram_ce[MAP_CNT];
     logic [ADDR_BITS-1:0] bus_chr_addr[MAP_CNT];
     logic bus_chr_ce[MAP_CNT];
     logic bus_chr_oe[MAP_CNT];
@@ -71,6 +76,11 @@ module map_mux #(
     VRC6 VRC6 (.bus(map[5]));
 
     genvar n;
+
+    // Detect the exact cycle when the reset vector is read to switch mappers instantaneously
+    assign switching = launcher_load && cpu_addr == 'hFFFC && cpu_rw;
+    assign select = switching ? pending_select : select_reg;
+
     for (n = 0; n < MAP_CNT; n = n + 1) begin
         // mux for incoming signals
         assign map[n].reset = (n != select) || cpu_reset;
@@ -93,6 +103,8 @@ module map_mux #(
         assign bus_ciram_ce[n] = map[n].ciram_ce;
         assign bus_prg_addr[n] = map[n].prg_addr;
         assign bus_prg_oe[n] = map[n].prg_oe;
+        assign bus_prg_we[n] = map[n].prg_we;
+        assign bus_wram_ce[n] = map[n].wram_ce;
         assign bus_chr_addr[n] = map[n].chr_addr;
         assign bus_chr_ce[n] = map[n].chr_ce;
         assign bus_chr_oe[n] = map[n].chr_oe;
@@ -101,7 +113,8 @@ module map_mux #(
     end
 
     // mux for outgoing signals
-    assign cpu_oe = bus_prg_oe[select];
+    // M2 gating is required to correctly coordinate bidirectional level shifters
+    assign cpu_oe = bus_prg_oe[select] && m2;
     assign ppu_oe = bus_chr_ce[select] && bus_chr_oe[select];
     assign cpu_data = cpu_oe ? (bus_custom_cpu_out[select] ? bus_cpu_data_out[select] : cpu_data_out) : 'z;
     assign irq = bus_irq[select];
@@ -114,9 +127,11 @@ module map_mux #(
     prg_ram prg_ram (
         .clk(clk),
         .ram(ch_prg),
-        .oe(bus_prg_oe[select] && !bus_custom_cpu_out[select]),
-        .addr(bus_prg_addr[select] & ADDR_BITS'((1 << chr_off) - 5'd1)),
-        .data_out(cpu_data_out)
+        .addr(bus_wram_ce[select] ? (bus_prg_addr[select] | WRAM_MASK) : (bus_prg_addr[select] & ADDR_BITS'((1 << chr_off) - 5'd1))),
+        .data_in(cpu_data),
+        .data_out(cpu_data_out),
+        .oe(bus_prg_oe[select] && m2 && !bus_custom_cpu_out[select]),
+        .we(bus_prg_we[select] && m2)
     );
 
     chr_ram chr_ram (
@@ -135,32 +150,30 @@ module map_mux #(
 
     logic [2:0] wr_reg_sync;
     logic [4:0] pending_select;
-    logic video_enable;
 
     always_ff @(negedge m2 or posedge cpu_reset) begin
         if (cpu_reset) begin
-            select <= '0;
+            select_reg <= '0;
             chr_off <= '0;
             map_args <= '0;
             launcher_buffer_num <= '0;
             launcher_load <= 0;
             video_enable <= 0;
-        end else begin
             launcher_halt <= 0;
-
-            wr_reg_sync   <= {wr_reg_sync[1:0], wr_reg_changed};
+        end else begin
+            wr_reg_sync <= {wr_reg_sync[1:0], wr_reg_changed};
             if (wr_reg_sync[1] != wr_reg_sync[2]) begin
                 if (wr_reg_addr == REG_MAPPER) begin
                     {map_args, chr_off, pending_select} <= wr_reg[11:0];
                     launcher_load <= 1;
                 end else if (wr_reg_addr == REG_LAUNCHER) begin
                     {launcher_halt, launcher_buffer_num} <= wr_reg[1:0];
-                    video_enable <= !launcher_halt;
+                    video_enable <= !wr_reg[1];
                 end
             end
 
-            if (launcher_load && cpu_addr == 'hFFFC && cpu_rw) begin
-                select <= pending_select;
+            if (switching) begin
+                select_reg <= pending_select;
                 launcher_load <= 0;
             end
         end
@@ -173,7 +186,7 @@ module map_mux #(
 
     always_ff @(posedge clk) begin
         m2_sync <= {m2_sync[1:0], m2};
-        launcher_active <= {launcher_active[0], select == 'd0};
+        launcher_active <= {launcher_active[0], select_reg == 'd0};
 
         refresh <= 1'b0;
 

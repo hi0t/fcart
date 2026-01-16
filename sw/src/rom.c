@@ -5,14 +5,17 @@
 #include <ff.h>
 #include <soc.h>
 #include <stddef.h>
+#include <string.h>
 
 #define SIZE_8K 0x2000
 #define SIZE_16K 0x4000
 #define SIZE_32K 0x8000
+#define WRAM_ADDR 0x7E0000
 
 #define max(a, b) ((a) > (b) ? (a) : (b))
 
 static bool file_reader(uint8_t *data, uint32_t size, void *arg);
+static bool const_reader(uint8_t *data, uint32_t size, void *arg);
 static uint32_t exp_size(uint32_t size);
 static uint32_t shift_size(uint8_t shift);
 static uint16_t choose_mapper(uint16_t id);
@@ -46,6 +49,8 @@ int rom_load(const char *filename)
     uint32_t chr_size = header[5];
     uint32_t chr_ram_size = 0;
     uint16_t mapper_id = (header[7] & 0xF0) | (header[6] >> 4U);
+    bool has_battery = (header[6] & 0x02) != 0;
+    uint32_t wram_size = SIZE_8K;
 
     if (nes20) {
         if ((header[9] & 0x0F) == 0x0F) {
@@ -65,6 +70,11 @@ int rom_load(const char *filename)
         mapper_id |= (header[8] & 0x0F) << 8U;
 
         chr_ram_size = shift_size(header[11] & 0x0F);
+
+        uint32_t sz = shift_size(header[10] >> 4);
+        if (sz > 0) {
+            wram_size = sz;
+        }
     } else {
         prg_size *= SIZE_16K;
         chr_size *= SIZE_8K;
@@ -82,6 +92,11 @@ int rom_load(const char *filename)
     }
     fpga_api_write_mem(0, prg_size, file_reader, &fp);
     fpga_api_write_mem(1U << chr_off, chr_size, file_reader, &fp);
+
+    if (has_battery) {
+        //  TODO: load battery-backed RAM
+        // fpga_api_write_mem(WRAM_ADDR, wram_size, const_reader, (void *)0xFF);
+    }
 
     uint32_t mapper_args = choose_mapper(mapper_id);
     mapper_args |= chr_off << 5U;
@@ -106,6 +121,12 @@ static bool file_reader(uint8_t *data, uint32_t size, void *arg)
     FIL *fp = arg;
     UINT br;
     return f_read(fp, data, size, &br) == FR_OK && br == size;
+}
+
+static bool const_reader(uint8_t *data, uint32_t size, void *arg)
+{
+    memset(data, (int)(uintptr_t)arg, size);
+    return true;
 }
 
 static uint32_t exp_size(uint32_t size)
