@@ -1,1 +1,1 @@
-src += files('CNROM.sv', 'NROM.sv', 'UxROM.sv')
+src += files('AxROM.sv', 'CNROM.sv', 'NROM.sv', 'UxROM.sv')

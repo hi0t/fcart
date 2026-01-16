@@ -74,6 +74,7 @@ module map_mux #(
     UxROM UxROM (.bus(map[3]));
     CNROM CNROM (.bus(map[4]));
     VRC6 VRC6 (.bus(map[5]));
+    AxROM AxROM (.bus(map[6]));
 
     genvar n;
 
