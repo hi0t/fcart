@@ -49,6 +49,7 @@ void ui_poll()
     bool loader_active = (fpga_api_ev_reg() & (1 << 8U)) != 0;
 
     if (loader_active && !on_menu) {
+        rom_save_battery();
         on_menu = true;
         sd_state(is_sd_present());
     }

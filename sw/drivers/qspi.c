@@ -11,6 +11,15 @@ static volatile bool transmit;
 
 int qspi_read(uint8_t cmd, uint32_t address, uint8_t *data, uint32_t size)
 {
+    int r = qspi_read_begin(cmd, address, data, size);
+    if (r != 0) {
+        return r;
+    }
+    return qspi_read_end();
+}
+
+int qspi_read_begin(uint8_t cmd, uint32_t address, uint8_t *data, uint32_t size)
+{
     struct peripherals *p = get_peripherals();
     QSPI_CommandTypeDef cmdcfg = {
         .Instruction = cmd,
@@ -30,24 +39,11 @@ int qspi_read(uint8_t cmd, uint32_t address, uint8_t *data, uint32_t size)
         return -EIO;
     }
 
+    transmit = false;
     if (size > 32) {
         transmit = true;
         if ((rc = HAL_QSPI_Receive_DMA(&p->hqspi, data)) != HAL_OK) {
             LOG_ERR("Failed to receive OSPI data: %d", rc);
-            return -EIO;
-        }
-
-        // wait until the transfer operation is finished
-        uint32_t start = HAL_GetTick();
-        while (transmit) {
-            if (HAL_GetTick() - start > QSPI_TIMEOUT) {
-                LOG_ERR("Timeout waiting for OSPI transfer completion");
-                return -EIO;
-            }
-        }
-        uint32_t status = HAL_QSPI_GetError(&p->hqspi);
-        if (status != HAL_QSPI_ERROR_NONE) {
-            LOG_ERR("OSPI transfer error: 0x%X", status);
             return -EIO;
         }
     } else {
@@ -55,6 +51,26 @@ int qspi_read(uint8_t cmd, uint32_t address, uint8_t *data, uint32_t size)
             LOG_ERR("Failed to receive OSPI data: %d", rc);
             return -EIO;
         }
+    }
+    return 0;
+}
+
+int qspi_read_end()
+{
+    struct peripherals *p = get_peripherals();
+
+    // wait until the transfer operation is finished
+    uint32_t start = HAL_GetTick();
+    while (transmit) {
+        if (HAL_GetTick() - start > QSPI_TIMEOUT) {
+            LOG_ERR("Timeout waiting for OSPI transfer completion");
+            return -EIO;
+        }
+    }
+    uint32_t status = HAL_QSPI_GetError(&p->hqspi);
+    if (status != HAL_QSPI_ERROR_NONE) {
+        LOG_ERR("OSPI transfer error: 0x%X", status);
+        return -EIO;
     }
     return 0;
 }

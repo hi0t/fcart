@@ -5,21 +5,79 @@
 #include <ff.h>
 #include <soc.h>
 #include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define SIZE_8K 0x2000
 #define SIZE_16K 0x4000
 #define SIZE_32K 0x8000
 #define WRAM_ADDR 0x7E0000
+#define SAVE_DIR "/saves"
 
 #define max(a, b) ((a) > (b) ? (a) : (b))
 
+static char *save_name;
+static uint32_t wram_size_save;
+
 static bool file_reader(uint8_t *data, uint32_t size, void *arg);
+static bool file_writer(const uint8_t *data, uint32_t size, void *arg);
 static bool const_reader(uint8_t *data, uint32_t size, void *arg);
 static uint32_t exp_size(uint32_t size);
 static uint32_t shift_size(uint8_t shift);
 static uint16_t choose_mapper(uint16_t id);
 static uint8_t get_chr_off(uint32_t prg_size);
+
+static void set_save_name(const char *rom_path)
+{
+    const char *filename = strrchr(rom_path, '/');
+    if (filename) {
+        filename++;
+    } else {
+        filename = rom_path;
+    }
+
+    if (save_name) {
+        free(save_name);
+    }
+    save_name = malloc(strlen(filename) + 5); // .sav + \0
+    if (!save_name) {
+        return;
+    }
+    strcpy(save_name, filename);
+    strcat(save_name, ".sav");
+}
+
+static void get_save_path(char *buf, size_t len)
+{
+    if (!save_name) {
+        *buf = 0;
+        return;
+    }
+    snprintf(buf, len, "%s/%s", SAVE_DIR, save_name);
+}
+
+int rom_save_battery()
+{
+    FRESULT rc;
+    int err = 0;
+
+    if (!save_name) {
+        return 0;
+    }
+    char path[256];
+    get_save_path(path, sizeof(path));
+
+    f_mkdir(SAVE_DIR);
+
+    FIL fp;
+    if ((rc = f_open(&fp, path, FA_WRITE | FA_CREATE_ALWAYS)) != FR_OK) {
+        return -fresult_to_errno(rc);
+    }
+    err = fpga_api_read_mem(WRAM_ADDR, wram_size_save, file_writer, &fp);
+    f_close(&fp);
+    return err;
+}
 
 int rom_load(const char *filename)
 {
@@ -94,8 +152,24 @@ int rom_load(const char *filename)
     fpga_api_write_mem(1U << chr_off, chr_size, file_reader, &fp);
 
     if (has_battery) {
-        //  TODO: load battery-backed RAM
-        // fpga_api_write_mem(WRAM_ADDR, wram_size, const_reader, (void *)0xFF);
+        wram_size_save = wram_size;
+        set_save_name(filename);
+
+        char path[256];
+        get_save_path(path, sizeof(path));
+
+        FIL sfp;
+        if (f_open(&sfp, path, FA_READ) == FR_OK) {
+            fpga_api_write_mem(WRAM_ADDR, wram_size, file_reader, &sfp);
+            f_close(&sfp);
+        } else {
+            fpga_api_write_mem(WRAM_ADDR, wram_size, const_reader, (void *)0xFF);
+        }
+    } else {
+        if (save_name) {
+            free(save_name);
+            save_name = NULL;
+        }
     }
 
     uint32_t mapper_args = choose_mapper(mapper_id);
@@ -121,6 +195,13 @@ static bool file_reader(uint8_t *data, uint32_t size, void *arg)
     FIL *fp = arg;
     UINT br;
     return f_read(fp, data, size, &br) == FR_OK && br == size;
+}
+
+static bool file_writer(const uint8_t *data, uint32_t size, void *arg)
+{
+    FIL *fp = arg;
+    UINT bw;
+    return f_write(fp, data, size, &bw) == FR_OK && bw == size;
 }
 
 static bool const_reader(uint8_t *data, uint32_t size, void *arg)
