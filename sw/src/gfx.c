@@ -8,6 +8,7 @@
 #define SCREEN_HEIGHT 240
 #define BPP 2 // Bits per pixel
 #define FB_SIZE (SCREEN_WIDTH * SCREEN_HEIGHT / 8U * BPP)
+#define LAUNCHER_FB_ADDR 0x7C0000
 
 static uint8_t framebuffer[FB_SIZE];
 static uint8_t curr_buffer;
@@ -99,11 +100,11 @@ void gfx_clear()
 void gfx_refresh()
 {
     uint32_t offset = 0;
-    uint32_t addr = 0;
+    uint32_t addr = LAUNCHER_FB_ADDR;
 
     curr_buffer = !curr_buffer;
     if (curr_buffer) {
-        addr = FRAMEBUFFER_CAPACITY / 2;
+        addr += FRAMEBUFFER_CAPACITY / 2;
     }
     fpga_api_write_mem(addr, FB_SIZE, fb_reader, &offset);
 

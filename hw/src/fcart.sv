@@ -46,6 +46,16 @@ module fcart (
     logic [31:0] launcher_status;
     logic api_refresh, cpu_refresh;
     logic [15:0] pcm;
+    logic [ 7:0] joy1;
+
+    joy_snoop joy (
+        .m2(M2),
+        .cpu_addr({!ROMSEL, CPU_ADDR}),
+        .cpu_data(CPU_DATA[0]),
+        .cpu_rw(CPU_RW),
+        .joy1(joy1)
+    );
+
     sdram_bus #(.ADDR_BITS(RAM_ADDR_BITS)) ch_ppu (), ch_cpu (), ch_api ();
 
     map_mux mux (
@@ -73,7 +83,8 @@ module fcart (
         .wr_reg_addr(wr_reg_addr),
         .wr_reg_changed(wr_reg_changed),
         .status_reg(launcher_status),
-        .audio(pcm)
+        .audio(pcm),
+        .joy1(joy1)
     );
 
     snd_dac snd_dac (

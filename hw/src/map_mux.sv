@@ -26,10 +26,12 @@ module map_mux #(
     input logic [3:0] wr_reg_addr,
     input logic wr_reg_changed,
     output logic [31:0] status_reg,
-    output logic [15:0] audio
+    output logic [15:0] audio,
+    input logic [7:0] joy1
 );
     localparam MAP_CNT = 32;
     localparam WRAM_MASK = {6'b111111, {ADDR_BITS - 6{1'b0}}};  // 128KB for any writeable CPU RAM
+    localparam LAUNCHER_VIDEO_ADDR = 'h7C0000;
 
     logic cpu_reset;
     logic [4:0] select_reg, select;
@@ -40,7 +42,7 @@ module map_mux #(
     logic launcher_buffer_num;
     logic launcher_halt;
     logic launcher_load;
-    logic [8:0] launcher_status;
+    logic launcher_status;
     logic video_enable;
     logic switching;
 
@@ -123,7 +125,7 @@ module map_mux #(
     assign ciram_a10 = bus_ciram_a10[select];
     assign ciram_ce = bus_ciram_ce[select];
     assign ppu_data = ppu_oe ? (video_enable || select != 0 ? ppu_data_out : '0) : 'z;
-    assign chr_mask = (chr_off == '0) ? '0 : ADDR_BITS'(1 << chr_off);
+    assign chr_mask = (select == 0) ? LAUNCHER_VIDEO_ADDR : ((chr_off == '0) ? '0 : ADDR_BITS'(1 << chr_off));
 
     prg_ram prg_ram (
         .clk(clk),
@@ -192,7 +194,7 @@ module map_mux #(
         refresh <= 1'b0;
 
         if (m2_sync[2:1] == 2'b10) begin
-            status_reg <= 32'(launcher_status);
+            status_reg <= {21'd0, launcher_active, launcher_status, joy1};
             reset_seq  <= '0;
 
             // Refresh is performed after the OE cycle is completed.

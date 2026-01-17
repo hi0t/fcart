@@ -3,7 +3,7 @@ module launcher (
     input logic buffer_num,
     input logic halt,
     input logic load_app,
-    output logic [8:0] status
+    output logic status
 );
     logic [7:0] rom[1024]  /* synthesis syn_romstyle = "EBR" */;
     initial $readmemh("launcher/launcher.mem", rom);
@@ -59,11 +59,7 @@ module launcher (
                         vblank <= 1;
                         next_buffer <= buffer_num;
                     end
-                    status[8] <= bus.cpu_data_in[1];
-                end
-                // read buttons
-                if (bus.cpu_addr == 'h5001) begin
-                    status[7:0] <= bus.cpu_data_in;
+                    status <= bus.cpu_data_in[1];
                 end
             end
         end

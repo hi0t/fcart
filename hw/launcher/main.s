@@ -6,11 +6,9 @@ PPU_ADDR    = $2006
 PPU_DATA    = $2007
 JOYPAD1     = $4016
 CTRL_REG    = $5000
-BUTTONS_REG = $5001
 STATUS_REG  = $5002
 
 .segment "ZEROPAGE"
-    zp_buttons: .res 1
     zp_ctrl:    .res 1
     zp_halt:    .res 1
 
@@ -142,6 +140,8 @@ reset:
 nmi:
     ; save registers
 	pha
+    txa
+    pha
 
     lda zp_halt
     cmp #$01
@@ -162,19 +162,18 @@ nmi:
 
         lda #$01
         sta JOYPAD1
-        sta zp_buttons
         lsr a
         sta JOYPAD1
 
-        read_joypad:
+        ldx #$08
+        read_loop:
             lda JOYPAD1
-            lsr a ; bit 0 -> Carry
-            rol zp_buttons  ; Carry -> bit 0; bit 7 -> Carry
-            bcc read_joypad
-        lda zp_buttons
-        sta BUTTONS_REG
+            dex
+            bne read_loop
     nmi_end:
 	    ; restore registers and return
+        pla
+        tax
         pla
         rti
 
