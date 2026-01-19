@@ -14,69 +14,116 @@
 #define FONT_WIDTH 8
 #define VISIBLE_ROWS ROWS - 4
 
-static bool on_menu;
-static bool usb_mode;
+enum ui_state {
+    UI_STATE_IDLE,
+    UI_STATE_RESET,
+    UI_STATE_MENU,
+    UI_STATE_GAME,
+    UI_STATE_REQ_PAUSE,
+    UI_STATE_PAUSE,
+};
+
 static FATFS fs;
 static struct dirlist_entry screen_list[VISIBLE_ROWS];
+static enum ui_state state;
 static uint8_t cursor_pos;
+static uint8_t ingame_cursor;
 static uint16_t dir_index;
 
+static inline bool launcher_active()
+{
+    return (fpga_api_ev_reg() & (1U << 8)) != 0;
+}
+static inline bool console_reset()
+{
+    return (fpga_api_ev_reg() & (1U << 9)) != 0;
+}
 static void show_message(const char *msg);
 static void redraw_screen();
 static void sd_state(bool present);
-static void process_input(uint8_t buttons);
-static void menu_control(uint8_t buttons);
-static void game_control(uint8_t buttons);
+static void process_input(uint8_t pressed, uint8_t current);
 
 void ui_init()
 {
     set_sd_callback(sd_state);
-    joypad_set_callback(process_input);
     joypad_can_repeat(BUTTON_UP | BUTTON_DOWN);
-}
-void ui_set_usb_mode(bool enabled)
-{
-    usb_mode = enabled;
-    if (enabled) {
-        show_message("USB Mode");
-    } else {
-        sd_state(is_sd_present());
-    }
 }
 
 void ui_poll()
 {
-    bool loader_active = (fpga_api_ev_reg() & (1 << 8U)) != 0;
+    bool is_active = launcher_active();
 
-    if (loader_active && !on_menu) {
-        rom_save_battery();
-        on_menu = true;
-        sd_state(is_sd_present());
+    if (console_reset()) {
+        state = UI_STATE_RESET;
+        return;
     }
 
-    on_menu = loader_active;
-    joypad_poll();
+    switch (state) {
+    case UI_STATE_IDLE:
+    case UI_STATE_RESET:
+        if (is_active) {
+            rom_save_battery();
+            state = UI_STATE_MENU;
+            sd_state(is_sd_present());
+        }
+        break;
+    case UI_STATE_REQ_PAUSE:
+        if (is_active) {
+            rom_save_battery();
+            state = UI_STATE_PAUSE;
+            ingame_cursor = 0;
+            redraw_screen();
+        }
+        break;
+    case UI_STATE_GAME:
+        // Return to menu if we skipped reset while in game
+        if (is_active) {
+            state = UI_STATE_RESET;
+        }
+        break;
+    default:
+    }
+
+    uint8_t current;
+    uint8_t pressed = joypad_poll(&current);
+    if (pressed || current) {
+        process_input(pressed, current);
+    }
+}
+
+bool ui_is_active()
+{
+    return state != UI_STATE_IDLE;
 }
 
 static void show_message(const char *msg)
 {
-    if (!on_menu) {
+    if (!launcher_active()) {
         return;
     }
 
     uint16_t len = strlen(msg);
+    uint16_t w_chars = len + 2;
+    uint16_t h_chars = 3;
+
+    int box_x = (COLS - w_chars) / 2 * FONT_WIDTH;
+    int box_y = (ROWS - h_chars) / 2 * FONT_WIDTH;
+    int box_w = w_chars * FONT_WIDTH;
+    int box_h = h_chars * FONT_WIDTH;
 
     gfx_clear();
+
+    gfx_line(box_x, box_y, box_x + box_w, box_y, 1);
+    gfx_line(box_x, box_y + box_h, box_x + box_w, box_y + box_h, 1);
+    gfx_line(box_x, box_y, box_x, box_y + box_h, 1);
+    gfx_line(box_x + box_w, box_y, box_x + box_w, box_y + box_h, 1);
+
     gfx_text((COLS - len) / 2 * FONT_WIDTH, (ROWS / 2 - 1) * FONT_WIDTH, msg, -1, 1);
     gfx_refresh();
 }
 
-static void redraw_screen()
+static void draw_main_menu()
 {
-    if (!on_menu || usb_mode) {
-        return;
-    }
-
     uint8_t cnt = dirlist_select(dir_index, VISIBLE_ROWS, screen_list);
     if (cnt == 0) {
         return;
@@ -90,6 +137,54 @@ static void redraw_screen()
         gfx_text(FONT_WIDTH, (i + 2) * FONT_WIDTH, screen_list[i].name, COLS - 2, screen_list[i].is_dir ? 2 : 1);
     }
     gfx_refresh();
+}
+
+static void draw_pause_menu()
+{
+    gfx_clear();
+
+    const int w_chars = 14;
+    const int h_chars = 7;
+    int box_x = (COLS - w_chars) / 2 * FONT_WIDTH;
+    int box_y = (ROWS - h_chars) / 2 * FONT_WIDTH;
+    int box_w = w_chars * FONT_WIDTH;
+    int box_h = h_chars * FONT_WIDTH;
+
+    // Frame
+    gfx_line(box_x, box_y, box_x + box_w, box_y, 1);
+    gfx_line(box_x, box_y + box_h, box_x + box_w, box_y + box_h, 1);
+    gfx_line(box_x, box_y, box_x, box_y + box_h, 1);
+    gfx_line(box_x + box_w, box_y, box_x + box_w, box_y + box_h, 1);
+
+    // Title
+    const char *title = "PAUSE";
+    int title_len = strlen(title);
+    gfx_text(box_x + (box_w - title_len * FONT_WIDTH) / 2, box_y + FONT_WIDTH, title, -1, 1);
+
+    // Items
+    const char *items[] = { "Continue", "Reset" };
+    for (int i = 0; i < 2; i++) {
+        int y = box_y + (3 + i) * FONT_WIDTH;
+        if (i == ingame_cursor) {
+            gfx_fill_rect(box_x + 4, y, box_w - 8, FONT_WIDTH, 3);
+        }
+        int item_len = strlen(items[i]);
+        gfx_text(box_x + (box_w - item_len * FONT_WIDTH) / 2, y, items[i], -1, 1);
+    }
+    gfx_refresh();
+}
+
+static void redraw_screen()
+{
+    switch (state) {
+    case UI_STATE_MENU:
+        draw_main_menu();
+        break;
+    case UI_STATE_PAUSE:
+        draw_pause_menu();
+        break;
+    default:
+    }
 }
 
 static void sd_state(bool present)
@@ -109,19 +204,6 @@ static void sd_state(bool present)
     } else {
         f_unmount("/SD");
         show_message("No SD card");
-    }
-}
-
-static void process_input(uint8_t buttons)
-{
-    if (usb_mode) {
-        return;
-    }
-
-    if (on_menu) {
-        menu_control(buttons);
-    } else {
-        game_control(buttons);
     }
 }
 
@@ -178,6 +260,7 @@ static void menu_control(uint8_t buttons)
             if (err != 0) {
                 show_message("Load ROM error");
             }
+            state = UI_STATE_GAME;
             return;
         }
     } else if (buttons & BUTTON_B) {
@@ -194,7 +277,37 @@ static void menu_control(uint8_t buttons)
     redraw_screen();
 }
 
-static void game_control(uint8_t buttons)
+static void pause_control(uint8_t buttons)
 {
-    (void)buttons;
+    if (buttons & BUTTON_UP) {
+        if (ingame_cursor > 0) {
+            ingame_cursor--;
+        }
+    } else if (buttons & BUTTON_DOWN) {
+        if (ingame_cursor < 1) {
+            ingame_cursor++;
+        }
+    } else if (buttons & BUTTON_A) {
+        // TODO: Implement restore state
+        if (ingame_cursor == 1) {
+            state = UI_STATE_RESET;
+        }
+    } else {
+        return;
+    }
+    redraw_screen();
+}
+
+static void process_input(uint8_t pressed, uint8_t current)
+{
+    if (state == UI_STATE_GAME) {
+        if ((current & (BUTTON_SELECT | BUTTON_DOWN)) == (BUTTON_SELECT | BUTTON_DOWN)) {
+            fpga_api_write_reg(FPGA_REG_LAUNCHER, 1U << 2);
+            state = UI_STATE_REQ_PAUSE;
+        }
+    } else if (state == UI_STATE_PAUSE) {
+        pause_control(pressed);
+    } else if (state == UI_STATE_MENU) {
+        menu_control(pressed);
+    }
 }

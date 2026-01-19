@@ -17,17 +17,31 @@ if __name__ == "__main__":
     usage = []
     for line in lines:
         line = line.strip()
-        if line.startswith("Number of LUT4s:") or line.startswith(
-            "Number of registers:"
+        if (
+            line.startswith("Number of LUT4s:")
+            or line.startswith("Number of registers:")
+            or line.startswith("Number of block RAMs:")
         ):
             usage.append(line)
 
     print(bcolors.HEADER)
     print("Usage summary")
     print("*************")
-    print(bcolors.ENDC, end="")
+    print(bcolors.ENDC)
+
+    max_len = 0
     for u in usage:
-        print(f"  {u}")
+        parts = u.split(":")
+        if len(parts) >= 2:
+            max_len = max(max_len, len(parts[0].strip() + ":"))
+
+    for u in usage:
+        parts = u.split(":")
+        if len(parts) >= 2:
+            label = parts[0].strip() + ":"
+            print(f"  {label.ljust(max_len)} {parts[1].strip()}")
+        else:
+            print(f"  {u}")
 
     twr_file = sys.argv[2]
     timings = []

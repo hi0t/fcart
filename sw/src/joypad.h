@@ -13,6 +13,5 @@ enum {
     BUTTON_A = 1 << 7,
 };
 
-void joypad_set_callback(void (*cb)(uint8_t buttons));
 void joypad_can_repeat(uint8_t buttons);
-void joypad_poll();
+uint8_t joypad_poll(uint8_t *current);

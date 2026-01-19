@@ -2,11 +2,6 @@
 #include "ui.h"
 #include <tusb.h>
 
-void tud_umount_cb()
-{
-    ui_set_usb_mode(false);
-}
-
 // Invoked when received SCSI_CMD_INQUIRY, v2 with full inquiry response
 // Some inquiry_resp's fields are already filled with default values, application can update them
 // Return length of inquiry response, typically sizeof(scsi_inquiry_resp_t) (36 bytes), can be longer if included vendor data.
@@ -69,12 +64,11 @@ bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, boo
 
     if (load_eject) {
         if (start) {
-            ui_set_usb_mode(true);
-        } else {
-            ui_set_usb_mode(false);
+            if (ui_is_active()) {
+                return false;
+            }
         }
     }
-
     return true;
 }
 

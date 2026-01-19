@@ -1,8 +1,6 @@
 module launcher (
     map_bus.mapper bus,
-    input logic buffer_num,
-    input logic halt,
-    input logic load_app,
+    input logic [3:0] ctrl,
     output logic status
 );
     logic [7:0] rom[1024]  /* synthesis syn_romstyle = "EBR" */;
@@ -14,40 +12,38 @@ module launcher (
     logic [7:0] scanline_cnt;
     logic [5:0] tile_cnt;
     logic [1:0] match_ppu;
-    logic next_buffer;
-    logic [1:0] ctrl_reg;
 
     assign bus.custom_cpu_out = 1;
     assign bus.prg_oe = bus.cpu_rw && (bus.cpu_addr[15] || (bus.cpu_addr == 'h5000));
-    assign bus.chr_addr = bus.ADDR_BITS'({next_buffer, chr_bank, bus.ppu_addr[11:0]});
+    assign bus.chr_addr = bus.ADDR_BITS'({ctrl[0], chr_bank, bus.ppu_addr[11:0]});
     assign bus.ciram_ce = !bus.ppu_addr[13];
     assign bus.chr_ce = bus.ciram_ce;
     assign bus.chr_oe = !bus.ppu_rd;
     assign bus.chr_we = 0;
     assign bus.ciram_a10 = bus.ppu_addr[10];
 
+    logic [7:0] rom_q;
     always_ff @(posedge bus.m2) begin
-        if (bus.reset) begin
-            ctrl_reg <= '0;
-        end else begin
-            ctrl_reg <= ctrl_reg | {load_app, halt};
+        if (bus.cpu_rw) rom_q <= rom[bus.cpu_addr[9:0]];
+    end
 
-            if (bus.cpu_rw) begin
-                if (bus.cpu_addr == 'h5000) begin
-                    // write control register
-                    bus.cpu_data_out <= {6'b0, ctrl_reg};
-                    ctrl_reg <= '0;
-                end else begin
-                    bus.cpu_data_out <= rom[bus.cpu_addr[9:0]];
-                end
-            end
+    always_comb begin
+        if (bus.cpu_addr == 'h5000) begin
+            // write control register
+            bus.cpu_data_out = {6'b0, ctrl[2:1]};
+            // Intercept NMI vector
+        end else if (ctrl[3] && bus.cpu_addr == 'hFFFA) begin
+            bus.cpu_data_out = 'h00;  // low byte of $FC00
+        end else if (ctrl[3] && bus.cpu_addr == 'hFFFB) begin
+            bus.cpu_data_out = 'hFC;  // high byte of $FC00
+        end else begin
+            bus.cpu_data_out = rom_q;
         end
     end
 
     always_ff @(negedge bus.m2) begin
         if (bus.reset) begin
-            status <= '0;
-            next_buffer <= 0;
+            status <= 0;
             vblank <= 1;
         end else begin
             vblank <= 0;
@@ -55,10 +51,7 @@ module launcher (
             if (!bus.cpu_rw) begin
                 // read status register
                 if (bus.cpu_addr == 'h5002) begin
-                    if (bus.cpu_data_in[0]) begin
-                        vblank <= 1;
-                        next_buffer <= buffer_num;
-                    end
+                    if (bus.cpu_data_in[0]) vblank <= 1;
                     status <= bus.cpu_data_in[1];
                 end
             end

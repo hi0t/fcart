@@ -9,32 +9,28 @@ static uint8_t last_buttons;
 static uint8_t repeat_buttons;
 static uint8_t repeat_delay;
 
-static void (*pressed_cb)(uint8_t buttons);
-
-void joypad_set_callback(void (*cb)(uint8_t buttons))
-{
-    pressed_cb = cb;
-}
-
 void joypad_can_repeat(uint8_t buttons)
 {
     repeat_buttons = buttons;
 }
 
-void joypad_poll()
+uint8_t joypad_poll(uint8_t *current)
 {
     uint8_t buttons = fpga_api_ev_reg() & 0xFF;
+    if (current) {
+        *current = buttons;
+    }
+
     if (buttons == 0) {
         last_time = 0;
         last_buttons = 0;
-        last_buttons = 0;
         repeat_delay = 0;
-        return;
+        return 0;
     }
 
     uint32_t now = uptime_ms();
     if (now - last_time < SCAN_PERIOD_MS) {
-        return;
+        return 0;
     }
     last_time = now;
 
@@ -51,8 +47,6 @@ void joypad_poll()
         }
     }
 
-    if (pressed_cb != NULL && pressed_buttons != 0) {
-        pressed_cb(pressed_buttons);
-    }
     last_buttons = buttons;
+    return pressed_buttons;
 }

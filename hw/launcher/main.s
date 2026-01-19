@@ -13,6 +13,10 @@ STATUS_REG  = $5002
     zp_halt:    .res 1
 
 .segment "CODE"
+ingame_entry:
+    ; TODO: save state
+
+
 reset:
     ; start initialization
     sei
@@ -25,6 +29,7 @@ reset:
     stx PPU_CTRL
     stx PPU_MASK
     stx $4010
+    stx $4015
 
     vblank_wait1:
         bit PPU_STATUS

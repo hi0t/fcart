@@ -146,7 +146,7 @@ static int readdir()
     DIR dir;
     FILINFO fno;
     int r = 0;
-    uint32_t sdram_addr = FRAMEBUFFER_CAPACITY; // Start after framebuffer
+    uint32_t sdram_addr = 0;
 
     if (f_opendir(&dir, curr_path) != FR_OK) {
         return false;
