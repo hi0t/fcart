@@ -83,8 +83,8 @@ module sdram_tb;
         @(posedge clk);
         bus0.req = 0;
         bus1.req = 0;
-        @(posedge clk iff ram.step == ram.ACTIVE_WRITE_END);
-        @(posedge clk iff ram.step == ram.ACTIVE_WRITE_END);
+        @(posedge clk iff bus0.ack);
+        @(posedge clk iff bus1.ack);
 
         // Parallel read
         bus0.data_read = 'x;
@@ -98,8 +98,8 @@ module sdram_tb;
         @(posedge clk);
         bus0.req = 0;
         bus1.req = 0;
-        @(posedge clk iff ram.step == ram.ACTIVE_READ_END);
-        @(posedge clk iff ram.step == ram.ACTIVE_READ_END);
+        @(posedge clk iff bus0.ack);
+        @(posedge clk iff bus1.ack);
         assert (bus0.data_read == 'hF7F8)
         else $fatal(1, "hF7F8 != %0h", bus0.data_read);
         assert (bus1.data_read == 'hA7F8)
@@ -115,7 +115,7 @@ module sdram_tb;
         bus2.data_write = 'hF7F8;
         @(posedge clk);
         bus2.req = 0;
-        @(posedge clk iff ram.step == ram.ACTIVE_WRITE_END);
+        @(posedge clk iff bus2.ack);
         wait (ram.refresh_timer == ram.REFRESH_INTERVAL / 2);
 
         // read -> refresh
@@ -125,7 +125,7 @@ module sdram_tb;
         bus2.address = '1;
         @(posedge clk);
         bus2.req = 0;
-        @(posedge clk iff ram.step == ram.ACTIVE_READ_END);
+        @(posedge clk iff bus2.ack);
         assert (bus2.data_read == 'hF7F8)
         else $fatal(1, "hF7F8 != %0h", bus2.data_read);
 

@@ -1,15 +1,16 @@
 module qspi (
     input logic clk,
-    input logic async_reset,
 
     input logic qspi_clk,
     input logic qspi_ncs,
     inout wire [3:0] qspi_io,
 
-    output logic [7:0] rd_data,
+    output logic [15:0] rd_data,
     output logic rd_valid,
-    input logic [7:0] wr_data,
+    input logic rd_ready,
+    input logic [15:0] wr_data,
     output logic wr_valid,
+    input logic wr_ready,
     output logic start
 );
     enum logic [1:0] {
@@ -19,95 +20,84 @@ module qspi (
         STATE_SEND
     } state;
 
-    logic qspi_reset;
+    logic rx_empty, tx_full;
+    logic [15:0] rx_data, tx_data;
+    logic [11:0] rx_shift, tx_shift;
+    logic rx_en, tx_en;
+    logic [3:0] io_out;
     logic [2:0] cnt;
-    logic [3:0] upper_nibble;
-    logic [2:0] start_sync, rd_sync, wr_sync;
-    logic rx_done;
-    logic tx_latch;
+    logic [2:0] start_sync;
     logic has_resp;
 
-    assign qspi_reset = async_reset || qspi_ncs;
+    assign rd_valid = !rx_empty;
+    assign wr_valid = (state == STATE_SEND) ? !tx_full : 0;
+
+    fifo rx_fifo (
+        .wr_clk(qspi_clk),
+        .wr_reset(start),
+        .wr_data(rx_data),
+        .wr_en(rx_en),
+        .full(),
+
+        .rd_clk(clk),
+        .rd_reset(start),
+        .rd_data(rd_data),
+        .rd_en(rd_ready),
+        .empty(rx_empty)
+    );
+
+    fifo tx_fifo (
+        .wr_clk(clk),
+        .wr_reset(start),
+        .wr_data(wr_data),
+        .wr_en(wr_ready),
+        .full(tx_full),
+
+        .rd_clk(qspi_clk),
+        .rd_reset(start),
+        .rd_data(tx_data),
+        .rd_en(tx_en),
+        .empty()
+    );
 
     // RX logic
-    always_ff @(posedge qspi_clk or posedge qspi_reset) begin
-        if (qspi_reset) begin
+    assign rx_en   = (state == STATE_CMD || state == STATE_RECEIVE) && cnt[1:0] == 2'b11;
+    assign rx_data = {rx_shift, qspi_io};
+    always_ff @(posedge qspi_clk or posedge start) begin
+        if (start) begin
+            cnt   <= '0;
             state <= STATE_CMD;
-            cnt   <= 3'd0;
         end else begin
-            cnt <= cnt + 3'd1;
-            rx_done <= 1'b0;
-            tx_latch <= 1'b0;
+            cnt <= cnt + 1;
 
-            if (cnt[0] == 1'b0) upper_nibble <= qspi_io;
-            else if (state != STATE_DUMMY && state != STATE_SEND) begin
-                rd_data <= {upper_nibble, qspi_io};
-                rx_done <= 1'b1;
-            end
+            rx_shift <= {rx_shift[7:0], qspi_io};
 
             if (state == STATE_CMD && cnt == 3'd1) begin
                 has_resp <= (qspi_io[0] == 1'b0);  // Detect if the command expects a response
                 state <= STATE_RECEIVE;
-            end
-
-            if (state == STATE_RECEIVE && cnt == 3'd7 && has_resp) begin  // Capture 24-bit address
-                state <= STATE_DUMMY;
-            end
-
-            if (state == STATE_DUMMY && cnt == 3'd3) begin
-                state <= STATE_SEND;
-            end
-
-            if ((state == STATE_DUMMY && cnt == 3'd2) || (state == STATE_SEND && cnt[0] == 1'b0)) begin
-                tx_latch <= 1'b1;
-            end
+            end else if (state == STATE_RECEIVE && has_resp && cnt == 3'd7) state <= STATE_DUMMY;
+            else if (state == STATE_DUMMY && cnt == 3'd3) state <= STATE_SEND;
         end
     end
 
     // TX logic
-    logic [3:0] io_out, next_io_out;
-    logic tx_sw;
-    logic qspi_oe;
-
-    assign qspi_io = qspi_oe ? io_out : 4'bz;
-
-    always_ff @(negedge qspi_clk or posedge qspi_reset) begin
-        if (qspi_reset) begin
-            qspi_oe <= 1'b0;
+    assign tx_en   = (state == STATE_SEND && cnt[1:0] == 2'b11);
+    assign qspi_io = (state == STATE_SEND) ? io_out : 'z;
+    always_ff @(negedge qspi_clk) begin
+        if (cnt[1:0] == 2'b00) begin
+            io_out   <= tx_data[15:12];
+            // Load new word from FIFO
+            tx_shift <= tx_data[11:0];
         end else begin
-            tx_sw <= 1'b0;
-
-            if (state == STATE_SEND) begin
-                qspi_oe <= 1'b1;
-                if (!tx_sw) begin
-                    io_out <= wr_data[7:4];
-                    next_io_out <= wr_data[3:0];
-                    tx_sw <= 1'b1;
-                end else begin
-                    io_out <= next_io_out;
-                end
-            end
+            io_out   <= tx_shift[11:8];
+            // Shift out
+            tx_shift <= {tx_shift[7:0], 4'b0};
         end
     end
 
-    // QSPI clock domain to system clock domain synchronization
+    // Start detection
     assign start = (start_sync[2:1] == 2'b10);
-    assign rd_valid = (rd_sync[2:1] == 2'b01);
-    assign wr_valid = (wr_sync[2:1] == 2'b01);
     always_ff @(posedge clk) begin
         start_sync <= {start_sync[1:0], qspi_ncs};
-        rd_sync    <= {rd_sync[1:0], rx_done};
-        wr_sync    <= {wr_sync[1:0], tx_latch};
     end
-
-`ifdef DEBUG
-    logic [3:0] debug_cnt;
-    always_ff @(negedge qspi_clk or posedge qspi_reset) begin
-        if (qspi_reset) begin
-            debug_cnt <= 4'd0;
-        end else begin
-            debug_cnt <= debug_cnt + 4'd1;
-        end
-    end
-`endif
 endmodule

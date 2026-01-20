@@ -134,7 +134,6 @@ module fcart (
     logic qspi_start;
     qspi qspi (
         .clk(clk),
-        .async_reset(!async_nreset),
 
         .qspi_clk(QSPI_CLK),
         .qspi_ncs(QSPI_NCS),

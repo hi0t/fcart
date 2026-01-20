@@ -74,13 +74,14 @@ module sdram #(
     assign sdram_dq = (cmd == CMD_WRITE) ? data : 'z;
 
     always_ff @(posedge clk) begin
-        refresh_timer <= refresh_timer + 1'd1;
+        refresh_timer <= refresh_timer + 1;
 
         if (refresh_timer >= REFRESH_INTERVAL || ((refresh_timer >= REFRESH_INTERVAL / 2) && refresh)) begin
             pending_refresh <= 1;
         end
 
         pending_req <= pending_req | {ch2.req, ch1.req, ch0.req};
+        {ch2.ack, ch1.ack, ch0.ack} <= '0;
 
         if (reset) begin
             state <= STATE_CONFIGURE;
@@ -161,7 +162,7 @@ module sdram #(
                     end
                 end
                 STATE_ACTIVE: begin
-                    step <= step + 5'd1;
+                    step <= step + 1;
 
                     case (step)
                         ACTIVE_CMD: begin
@@ -174,12 +175,15 @@ module sdram #(
                             case (curr_ch)
                                 2'd0: begin
                                     if (!we) ch0.data_read <= sdram_dq;
+                                    ch0.ack <= 1;
                                 end
                                 2'd1: begin
                                     if (!we) ch1.data_read <= sdram_dq;
+                                    ch1.ack <= 1;
                                 end
                                 2'd2: begin
                                     if (!we) ch2.data_read <= sdram_dq;
+                                    ch2.ack <= 1;
                                 end
                                 default;
                             endcase
@@ -191,7 +195,7 @@ module sdram #(
                 end
                 STATE_REFRESH: begin
                     cmd  <= CMD_NOOP;
-                    step <= step + 5'd1;
+                    step <= step + 1;
                     if (step == READ_PERIOD) state <= STATE_IDLE;
                 end
             endcase

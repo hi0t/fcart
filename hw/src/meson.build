@@ -5,6 +5,7 @@ src = files(
     'api.sv',
     'chr_ram.sv',
     'fcart.sv',
+    'fifo.sv',
     'joy_snoop.sv',
     'map_mux.sv',
     'prg_ram.sv',

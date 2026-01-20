@@ -1,5 +1,6 @@
 tests = files(
     'api_tb.sv',
+    'fifo_tb.sv',
     'qspi_tb.sv',
     'sdram_tb.sv',
 )
