@@ -24,12 +24,6 @@ foreach ctrl : get_option('pinctrl')
 endforeach
 compile_args += '-DCFG_TUSB_MCU=OPT_MCU_STM32F4'
 
-if get_option('buildtype') == 'debug'
-    compile_args += ['-Og', '-g', '-gdwarf-2']
-elif get_option('buildtype') == 'release'
-    compile_args += ['-O2']
-endif
-
 link_args = []
 link_args += '-Wl,--defsym=RAM_SIZE=@0@K'.format(get_option('ram_size'))
 link_args += ['-T', meson.current_source_dir() / 'linker.ld']

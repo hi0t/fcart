@@ -24,11 +24,14 @@ module api_tb;
     logic master_we;
 
     // Internal QSPI signals
-    logic [7:0] rd_data;
+    logic [15:0] rd_data;
     logic rd_valid;
-    logic [7:0] wr_data;
+    logic rd_ready;
+    logic [15:0] wr_data;
     logic wr_valid;
+    logic wr_ready;
     logic start;
+    logic ram_refresh;
 
     // SDRAM interface
     sdram_bus ram ();
@@ -51,10 +54,13 @@ module api_tb;
         .wr_reg_changed(wr_reg_changed),
         .ev_reg(ev_reg),
         .ram(ram.controller),
+        .ram_refresh(ram_refresh),
         .rd_data(rd_data),
         .rd_valid(rd_valid),
+        .rd_ready(rd_ready),
         .wr_data(wr_data),
         .wr_valid(wr_valid),
+        .wr_ready(wr_ready),
         .start(start)
     );
 
@@ -66,8 +72,10 @@ module api_tb;
         .qspi_io(qspi_io),
         .rd_data(rd_data),
         .rd_valid(rd_valid),
+        .rd_ready(rd_ready),
         .wr_data(wr_data),
         .wr_valid(wr_valid),
+        .wr_ready(wr_ready),
         .start(start)
     );
 
@@ -93,7 +101,7 @@ module api_tb;
         .ch0(ram.memory),
         .ch1(bus1.memory),
         .ch2(bus2.memory),
-        .refresh(1'b0),
+        .refresh(ram_refresh),
 
         .sdram_cs  (sdram_command[3]),
         .sdram_addr(sdram_addr),
@@ -171,7 +179,6 @@ module api_tb;
 
         master_we = 0;
         qspi_ncs  = 1;
-        #(CYC * 2);
     endtask
 
     task read_reg(input [23:0] addr, output [31:0] data);
@@ -197,7 +204,6 @@ module api_tb;
         data = {b3, b2, b1, b0};
 
         qspi_ncs = 1;
-        #(CYC * 2);
     endtask
 
     task write_mem(input [23:0] start_addr, input [15:0] data1, input [15:0] data2);
@@ -220,7 +226,6 @@ module api_tb;
 
         master_we = 0;
         qspi_ncs  = 1;
-        #(CYC * 2);
     endtask
 
     task read_mem(input [23:0] start_addr, output [15:0] data1, output [15:0] data2);
@@ -248,7 +253,6 @@ module api_tb;
         data2 = {b3, b2};
 
         qspi_ncs = 1;
-        #(CYC * 2);
     endtask
 
     // Test Sequence
@@ -264,9 +268,8 @@ module api_tb;
         master_we = 0;
         ev_reg = 32'hDEADBEEF;
 
-        #(CYC * 4);
+        #(CYC * 2);
         reset = 0;
-        #(CYC * 4);
 
         // Wait for SDRAM initialization
         $display("Waiting for SDRAM Idle...");
@@ -277,12 +280,13 @@ module api_tb;
         write_reg(24'h000005, 32'h12345678);
 
         // Check result
+        @(wr_reg_changed);
         assert (wr_reg == 32'h12345678)
-        else $error("Write Register Failed: Expected 12345678, got %h", wr_reg);
+        else $fatal(1, "Write Register Failed: Expected 12345678, got %h", wr_reg);
         assert (wr_reg_addr == 4'h5)
-        else $error("Write Register Addr Failed: Expected 5, got %h", wr_reg_addr);
+        else $fatal(1, "Write Register Addr Failed: Expected 5, got %h", wr_reg_addr);
 
-        #(CYC * 4);
+        #(CYC * 2);
 
         // 2. Read Register
         // api.sv only responds to addr[3:0] == 1 for ev_reg
@@ -293,12 +297,12 @@ module api_tb;
             else $error("Read Register Failed: Expected %h, got %h", ev_reg, read_val);
         end
 
-        #(CYC * 4);
+        #(CYC * 2);
 
         // 3. Write SDRAM
         write_mem(24'h001000, 16'h1234, 16'h5678);
 
-        #(CYC * 4);
+        #(CYC * 2);
 
         // 4. Read SDRAM
         begin
@@ -310,7 +314,7 @@ module api_tb;
             else $error("Read Mem Data2 mismatch: Expected 5678, got %h", r2);
         end
 
-        #(CYC * 10);
+        #(CYC * 2);
         $display("Testbench completed");
         $finish;
     end

@@ -13,6 +13,12 @@ compile_args = [
     '-DAPP_ADDRESS=@0@'.format(get_option('app_address')),
 ]
 
+if get_option('buildtype') == 'debug'
+    compile_args += ['-Og', '-g', '-gdwarf-2']
+elif get_option('buildtype') == 'release'
+    compile_args += ['-O2']
+endif
+
 ver = bootloader_version.split('.')
 
 bootloader_sw = declare_dependency(

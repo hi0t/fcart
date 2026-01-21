@@ -127,13 +127,16 @@ module fcart (
         .sdram_dqm(SDRAM_DQM)
     );
 
-    logic [7:0] qspi_rd_data;
+    logic [15:0] qspi_rd_data;
     logic qspi_rd_valid;
-    logic [7:0] qspi_wr_data;
+    logic qspi_rd_ready;
+    logic [15:0] qspi_wr_data;
     logic qspi_wr_valid;
+    logic qspi_wr_ready;
     logic qspi_start;
     qspi qspi (
         .clk(clk),
+        .async_reset(!async_nreset),
 
         .qspi_clk(QSPI_CLK),
         .qspi_ncs(QSPI_NCS),
@@ -141,8 +144,10 @@ module fcart (
 
         .rd_data(qspi_rd_data),
         .rd_valid(qspi_rd_valid),
+        .rd_ready(qspi_rd_ready),
         .wr_data(qspi_wr_data),
         .wr_valid(qspi_wr_valid),
+        .wr_ready(qspi_wr_ready),
         .start(qspi_start)
     );
 
@@ -161,8 +166,10 @@ module fcart (
 
         .rd_data(qspi_rd_data),
         .rd_valid(qspi_rd_valid),
+        .rd_ready(qspi_rd_ready),
         .wr_data(qspi_wr_data),
         .wr_valid(qspi_wr_valid),
+        .wr_ready(qspi_wr_ready),
         .start(qspi_start)
     );
 endmodule

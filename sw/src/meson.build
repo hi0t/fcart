@@ -12,10 +12,18 @@ src = files(
 
 ver = meson.project_version().split('.')
 
+compile_args = ['-DENABLE_SD_FS', '-DCFG_TUD_CDC=1']
+
+if get_option('buildtype') == 'debug'
+    compile_args += ['-g', '-gdwarf-2']
+elif get_option('buildtype') == 'release'
+    compile_args += ['-O2']
+endif
+
 fcart_sw = declare_dependency(
     sources: src,
     dependencies: drivers_dep,
-    compile_args: ['-DENABLE_SD_FS', '-DCFG_TUD_CDC=1'],
+    compile_args: compile_args,
     link_args: [
         '-Wl,--defsym=FLASH_ORIGIN=@0@'.format(get_option('app_address')),
         '-Wl,--defsym=FLASH_SIZE=@0@K'.format(get_option('flash_size') - get_option('bootloader_size')),

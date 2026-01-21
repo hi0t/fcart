@@ -25,10 +25,16 @@ enum ui_state {
 
 static FATFS fs;
 static struct dirlist_entry screen_list[VISIBLE_ROWS];
+static uint8_t screen_list_cnt;
 static enum ui_state state;
 static uint8_t cursor_pos;
 static uint8_t ingame_cursor;
 static uint16_t dir_index;
+
+static void update_screen_list()
+{
+    screen_list_cnt = dirlist_select(dir_index, VISIBLE_ROWS, screen_list);
+}
 
 static inline bool launcher_active()
 {
@@ -124,7 +130,7 @@ static void show_message(const char *msg)
 
 static void draw_main_menu()
 {
-    uint8_t cnt = dirlist_select(dir_index, VISIBLE_ROWS, screen_list);
+    uint8_t cnt = screen_list_cnt;
     if (cnt == 0) {
         return;
     }
@@ -200,6 +206,7 @@ static void sd_state(bool present)
         }
         dir_index = 0;
         cursor_pos = 0;
+        update_screen_list();
         redraw_screen();
     } else {
         f_unmount("/SD");
@@ -209,6 +216,8 @@ static void sd_state(bool present)
 
 static void menu_control(uint8_t buttons)
 {
+    uint16_t prev_dir_index = dir_index;
+
     if (buttons & BUTTON_UP) {
         if (cursor_pos == 0) {
             if (dir_index > 0) {
@@ -249,6 +258,8 @@ static void menu_control(uint8_t buttons)
             }
             dir_index = 0;
             cursor_pos = 0;
+            update_screen_list();
+            prev_dir_index = dir_index;
         } else {
             char *full_path = dirlist_file_path(entry);
             if (full_path == NULL) {
@@ -271,8 +282,14 @@ static void menu_control(uint8_t buttons)
         }
         dir_index = 0;
         cursor_pos = 0;
+        update_screen_list();
+        prev_dir_index = dir_index;
     } else {
         return;
+    }
+
+    if (dir_index != prev_dir_index) {
+        update_screen_list();
     }
     redraw_screen();
 }

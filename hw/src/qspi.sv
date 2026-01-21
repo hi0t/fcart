@@ -1,5 +1,6 @@
 module qspi (
     input logic clk,
+    input logic async_reset,
 
     input logic qspi_clk,
     input logic qspi_ncs,
@@ -20,6 +21,7 @@ module qspi (
         STATE_SEND
     } state;
 
+    logic qspi_reset;
     logic rx_empty, tx_full;
     logic [15:0] rx_data, tx_data;
     logic [11:0] rx_shift, tx_shift;
@@ -29,15 +31,22 @@ module qspi (
     logic [2:0] start_sync;
     logic has_resp;
 
-    assign rd_valid = !rx_empty;
-    assign wr_valid = (state == STATE_SEND) ? !tx_full : 0;
+    assign qspi_reset = async_reset || qspi_ncs;
+    assign rd_valid   = !rx_empty;
+    assign wr_valid   = !tx_full;
 
-    fifo rx_fifo (
+    fifo #(
+        .DEPTH(8)
+    ) rx_fifo (
         .wr_clk(qspi_clk),
         .wr_reset(start),
         .wr_data(rx_data),
         .wr_en(rx_en),
+`ifdef DEBUG
+        .full(debug_full),
+`else
         .full(),
+`endif
 
         .rd_clk(clk),
         .rd_reset(start),
@@ -46,7 +55,9 @@ module qspi (
         .empty(rx_empty)
     );
 
-    fifo tx_fifo (
+    fifo #(
+        .DEPTH(8)
+    ) tx_fifo (
         .wr_clk(clk),
         .wr_reset(start),
         .wr_data(wr_data),
@@ -63,8 +74,8 @@ module qspi (
     // RX logic
     assign rx_en   = (state == STATE_CMD || state == STATE_RECEIVE) && cnt[1:0] == 2'b11;
     assign rx_data = {rx_shift, qspi_io};
-    always_ff @(posedge qspi_clk or posedge start) begin
-        if (start) begin
+    always_ff @(posedge qspi_clk or posedge qspi_reset) begin
+        if (qspi_reset) begin
             cnt   <= '0;
             state <= STATE_CMD;
         end else begin
@@ -100,4 +111,8 @@ module qspi (
     always_ff @(posedge clk) begin
         start_sync <= {start_sync[1:0], qspi_ncs};
     end
+
+`ifdef DEBUG
+    logic debug_full;
+`endif
 endmodule

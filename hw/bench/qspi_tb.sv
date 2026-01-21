@@ -12,6 +12,7 @@ module qspi_tb;
     localparam CYC = 8;
     always #(CYC / 8) clk <= !clk;
 
+    logic reset;
     logic [3:0] io_buf;
     logic master_we;
     logic [7:0] req_dataq[$], resp_dataq[$], tx_byte, rx_byte;
@@ -31,6 +32,7 @@ module qspi_tb;
 
     qspi qspi (
         .clk(clk),
+        .async_reset(reset),
 
         .qspi_clk(qspi_clk),
         .qspi_ncs(qspi_ncs),
@@ -79,7 +81,6 @@ module qspi_tb;
         #(CYC);
 
         qspi_ncs = 0;
-        #(CYC / 4);
         send_byte('h02);  // Send read command
 
         for (int i = 0; i < 3; i++) begin
@@ -98,14 +99,12 @@ module qspi_tb;
             else $fatal(1, "Invalid data received from device: expected %0h, got %0h", tx_byte, rx_byte);
         end
 
-        #(CYC / 4);
         qspi_ncs = 1;
 
         #(CYC * 2);
 
         master_we = 1;
         qspi_ncs  = 0;
-        #(CYC / 4);
         send_byte('h03);  // Send write command
 
         for (int i = 0; i < 23; i++) begin
@@ -114,7 +113,6 @@ module qspi_tb;
             send_byte(tx_byte);  // Send address and some data
         end
 
-        #(CYC / 4);
         qspi_ncs = 1;
     endtask
 
@@ -146,6 +144,9 @@ module qspi_tb;
         fork
             mcu();
         join_none
+
+        reset = 1;
+        @(posedge clk) reset = 0;
 
         @(posedge clk iff start);
 
