@@ -12,17 +12,20 @@ module MMC1 (
 
     // CPU
     assign bus.prg_addr = bus.wram_ce ? bus.ADDR_BITS'(bus.cpu_addr[12:0]) : bus.ADDR_BITS'({chr_sel[4], prg_sel, bus.cpu_addr[13:0]});
-    assign bus.prg_oe   = bus.cpu_rw && (bus.cpu_addr[15] || bus.wram_ce);
-    assign bus.prg_we   = !bus.cpu_rw && bus.wram_ce;
-    assign bus.wram_ce  = bus.cpu_addr[15:13] == 3'b011;  // WRAM at $6000-$7FFF
+    assign bus.prg_oe = bus.cpu_rw && (bus.cpu_addr[15] || bus.wram_ce);
+    assign bus.prg_we = !bus.cpu_rw && bus.wram_ce;
+    assign bus.wram_ce = bus.cpu_addr[15:13] == 3'b011;  // WRAM at $6000-$7FFF
 
     // PPU
     assign bus.chr_addr = bus.ADDR_BITS'({bus.chr_ram ? {4'b0000, bus.ppu_addr[12]} : chr_sel, bus.ppu_addr[11:0]});
     assign bus.ciram_ce = !bus.ppu_addr[13];
-    assign bus.chr_ce   = bus.ciram_ce;
-    assign bus.chr_oe   = !bus.ppu_rd;
-    assign bus.chr_we   = bus.chr_ram ? !bus.ppu_wr : 0;
-    assign shift_next   = {bus.cpu_data_in[0], shift[4:1]};
+    assign bus.chr_ce = bus.ciram_ce;
+    assign bus.chr_oe = !bus.ppu_rd;
+    assign bus.chr_we = bus.chr_ram ? !bus.ppu_wr : 0;
+    assign shift_next = {bus.cpu_data_in[0], shift[4:1]};
+
+    assign bus.custom_cpu_out = 0;
+    assign bus.audio = '0;
 
     always_comb begin
         case (control[1:0])

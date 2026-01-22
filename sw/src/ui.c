@@ -6,6 +6,7 @@
 #include "rom.h"
 #include <ff.h>
 #include <gpio.h>
+#include <soc.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -270,6 +271,14 @@ static void menu_control(uint8_t buttons)
             free(full_path);
             if (err != 0) {
                 show_message("Load ROM error");
+                return;
+            }
+            uint32_t start = uptime_ms();
+            while (launcher_active()) {
+                if (uptime_ms() - start > 10000) {
+                    show_message("Launch timeout");
+                    return;
+                }
             }
             state = UI_STATE_GAME;
             return;

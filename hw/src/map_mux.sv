@@ -51,9 +51,8 @@ module map_mux #(
 
     logic cpu_reset;
     logic [4:0] select_reg, select;
-    logic [4:0] chr_off;
     logic [1:0] map_args;
-    logic [ADDR_BITS-1:0] chr_mask;
+    logic [ADDR_BITS-1:0] prg_mask, chr_mask;
     logic [7:0] cpu_data_out, ppu_data_out;
     launcher_ctrl_t launcher_ctrl;
     logic launcher_status;
@@ -139,12 +138,12 @@ module map_mux #(
     assign ciram_a10 = bus_ciram_a10[select];
     assign ciram_ce = bus_ciram_ce[select];
     assign ppu_data = ppu_oe ? (video_enable || select != 0 ? ppu_data_out : '0) : 'z;
-    assign chr_mask = (select == 0) ? LAUNCHER_MASK : ((chr_off == '0) ? '0 : ADDR_BITS'(1 << chr_off));
 
     prg_ram prg_ram (
         .clk(clk),
         .ram(ch_prg),
-        .addr(bus_wram_ce[select] ? (bus_prg_addr[select] | WRAM_MASK) : (bus_prg_addr[select] & ADDR_BITS'((1 << chr_off) - 5'd1))),
+        .refresh(refresh),
+        .addr(bus_wram_ce[select] ? (bus_prg_addr[select] | WRAM_MASK) : (bus_prg_addr[select] & prg_mask)),
         .data_in(cpu_data),
         .data_out(cpu_data_out),
         .oe(bus_prg_oe[select] && m2 && !bus_custom_cpu_out[select]),
@@ -154,7 +153,7 @@ module map_mux #(
     chr_ram chr_ram (
         .clk(clk),
         .ram(ch_chr),
-        .addr(bus_chr_addr[select] | chr_mask),
+        .addr(bus_chr_addr[select] | ((select == 0) ? LAUNCHER_MASK : chr_mask)),
         .data_in(ppu_data),
         .data_out(ppu_data_out),
         .ce(bus_chr_ce[select]),
@@ -171,14 +170,18 @@ module map_mux #(
     always_ff @(negedge m2 or posedge cpu_reset) begin
         if (cpu_reset) begin
             select_reg <= '0;
-            chr_off <= '0;
+            prg_mask <= '0;
+            chr_mask <= '0;
             map_args <= '0;
             launcher_ctrl <= '0;
         end else begin
             wr_reg_sync <= {wr_reg_sync[1:0], wr_reg_changed};
             if (wr_reg_sync[1] != wr_reg_sync[2]) begin
                 if (wr_reg_addr == REG_MAPPER) begin
-                    {map_args, chr_off, pending_select} <= wr_reg[11:0];
+                    pending_select <= wr_reg[4:0];
+                    map_args <= wr_reg[11:10];
+                    prg_mask <= ADDR_BITS'((1 << wr_reg[9:5]) - 5'd1);
+                    chr_mask <= (wr_reg[9:5] == '0) ? '0 : ADDR_BITS'(1 << wr_reg[9:5]);
                     launcher_ctrl.load_app <= 1;
                 end else if (wr_reg_addr == REG_LAUNCHER) begin
                     launcher_ctrl.buffer_num <= wr_reg[0];
@@ -210,14 +213,10 @@ module map_mux #(
 
     always_ff @(posedge clk) begin
         m2_sync <= {m2_sync[1:0], m2};
-        refresh <= 1'b0;
 
         if (m2_sync[2:1] == 2'b10) begin
             status_reg <= {23'd0, launcher_status, joy1};
             reset_seq  <= '0;
-
-            // Refresh is performed after the OE cycle is completed.
-            if (select_reg != '0) refresh <= 1'b1;
         end else if (reset_seq != '1) begin
             reset_seq <= reset_seq + 1'd1;
         end

@@ -44,9 +44,9 @@ module fcart (
     logic [3:0] wr_reg_addr;
     logic wr_reg_changed;
     logic [31:0] launcher_status;
-    logic api_refresh, cpu_refresh;
+    logic sdram_refresh;
     logic [15:0] pcm;
-    logic [ 7:0] joy1;
+    logic [7:0] joy1;
 
     joy_snoop joy (
         .m2(M2),
@@ -62,7 +62,7 @@ module fcart (
         .clk(clk),
         .ch_prg(ch_cpu.controller),
         .ch_chr(ch_ppu.controller),
-        .refresh(cpu_refresh),
+        .refresh(sdram_refresh),
 
         .m2(M2),
         .cpu_addr({!ROMSEL, CPU_ADDR}),
@@ -116,7 +116,7 @@ module fcart (
         .ch0(ch_cpu.memory),
         .ch1(ch_ppu.memory),
         .ch2(ch_api.memory),
-        .refresh(cpu_refresh || api_refresh),
+        .refresh(sdram_refresh),
         .sdram_cs(SDRAM_CS),
         .sdram_addr(SDRAM_ADDR),
         .sdram_ba(SDRAM_BA),
@@ -162,7 +162,6 @@ module fcart (
         .ev_reg(launcher_status),
 
         .ram(ch_api.controller),
-        .ram_refresh(api_refresh),
 
         .rd_data(qspi_rd_data),
         .rd_valid(qspi_rd_valid),

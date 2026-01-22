@@ -25,7 +25,7 @@ int qspi_read_begin(uint8_t cmd, uint32_t address, uint8_t *data, uint32_t size)
         .Instruction = cmd,
         .Address = address,
         .AddressSize = QSPI_ADDRESS_24_BITS,
-        .DummyCycles = 4,
+        .DummyCycles = 8,
         .InstructionMode = QSPI_INSTRUCTION_4_LINES,
         .AddressMode = QSPI_ADDRESS_4_LINES,
         .NbData = size,

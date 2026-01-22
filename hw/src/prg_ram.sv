@@ -3,6 +3,7 @@ module prg_ram #(
 ) (
     input logic clk,
     sdram_bus.controller ram,
+    output logic refresh,
 
     input logic [ADDR_BITS-1:0] addr,
     input logic [7:0] data_in,
@@ -26,14 +27,20 @@ module prg_ram #(
 
     always_ff @(posedge clk) begin
         ram.req <= 1'b0;
+        refresh <= 1'b0;
         read_sync <= {read_sync[2:0], oe};
         write_sync <= {write_sync[2:0], we};
 
-        if (read_sync[3:1] == 3'b011 && addr_mismatch) begin
-            ram.we <= 1'b0;
-            ram.address <= addr[ADDR_BITS-1:1];
-            ram.req <= 1'b1;
-            addr_cached <= addr[ADDR_BITS-1:1];
+        if (read_sync[3:1] == 3'b011) addr_cached <= addr[ADDR_BITS-1:1];
+
+        if (read_sync[3:1] == 3'b011) begin
+            if (addr_mismatch) begin
+                ram.we <= 1'b0;
+                ram.address <= addr[ADDR_BITS-1:1];
+                ram.req <= 1'b1;
+            end else begin
+                refresh <= 1'b1;
+            end
         end else if (write_sync[3:1] == 3'b100) begin
             ram.we <= 1'b1;
             ram.address <= addr[ADDR_BITS-1:1];

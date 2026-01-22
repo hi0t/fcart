@@ -90,7 +90,7 @@ module qspi_tb;
         end
 
         master_we = 0;
-        repeat (4) dummy_cycle;
+        repeat (8) dummy_cycle;
 
         for (int i = 0; i < 20; i++) begin
             recv_byte(rx_byte);  // Receive some data

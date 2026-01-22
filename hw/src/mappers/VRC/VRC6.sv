@@ -15,15 +15,19 @@ module VRC6 (
         else if (bus.cpu_addr[13] == 0) bus.prg_addr = bus.ADDR_BITS'({prg_bank_C000, bus.cpu_addr[12:0]});
         else bus.prg_addr = bus.ADDR_BITS'({8'hFF, bus.cpu_addr[12:0]});
     end
-    assign bus.prg_oe   = bus.cpu_rw && bus.cpu_addr[15];
+    assign bus.prg_oe = bus.cpu_rw && bus.cpu_addr[15];
 
     // PPU
     assign chr_bank_sel = chr_bank[bus.ppu_addr[12:10]];  // 3 bits -> 8 banks
     assign bus.chr_addr = bus.ADDR_BITS'({chr_bank_sel, bus.ppu_addr[9:0]});  // 1KB pages
     assign bus.ciram_ce = !bus.ppu_addr[13];
-    assign bus.chr_ce   = bus.ciram_ce;
-    assign bus.chr_we   = bus.chr_ram ? !bus.ppu_wr : 0;
-    assign bus.chr_oe   = !bus.ppu_rd;
+    assign bus.chr_ce = bus.ciram_ce;
+    assign bus.chr_we = bus.chr_ram ? !bus.ppu_wr : 0;
+    assign bus.chr_oe = !bus.ppu_rd;
+
+    assign bus.custom_cpu_out = 0;
+    assign bus.wram_ce = 0;
+    assign bus.prg_we = 0;
 
     always_comb begin
         case (mirroring)

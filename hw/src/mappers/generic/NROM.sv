@@ -11,4 +11,9 @@ module NROM (
     assign bus.chr_oe = !bus.ppu_rd;
     assign bus.chr_we = bus.chr_ram ? !bus.ppu_wr : 0;
     assign bus.ciram_a10 = bus.mirroring ? bus.ppu_addr[10] : bus.ppu_addr[11];
+
+    assign bus.custom_cpu_out = 0;
+    assign bus.wram_ce = 0;
+    assign bus.prg_we = 0;
+    assign bus.audio = '0;
 endmodule

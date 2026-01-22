@@ -13,7 +13,6 @@ module api (
     input logic [31:0] ev_reg,
 
     sdram_bus.controller ram,
-    output logic ram_refresh,
 
     input logic [15:0] rd_data,
     input logic rd_valid,
@@ -24,10 +23,10 @@ module api (
     input logic start
 );
     localparam [15:0] VERSION = `FCART_VERSION;
-    localparam CMD_READ_MEM = 8'd0;
-    localparam CMD_WRITE_MEM = 8'd1;
-    localparam CMD_READ_REG = 8'd2;
-    localparam CMD_WRITE_REG = 8'd3;
+    localparam CMD_READ_MEM = 2'd0;
+    localparam CMD_WRITE_MEM = 2'd1;
+    localparam CMD_READ_REG = 2'd2;
+    localparam CMD_WRITE_REG = 2'd3;
 
     enum logic [1:0] {
         STATE_IDLE,
@@ -36,50 +35,20 @@ module api (
         STATE_DATA
     } state;
 
-    logic [7:0] cmd;
+    logic [1:0] cmd;
     logic [3:0] reg_addr;
     logic [31:0] got_reg;
     logic word_cnt;
     logic ram_busy;
 
     assign fpga_irq = (got_reg != ev_reg);
-    assign ram.we   = (state == STATE_DATA && cmd == CMD_WRITE_MEM);
+    assign ram.we   = (cmd == CMD_WRITE_MEM);
     assign ram.wm   = 2'b00;  // Always write full word
 
-    always_comb begin
-        rd_ready = 0;
-        wr_ready = 0;
-        wr_data  = '0;
-
-        case (state)
-            STATE_IDLE: ;
-            STATE_CMD:  rd_ready = 1;
-            STATE_ADDR: rd_ready = 1;
-            STATE_DATA: begin
-                if (cmd == CMD_WRITE_MEM) begin
-                    rd_ready = !ram_busy;
-                end else if (cmd == CMD_WRITE_REG) begin
-                    rd_ready = 1;
-                end else if (cmd == CMD_READ_MEM) begin
-                    if (ram.ack) begin
-                        wr_ready = 1;
-                        wr_data  = {ram.data_read[7:0], ram.data_read[15:8]};
-                    end
-                end else if (cmd == CMD_READ_REG) begin
-                    wr_ready = 1;
-                    if (reg_addr == 4'd1) begin
-                        wr_data = (word_cnt == 0) ? {ev_reg[7:0], ev_reg[15:8]} : {got_reg[23:16], got_reg[31:24]};
-                    end else if (reg_addr == 4'd2) begin
-                        wr_data = (word_cnt == 0) ? {VERSION[7:0], VERSION[15:8]} : 16'd0;
-                    end
-                end
-            end
-        endcase
-    end
-
     always_ff @(posedge clk) begin
-        ram.req <= 0;
-        ram_refresh <= 0;
+        ram.req  <= 0;
+        rd_ready <= 0;
+        wr_ready <= 0;
 
         if (reset) begin
             state <= STATE_IDLE;
@@ -88,85 +57,82 @@ module api (
         end else begin
             if (start) begin
                 state <= STATE_CMD;
-                word_cnt <= '0;
+            end
+
+            if (ram.ack && state == STATE_DATA) begin
+                ram.address <= ram.address + 1;
+                if (cmd == CMD_READ_MEM) begin
+                    wr_ready <= 1;
+                    wr_data  <= {ram.data_read[7:0], ram.data_read[15:8]};
+                end
                 ram_busy <= 0;
             end
 
-            if (ram.ack) ram_busy <= 0;
-
-            case (state)
-                STATE_IDLE: ;
-
-                STATE_CMD: begin
-                    if (rd_valid) begin
-                        cmd                <= rd_data[15:8];
+            if (rd_valid && !rd_ready) begin
+                case (state)
+                    STATE_CMD: begin
+                        cmd                <= rd_data[9:8];
                         ram.address[21:15] <= rd_data[6:0];
                         state              <= STATE_ADDR;
-
-                        ram_refresh        <= 1;
+                        rd_ready           <= 1;
                     end
-                end
-
-                STATE_ADDR: begin
-                    if (rd_valid) begin
+                    STATE_ADDR: begin
                         ram.address[14:7] <= rd_data[15:8];
                         ram.address[6:0]  <= rd_data[7:1];
                         reg_addr          <= rd_data[3:0];
                         state             <= STATE_DATA;
-
-                        // Prefetch first read
-                        if (cmd == CMD_READ_MEM) begin
-                            ram.req  <= 1;
-                            ram_busy <= 1;
-                        end
+                        rd_ready          <= 1;
+                        word_cnt          <= '0;
+                        ram_busy          <= 0;
                     end
-                end
-
-                STATE_DATA: begin
-                    if (cmd == CMD_WRITE_MEM) begin
-                        if (ram.ack) begin
-                            ram.address <= ram.address + 1;
-                        end else if (!ram_busy && rd_valid) begin
-                            ram.data_write <= {rd_data[7:0], rd_data[15:8]};
-                            ram.req <= 1;
-                            ram_busy <= 1;
-                        end
-                    end else if (cmd == CMD_READ_MEM) begin
-                        if (ram.ack) begin
-                            ram.address <= ram.address + 1;
-                        end else if (!ram_busy && wr_valid) begin
-                            ram.req  <= 1;
-                            ram_busy <= 1;
-                        end
-                    end else if (cmd == CMD_WRITE_REG) begin
-                        if (rd_valid) begin
+                    STATE_DATA: begin
+                        if (cmd == CMD_WRITE_REG) begin
                             if (word_cnt == 0) begin
                                 wr_reg[15:0] <= {rd_data[7:0], rd_data[15:8]};
-                                word_cnt <= 1;
                             end else begin
                                 wr_reg[31:16] <= {rd_data[7:0], rd_data[15:8]};
                                 wr_reg_changed <= !wr_reg_changed;
                                 wr_reg_addr <= reg_addr;
                                 state <= STATE_IDLE;
                             end
-                        end
-                    end else if (cmd == CMD_READ_REG) begin
-                        if (wr_valid) begin
-                            if (reg_addr == 4'd1) begin
-                                got_reg <= ev_reg;
-                            end
 
-                            if (word_cnt == 0) begin
-                                word_cnt <= 1;
-                            end else begin
-                                state <= STATE_IDLE;
+                            rd_ready <= 1;
+                            word_cnt <= word_cnt + 1;
+                        end else if (cmd == CMD_WRITE_MEM) begin
+                            if (!ram_busy) begin
+                                ram.data_write <= {rd_data[7:0], rd_data[15:8]};
+                                ram.req <= 1;
+                                ram_busy <= 1;
+                                rd_ready <= 1;
                             end
                         end
                     end
-                end
+                    default;
+                endcase
+            end
 
-                default: ;
-            endcase
+            if (state == STATE_DATA && wr_valid && !wr_ready) begin
+                if (cmd == CMD_READ_REG) begin
+                    if (reg_addr == 4'd1) begin
+                        got_reg <= ev_reg;
+                        wr_data <= (word_cnt == 0) ? {ev_reg[7:0], ev_reg[15:8]} : {got_reg[23:16], got_reg[31:24]};
+                    end else if (reg_addr == 4'd2) begin
+                        wr_data <= (word_cnt == 0) ? {VERSION[7:0], VERSION[15:8]} : 16'd0;
+                    end
+
+                    wr_ready <= 1;
+                    word_cnt <= word_cnt + 1;
+
+                    if (word_cnt == 1) begin
+                        state <= STATE_IDLE;
+                    end
+                end else if (cmd == CMD_READ_MEM) begin
+                    if (!ram_busy) begin
+                        ram.req  <= 1;
+                        ram_busy <= 1;
+                    end
+                end
+            end
         end
     end
 

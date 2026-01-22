@@ -22,6 +22,10 @@ module launcher (
     assign bus.chr_we = 0;
     assign bus.ciram_a10 = bus.ppu_addr[10];
 
+    assign bus.wram_ce = 0;
+    assign bus.prg_we = 0;
+    assign bus.audio = '0;
+
     logic [7:0] rom_q;
     always_ff @(posedge bus.m2) begin
         if (bus.cpu_rw) rom_q <= rom[bus.cpu_addr[9:0]];
@@ -66,7 +70,6 @@ module launcher (
             chr_bank <= '0;
             match_ppu <= '0;
         end else begin
-            last_ppu_a13 <= bus.ppu_addr[13];
 
             if (bus.ppu_addr[13:12] == 2'b10) begin
                 if (match_ppu == 3) begin
@@ -88,5 +91,9 @@ module launcher (
                 if (scanline_cnt == 192) chr_bank <= 3;
             end
         end
+    end
+
+    always_ff @(negedge bus.ppu_rd) begin
+        last_ppu_a13 <= bus.ppu_addr[13];
     end
 endmodule

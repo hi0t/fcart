@@ -4,7 +4,7 @@ module api_tb;
     // Clock generation
     logic clk;
     logic qspi_clk;
-    localparam CYC = 40;  // 25MHz QSPI clock period
+    localparam CYC = 41;  // 24MHz QSPI clock period
 
     // System clock (100MHz)
     always #5 clk <= !clk;
@@ -31,7 +31,6 @@ module api_tb;
     logic wr_valid;
     logic wr_ready;
     logic start;
-    logic ram_refresh;
 
     // SDRAM interface
     sdram_bus ram ();
@@ -54,7 +53,6 @@ module api_tb;
         .wr_reg_changed(wr_reg_changed),
         .ev_reg(ev_reg),
         .ram(ram.controller),
-        .ram_refresh(ram_refresh),
         .rd_data(rd_data),
         .rd_valid(rd_valid),
         .rd_ready(rd_ready),
@@ -101,7 +99,7 @@ module api_tb;
         .ch0(ram.memory),
         .ch1(bus1.memory),
         .ch2(bus2.memory),
-        .refresh(ram_refresh),
+        .refresh(),
 
         .sdram_cs  (sdram_command[3]),
         .sdram_addr(sdram_addr),
@@ -193,7 +191,7 @@ module api_tb;
         send_byte(addr[7:0]);
 
         master_we = 0;
-        repeat (4) dummy_cycle;
+        repeat (8) dummy_cycle;
 
         // Let's try receiving immediately.
         recv_byte(b0);
@@ -206,8 +204,9 @@ module api_tb;
         qspi_ncs = 1;
     endtask
 
-    task write_mem(input [23:0] start_addr, input [15:0] data1, input [15:0] data2);
-        $display("Writing Memory: Addr=%h, Data1=%h, Data2=%h", start_addr, data1, data2);
+    task write_mem(input [23:0] start_addr, input [7:0] data[32]);
+        integer i;
+        $display("Writing Memory: Addr=%h, Length=64 bytes", start_addr);
         qspi_ncs  = 0;
         master_we = 1;
 
@@ -216,20 +215,16 @@ module api_tb;
         send_byte(start_addr[15:8]);
         send_byte(start_addr[7:0]);
 
-        // Data 1
-        send_byte(data1[7:0]);
-        send_byte(data1[15:8]);
-
-        // Data 2
-        send_byte(data2[7:0]);
-        send_byte(data2[15:8]);
+        for (i = 0; i < 32; i++) begin
+            send_byte(data[i]);
+        end
 
         master_we = 0;
         qspi_ncs  = 1;
     endtask
 
-    task read_mem(input [23:0] start_addr, output [15:0] data1, output [15:0] data2);
-        logic [7:0] b0, b1, b2, b3;
+    task read_mem(input [23:0] start_addr, output [7:0] data[32]);
+        integer i;
         $display("Reading Memory: Addr=%h", start_addr);
         qspi_ncs  = 0;
         master_we = 1;
@@ -240,17 +235,11 @@ module api_tb;
         send_byte(start_addr[7:0]);
 
         master_we = 0;
-        repeat (4) dummy_cycle;
+        repeat (8) dummy_cycle;
 
-        // Read Data 1
-        recv_byte(b0);
-        recv_byte(b1);
-        data1 = {b1, b0};
-
-        // Read Data 2
-        recv_byte(b2);
-        recv_byte(b3);
-        data2 = {b3, b2};
+        for (i = 0; i < 32; i++) begin
+            recv_byte(data[i]);
+        end
 
         qspi_ncs = 1;
     endtask
@@ -277,10 +266,14 @@ module api_tb;
         $display("SDRAM Initialized");
 
         // 1. Write Register
-        write_reg(24'h000005, 32'h12345678);
+        begin
+            logic old_toggle;
+            old_toggle = wr_reg_changed;
+            write_reg(24'h000005, 32'h12345678);
+            wait (wr_reg_changed != old_toggle);
+        end
 
         // Check result
-        @(wr_reg_changed);
         assert (wr_reg == 32'h12345678)
         else $fatal(1, "Write Register Failed: Expected 12345678, got %h", wr_reg);
         assert (wr_reg_addr == 4'h5)
@@ -294,29 +287,34 @@ module api_tb;
             logic [31:0] read_val;
             read_reg(24'h000001, read_val);
             assert (read_val == ev_reg)
-            else $error("Read Register Failed: Expected %h, got %h", ev_reg, read_val);
+            else $fatal(1, "Read Register Failed: Expected %h, got %h", ev_reg, read_val);
         end
 
         #(CYC * 2);
 
         // 3. Write SDRAM
-        write_mem(24'h001000, 16'h1234, 16'h5678);
+        begin
+            logic [7:0] wdata[32];
+            integer i;
+            for (i = 0; i < 32; i++) wdata[i] = i[7:0];
+            write_mem(24'h001000, wdata);
+        end
 
         #(CYC * 2);
 
         // 4. Read SDRAM
         begin
-            logic [15:0] r1, r2;
-            read_mem(24'h001000, r1, r2);
-            assert (r1 == 16'h1234)
-            else $error("Read Mem Data1 mismatch: Expected 1234, got %h", r1);
-            assert (r2 == 16'h5678)
-            else $error("Read Mem Data2 mismatch: Expected 5678, got %h", r2);
+            logic [7:0] rdata[32];
+            integer i;
+            read_mem(24'h001000, rdata);
+            for (i = 0; i < 32; i++) begin
+                assert (rdata[i] == i[7:0])
+                else $fatal(1, "Read Mem byte %0d mismatch: Expected %h, got %h", i, i[7:0], rdata[i]);
+            end
         end
 
         #(CYC * 2);
         $display("Testbench completed");
         $finish;
     end
-
 endmodule
