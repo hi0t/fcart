@@ -10,6 +10,7 @@ module joy_snoop (
     logic [3:0] bit_cnt;
     logic strobe;
     logic [6:0] shift_reg;
+    logic [7:0] last_joy;
 
     always_ff @(negedge m2) begin
         if (cpu_addr == 'h4016) begin
@@ -25,7 +26,11 @@ module joy_snoop (
                 bit_cnt   <= bit_cnt + 4'd1;
 
                 if (bit_cnt == 4'd7) begin
-                    joy1 <= {shift_reg, cpu_data};  // A, B, Sl, St, U, D, L, R
+                    // Filter out corrupt reads caused by DMC DMA conflict (double read verification)
+                    if ({shift_reg, cpu_data} == last_joy) begin
+                        joy1 <= {shift_reg, cpu_data};  // A, B, Sl, St, U, D, L, R
+                    end
+                    last_joy <= {shift_reg, cpu_data};
                 end
             end
         end
