@@ -55,7 +55,7 @@ module map_mux #(
     logic [ADDR_BITS-1:0] prg_mask, chr_mask;
     logic [7:0] cpu_data_out, ppu_data_out;
     launcher_ctrl_t launcher_ctrl;
-    logic [1:0] launcher_status;
+    logic launcher_status;
     logic video_enable;
     logic reset_hijack;
     logic nmi_hijack;
@@ -108,7 +108,7 @@ module map_mux #(
     assign reset_hijack = launcher_ctrl.start_app && cpu_addr == 'hFFFC && cpu_rw;
     assign nmi_hijack = launcher_ctrl.ingame_menu && cpu_addr == 'hFFFA && cpu_rw;
     assign select = (reset_hijack || nmi_hijack) ? pending_select : select_reg;
-    assign video_enable = launcher_status[0] && !cpu_reset && !launcher_ctrl.start_app;
+    assign video_enable = launcher_status && !cpu_reset && !launcher_ctrl.start_app;
 
     genvar n;
     for (n = 0; n < MAP_CNT; n = n + 1) begin
@@ -185,7 +185,6 @@ module map_mux #(
 
     logic [2:0] wr_reg_sync;
     logic [4:0] pending_select;
-    logic [2:0] resume_timer;
 
     always_ff @(negedge m2 or posedge cpu_reset) begin
         if (cpu_reset) begin
@@ -208,26 +207,22 @@ module map_mux #(
                 end
             end
 
+            // Launch game
             if (reset_hijack) begin
                 select_reg <= pending_select;
                 launcher_ctrl.start_app <= 0;
             end
 
+            // Enter in-game menu
             if (launcher_ctrl.ingame_menu && cpu_addr == 'hFFFB && cpu_rw) begin
                 select_reg <= pending_select;
                 launcher_ctrl.ingame_menu <= 0;
             end
 
-            if (launcher_ctrl.restore_app && launcher_status[1]) begin
-                resume_timer <= resume_timer + 1;
-            end else begin
-                resume_timer <= '0;
-            end
-
-            if (resume_timer == 3'd7) begin
+            // Resume from saved state
+            if (launcher_ctrl.restore_app && cpu_addr == 'hFFEB && cpu_rw) begin
                 select_reg <= pending_select;
                 launcher_ctrl.restore_app <= 0;
-                resume_timer <= '0;
             end
         end
     end
@@ -240,7 +235,7 @@ module map_mux #(
         m2_sync <= {m2_sync[1:0], m2};
 
         if (m2_sync[2:1] == 2'b10) begin
-            status_reg <= {23'd0, launcher_status[0], joy1};
+            status_reg <= {23'd0, launcher_status, joy1};
             reset_seq  <= '0;
         end else if (reset_seq != '1) begin
             reset_seq <= reset_seq + 1'd1;

@@ -14,6 +14,8 @@ SST_REC     = $5004
 MAPPER_SW   = $5005
 
 .segment "ZEROPAGE"
+ptr:       .res 1
+pages_cnt: .res 1
 
 .segment "CODE"
 ingame_entry:
@@ -27,6 +29,11 @@ ingame_entry:
     tsx
     stx SST_DATA ; S at 3
 
+    ; Disable NMI immediately to prevent re-entrancy
+    ldx #0
+    stx PPU_CTRL
+    stx PPU_MASK
+
     ; dump Zero Page ($00-$FF)
     ldx #0
     dump_zp:
@@ -35,28 +42,22 @@ ingame_entry:
         inx
         bne dump_zp
 
-    ; Disable NMI to prevent interruptions during state save.
-    ; we get here right after the nmi call
-    lda #0
-    sta PPU_CTRL
-    sta PPU_MASK
-
     ; now we can overwrite ZP to use as pointer
     ; dump RAM $0100-$07FF
-    ; A already at 0
-    sta $00
+    lda #0
+    sta ptr
     lda #1
-    sta $01 ; pointer = $0100
+    sta pages_cnt ; pointer = $0100
 
     dump_ram_pages:
         ldy #0
         dump_page_bytes:
-            lda ($00),y
+            lda (ptr),y
             sta SST_DATA
             iny
             bne dump_page_bytes
-        inc $01
-        lda $01
+        inc pages_cnt
+        lda pages_cnt
         cmp #8
         bne dump_ram_pages
 
@@ -68,7 +69,7 @@ ingame_entry:
     lda PPU_DATA ; dummy read
 
     lda #8
-    sta $01 ; counter
+    sta pages_cnt ; counter
     dump_nt_pages:
         ldy #0
         dump_nt_bytes:
@@ -76,7 +77,7 @@ ingame_entry:
             sta SST_DATA
             iny
             bne dump_nt_bytes
-        dec $01
+        dec pages_cnt
         bne dump_nt_pages
 
     ; dump Palettes ($3F00-$3F20)
@@ -233,19 +234,19 @@ reset:
 
         ; Setup pointers for RAM copy
         lda #0
-        sta $00
+        sta ptr
         lda #1
-        sta $01 ; pointer = $0100
+        sta pages_cnt ; pointer = $0100
 
         res_loop_pages:
             ldy #0
             res_loop_bytes:
                 lda SST_DATA
-                sta ($00),y
+                sta (ptr),y
                 iny
                 bne res_loop_bytes
-            inc $01
-            lda $01
+            inc pages_cnt
+            lda pages_cnt
             cmp #8
             bne res_loop_pages
 
@@ -257,7 +258,7 @@ reset:
         sta PPU_ADDR
 
         lda #8
-        sta $01
+        sta pages_cnt
         res_nt_pages:
             ldy #0
             res_nt_bytes:
@@ -265,7 +266,7 @@ reset:
                 sta PPU_DATA
                 iny
                 bne res_nt_bytes
-            dec $01
+            dec pages_cnt
             bne res_nt_pages
 
         ; Restore Palettes ($3F00-$3F20)
@@ -321,23 +322,28 @@ reset:
             bit PPU_STATUS
             bpl vblank_wait5
 
-        lda SST_REC
-	    sta PPU_CTRL
-        lda SST_REC
-        sta PPU_MASK
-        lda SST_REC
-        sta PPU_OAMADDR
-        lda SST_REC
-        sta PPU_SCROLL
-        lda SST_REC
-        sta PPU_SCROLL
+        ;lda SST_REC
+	    ;sta PPU_CTRL
+        ;lda SST_REC
+        ;sta PPU_MASK
+        ;lda SST_REC
+        ;sta PPU_OAMADDR
+        ;lda SST_REC
+        ;sta PPU_SCROLL
+        ;lda SST_REC
+        ;sta PPU_SCROLL
 
-        lda #%00000100 ; switch to game
-        sta STATUS_REG
+        lda #%10010000
+        sta PPU_CTRL
+        lda #%00011110
+        sta PPU_MASK
+
+        lda #$00
+        sta STATUS_REG ; launcher finished
 
         lda SST_DATA ; Restore A (from offset 2)
 
-        rti
+        jmp resume_app
 nmi:
     ; save registers
 	pha
@@ -369,6 +375,10 @@ irq:
 
 initial_palette:
 	.byte $0F,$30,$28,$21
+
+.segment "RTI_TRAP"
+resume_app:
+    rti
 
 .segment "VECTORS"
     .addr nmi, reset, irq

@@ -84,9 +84,9 @@ void ui_poll()
         break;
     case UI_STATE_GAME:
         // Return to menu if we skipped reset while in game
-        if (is_active) {
+        /*if (is_active) {
             state = UI_STATE_RESET;
-        }
+        }*/
         break;
     default:
     }
