@@ -25,7 +25,7 @@ module VRC6 (
     assign bus.chr_we = bus.chr_ram ? !bus.ppu_wr : 0;
     assign bus.chr_oe = !bus.ppu_rd;
 
-    assign bus.custom_cpu_out = 0;
+    assign bus.cpu_data_oe = 0;
     assign bus.wram_ce = 0;
     assign bus.prg_we = 0;
 

@@ -64,7 +64,7 @@ module map_mux #(
 
     // Muxed bus signals
     logic [7:0] bus_cpu_data_out[MAP_CNT];
-    logic bus_custom_cpu_out[MAP_CNT];
+    logic bus_cpu_data_oe[MAP_CNT];
     logic bus_irq[MAP_CNT];
     logic bus_ciram_a10[MAP_CNT];
     logic bus_ciram_ce[MAP_CNT];
@@ -127,7 +127,7 @@ module map_mux #(
 
         // unpack interface array
         assign bus_cpu_data_out[n] = map[n].cpu_data_out;
-        assign bus_custom_cpu_out[n] = map[n].custom_cpu_out;
+        assign bus_cpu_data_oe[n] = map[n].cpu_data_oe;
         assign bus_irq[n] = map[n].irq;
         assign bus_ciram_a10[n] = map[n].ciram_a10;
         assign bus_ciram_ce[n] = map[n].ciram_ce;
@@ -146,7 +146,7 @@ module map_mux #(
     // M2 gating is required to correctly coordinate bidirectional level shifters
     assign cpu_oe = bus_prg_oe[select] && m2;
     assign ppu_oe = bus_chr_ce[select] && bus_chr_oe[select];
-    assign cpu_data = cpu_oe ? (bus_custom_cpu_out[select] ? bus_cpu_data_out[select] : cpu_data_out) : 'z;
+    assign cpu_data = cpu_oe ? (bus_cpu_data_oe[select] ? bus_cpu_data_out[select] : cpu_data_out) : 'z;
     assign irq = bus_irq[select];
     assign audio = bus_audio[select];
     assign ciram_a10 = bus_ciram_a10[select];
@@ -165,7 +165,7 @@ module map_mux #(
         ),
         .data_in(cpu_data),
         .data_out(cpu_data_out),
-        .oe(bus_prg_oe[select] && m2 && !bus_custom_cpu_out[select]),
+        .oe(bus_prg_oe[select] && m2 && !bus_cpu_data_oe[select]),
         .we(bus_prg_we[select] && m2)
     );
 
@@ -202,8 +202,7 @@ module map_mux #(
                     prg_mask <= ADDR_BITS'((1 << wr_reg[9:5]) - 5'd1);
                     chr_mask <= ADDR_BITS'(1 << wr_reg[9:5]);
                 end else if (wr_reg_addr == REG_LAUNCHER) begin
-                    launcher_ctrl.buffer_num <= wr_reg[0];
-                    launcher_ctrl[3:1] <= launcher_ctrl[3:1] | wr_reg[3:1];
+                    launcher_ctrl <= wr_reg[3:0];
                 end
             end
 
@@ -214,8 +213,10 @@ module map_mux #(
             end
 
             // Enter in-game menu
-            if (launcher_ctrl.ingame_menu && cpu_addr == 'hFFFB && cpu_rw) begin
+            if (nmi_hijack) begin
                 select_reg <= pending_select;
+            end
+            if (launcher_ctrl.ingame_menu && cpu_addr == 'hFFFB && cpu_rw) begin
                 launcher_ctrl.ingame_menu <= 0;
             end
 

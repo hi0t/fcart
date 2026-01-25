@@ -2,6 +2,7 @@ PPU_CTRL    = $2000
 PPU_MASK    = $2001
 PPU_STATUS  = $2002
 PPU_OAMADDR = $2003
+PPU_OAMDATA = $2004
 PPU_SCROLL  = $2005
 PPU_ADDR    = $2006
 PPU_DATA    = $2007
@@ -19,20 +20,33 @@ pages_cnt: .res 1
 
 .segment "CODE"
 ingame_entry:
-    ; registers are saved in order X, Y, A, S
+    ; State Dump Map (Total size: $1143 = 4419 bytes)
+    ; -----------------------------------------------
+    ; Offset | Size  | Description
+    ; -------|-------|--------------------
+    ; $0000  | $0004 | CPU Registers (A, X, Y, S)
+    ; $0004  | $0100 | Zero Page ($00-$FF)
+    ; $0104  | $0700 | RAM ($0100-$07FF)
+    ; $0804  | $0800 | Nametables ($2000-$27FF)
+    ; $1004  | $0020 | Palettes ($3F00-$3F1F)
+    ; $1024  | $0100 | OAM Data (256 bytes)
+    ; $1124  | $0007 | PPU Registers (CTRL, MASK, OAMADDR, SCROLLx2, ADDRx2)
+    ; $112B  | $0018 | APU Registers ($4000-$4017)
+
+    ; registers are saved in order A, X, Y, S
     ; sst_addr is reset to 0 by hardware when reading NMI vector
-    stx SST_DATA ; X at 0
-    sty SST_DATA ; Y at 1
-    sta SST_DATA ; A at 2
+    sta SST_DATA ; A at 0
+    stx SST_DATA ; X at 1
+    sty SST_DATA ; Y at 2
 
     ; dump S
     tsx
     stx SST_DATA ; S at 3
 
     ; Disable NMI immediately to prevent re-entrancy
-    ldx #0
-    stx PPU_CTRL
-    stx PPU_MASK
+    lda #0
+    sta PPU_CTRL
+    sta PPU_MASK
 
     ; dump Zero Page ($00-$FF)
     ldx #0
@@ -93,6 +107,32 @@ ingame_entry:
         cpx #32
         bne dump_pal
 
+    ; dump OAM (256 bytes)
+    ; SST_REC starts at 0x000 (OAM)
+    ldx #0
+    dump_oam:
+        lda SST_REC
+        sta SST_DATA
+        inx
+        bne dump_oam
+
+    ; dump PPU registers (7 bytes)
+    ; SST_REC continues at 0x100
+    ldx #7
+    dump_ppu_loop:
+        lda SST_REC
+        sta SST_DATA
+        dex
+        bne dump_ppu_loop
+
+    ; dump APU registers ($4000-$4017) (24 bytes)
+    ldx #24
+    dump_apu_loop:
+        lda SST_REC
+        sta SST_DATA
+        dex
+        bne dump_apu_loop
+
 reset:
     ; start initialization
     sei
@@ -106,6 +146,8 @@ reset:
     stx PPU_MASK
     stx $4010
     stx $4015
+
+    bit PPU_STATUS ; read PPU status to reset high-low latch
 
     vblank_wait1:
         bit PPU_STATUS
@@ -128,7 +170,6 @@ reset:
         bpl vblank_wait2
     ; end initialization
 
-    lda PPU_ADDR ; read PPU status to reset high-low latch
 
     lda #%00000011 ; running|vblank
     sta STATUS_REG
@@ -284,6 +325,51 @@ reset:
             cpx #32
             bne res_pal
 
+        ; Restore OAM
+        lda #0
+        sta PPU_OAMADDR
+        ldx #0
+        res_oam:
+            lda SST_DATA
+            sta PPU_OAMDATA
+            inx
+            bne res_oam
+
+        ; Restore PPU registers (7 bytes)
+        ; PPU_CTRL (Skip, restored at the end)
+        lda SST_DATA
+        ; PPU_MASK
+        lda SST_DATA
+        sta PPU_MASK
+        ; PPU_OAMADDR
+        lda SST_DATA
+        sta PPU_OAMADDR
+        ; PPU_SCROLL (X)
+        lda SST_DATA
+        sta PPU_SCROLL
+        ; PPU_SCROLL (Y)
+        lda SST_DATA
+        sta PPU_SCROLL
+        ; PPU_ADDR (High)
+        lda SST_DATA
+        sta PPU_ADDR
+        ; PPU_ADDR (Low)
+        lda SST_DATA
+        sta PPU_ADDR
+
+        ; Restore APU Registers (24 bytes)
+        ; Skip $4014 (offset 20) to prevent DMA
+        ldx #0
+        res_apu_loop:
+            lda SST_DATA
+            cpx #20 ; $4014
+            beq res_apu_skip
+            sta $4000,x
+        res_apu_skip:
+            inx
+            cpx #24
+            bne res_apu_loop
+
         ; Restore Zero Page ($00-$FF)
         ; Seek to offset 4 (after Regs)
         lda #04
@@ -307,41 +393,35 @@ reset:
         ldx SST_DATA ; Value of S
         txs
 
-        ; Restore X, Y, A
-        ; Seek to offset 0
-        lda #0
+        ; Seek to offset 1 (X)
+        lda #01
         sta SST_ADDR
+        lda #00
         sta SST_ADDR
 
         ldx SST_DATA ; Restore X
         ldy SST_DATA ; Restore Y
 
-        sta SST_REC ; Reset PPU Reg pointer to 0x100
+        lda #$00
+        sta STATUS_REG ; launcher finished
 
         vblank_wait5:
             bit PPU_STATUS
             bpl vblank_wait5
 
-        ;lda SST_REC
-	    ;sta PPU_CTRL
-        ;lda SST_REC
-        ;sta PPU_MASK
-        ;lda SST_REC
-        ;sta PPU_OAMADDR
-        ;lda SST_REC
-        ;sta PPU_SCROLL
-        ;lda SST_REC
-        ;sta PPU_SCROLL
-
-        lda #%10010000
+        ; Restore PPU_CTRL ($1124)
+        lda #$24
+        sta SST_ADDR
+        lda #$11
+        sta SST_ADDR
+        lda SST_DATA
         sta PPU_CTRL
-        lda #%00011110
-        sta PPU_MASK
 
-        lda #$00
-        sta STATUS_REG ; launcher finished
-
-        lda SST_DATA ; Restore A (from offset 2)
+        ; Restore A from offset 0
+        lda #00
+        sta SST_ADDR
+        sta SST_ADDR
+        lda SST_DATA
 
         jmp resume_app
 nmi:

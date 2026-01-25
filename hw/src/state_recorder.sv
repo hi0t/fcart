@@ -1,6 +1,4 @@
-module state_recorder #(
-    parameter MEM_DEPTH = 512
-) (
+module state_recorder (
     input logic reset,
 
     // Sniffing interface (M2 Domain)
@@ -16,71 +14,91 @@ module state_recorder #(
 
     // Memory Map:
     // 0x000 - 0x0FF: OAM Data (256 bytes). Updated via writes to $2004
-    // 0x100 - 0x107: PPU Registers ($2000, $2001, $2005). Last written value.
-    // 0x140 - 0x155: APU / IO Registers ($4000 - $4015). Last written value.
-    //                Includes DMA ($4014)
+    // 0x100 - 0x106: PPU Registers ($2000, $2001, $2003, $2005x2, $2006x2).
+    // 0x107 - 0x11E: APU / IO Registers ($4000 - $4017).
 
-    (* syn_ramstyle = "block_ram" *) logic [7:0] memory[0:MEM_DEPTH-1];
+    (* syn_ramstyle = "block_ram" *) logic [7:0] memory[512];
 
-    // Internal state tracking
     logic [7:0] oam_ptr;
     logic write_toggle;
+    logic memory_we;
+    logic [8:0] memory_addr;
 
-    // Write dogic (M2 domain)
-    always_ff @(negedge m2 or posedge reset) begin
-        if (reset) begin
-            oam_ptr <= '0;
-            write_toggle <= 0;
-        end else begin
-            // Reset write toggle on PPU STATUS read
-            if (cpu_rw && cpu_addr == 'h2002) begin
-                write_toggle <= 0;
-            end else if (!cpu_rw) begin
-                if (cpu_addr == 'h2004) begin
-                    memory[{1'b0, oam_ptr}] <= cpu_data;  // Write to OAM Block (0x000-0x0FF)
-                    oam_ptr <= oam_ptr + 1;  // Auto-increment
-                end
+    logic is_ppu_range;
+    logic is_apu_range;
+    logic [2:0] low_addr;
 
-                // PPU registers (offset 0x100 = 256)
-                if ({cpu_addr[15:3], 3'b000} == 'h2000) begin
-                    // 2000, 2001
-                    if (cpu_addr[2:0] == 3'b000 || cpu_addr[2:0] == 3'b001) begin
-                        memory[{8'b10000000, cpu_addr[0]}] <= cpu_data;
+    assign low_addr = cpu_addr[2:0];
+    // Allow mirrored PPU addresses ($2000-$3FFF)
+    assign is_ppu_range = (cpu_addr[15:13] == 3'b001);
+    // Capture APU ($4000-$4017)
+    assign is_apu_range = ({cpu_addr[15:5], 5'b0} == 16'h4000) && (cpu_addr[4:3] != 2'b11);
+
+    always_comb begin
+        memory_we   = 0;
+        memory_addr = '0;
+
+        if (!reset && !cpu_rw) begin
+            if (is_ppu_range) begin
+                case (low_addr)
+                    3'b000, 3'b001: begin  // $2000, $2001
+                        memory_we   = 1;
+                        memory_addr = {8'h80, low_addr[0]};
                     end
-                    // 2003
-                    if (cpu_addr[2:0] == 3'b011) begin
-                        memory[9'b100000010] <= cpu_data;
-                        oam_ptr <= cpu_data;  // Special handling for OAM ADDR
+                    3'b011: begin  // $2003
+                        memory_we   = 1;
+                        memory_addr = 9'h102;
                     end
-                    // 2005
-                    if (cpu_addr[2:0] == 3'b101) begin
-                        if (write_toggle == 0) begin
-                            memory[9'b100000011] <= cpu_data;  // X
-                        end else begin
-                            memory[9'b100000100] <= cpu_data;  // Y
-                        end
-                        write_toggle <= !write_toggle;
+                    3'b100: begin  // $2004
+                        memory_we   = 1;
+                        memory_addr = {1'b0, oam_ptr};
                     end
-                    // 2006 - Toggle scroll_sw
-                    if (cpu_addr[2:0] == 3'b110) begin
-                        write_toggle <= !write_toggle;
+                    3'b101: begin  // $2005
+                        memory_we   = 1;
+                        memory_addr = (write_toggle == 0) ? 9'h103 : 9'h104;
                     end
-                end
+                    3'b110: begin  // $2006
+                        memory_we   = 1;
+                        memory_addr = (write_toggle == 0) ? 9'h105 : 9'h106;
+                    end
+                    default;
+                endcase
+            end else if (is_apu_range) begin
+                // APU Registers $4000-$4017 -> 0x107-0x11E
+                memory_we   = 1;
+                memory_addr = 9'h107 + {4'h0, cpu_addr[4:0]};
             end
-
-            /*// APU / IO registers
-            // Map to 0x140 - 0x157 (offset 0x140 = 320)
-            // 0x4000 & 0x1F = 0x00
-            // 0x140 = 'b101000000. Use prefix 9'b10100xxxx
-            else if (cpu_addr >= 'h4000 && cpu_addr <= 'h4015) begin
-                memory[{4'b1010, cpu_addr[4:0]}] <= cpu_data;
-            end*/
         end
     end
 
-    // Read Logic
+    // RAM Block (Infers Block RAM)
     always_ff @(negedge m2) begin
+        if (memory_we) begin
+            memory[memory_addr] <= cpu_data;
+        end
         read_data <= memory[read_addr];
     end
 
+    // State Update Logic (M2 domain)
+    always_ff @(negedge m2) begin
+        if (reset) begin
+            oam_ptr <= '0;
+            write_toggle <= 0;
+        end else if (is_ppu_range) begin
+            // PPU Register Range $2000-$2007
+            if (cpu_rw) begin
+                // $2002 Read: Reset write toggle
+                if (low_addr == 3'b010) write_toggle <= 0;
+            end else begin
+                // Writes
+                case (low_addr)
+                    3'b011: oam_ptr <= cpu_data;           // $2003: Set OAM Pointer
+                    3'b100: oam_ptr <= oam_ptr + 1;        // $2004: Write OAM Data (Inc Pointer)
+                    3'b101,
+                    3'b110: write_toggle <= !write_toggle; // $2005, $2006: Toggle
+                    default;
+                endcase
+            end
+        end
+    end
 endmodule

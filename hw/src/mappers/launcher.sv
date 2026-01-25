@@ -17,7 +17,7 @@ module launcher (
     logic sst_addr_toggle;
     logic inc_pending;
 
-    assign bus.custom_cpu_out = (bus.cpu_addr != 'h5003 && bus.cpu_addr != 'h5004);
+    assign bus.cpu_data_oe = (bus.cpu_addr != 'h5003);
     assign bus.prg_oe = bus.cpu_rw && (bus.cpu_addr[15] || (bus.cpu_addr == 'h5000) || (bus.cpu_addr == 'h5003) || (bus.cpu_addr == 'h5004));
     assign bus.prg_we = !bus.cpu_rw && (bus.cpu_addr == 'h5003);
     assign bus.chr_addr = bus.ADDR_BITS'({ctrl[0], chr_bank, bus.ppu_addr[11:0]});
@@ -78,7 +78,7 @@ module launcher (
             end else if (ctrl[3] && bus.cpu_addr == 'hFFFA) begin
                 sst_addr_toggle <= 0;
                 bus.prg_addr <= '0;
-                st_rec_addr <= 'h100;
+                st_rec_addr <= '0;
                 inc_pending <= 0;
             end
 
@@ -87,9 +87,8 @@ module launcher (
             end
 
             // Auto-increment state recorder address on read
-            if (bus.cpu_addr == 'h5004) begin
-                if (bus.cpu_rw) st_rec_addr <= st_rec_addr + 1;
-                else st_rec_addr <= 'h100;
+            if (bus.cpu_addr == 'h5004 && bus.cpu_rw) begin
+                st_rec_addr <= st_rec_addr + 1;
             end
         end
     end

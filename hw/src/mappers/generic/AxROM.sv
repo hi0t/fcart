@@ -16,7 +16,7 @@ module AxROM (
     assign bus.chr_we = bus.chr_ram ? !bus.ppu_wr : 0;
     assign bus.ciram_a10 = nametable_page;
 
-    assign bus.custom_cpu_out = 0;
+    assign bus.cpu_data_oe = 0;
     assign bus.wram_ce = 0;
     assign bus.prg_we = 0;
     assign bus.audio = '0;
