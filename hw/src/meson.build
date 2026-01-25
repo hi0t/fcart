@@ -3,6 +3,7 @@ src = files(
     'map_bus.sv',
     'sdram_bus.sv',
     'api.sv',
+    'state_recorder.sv',
     'chr_ram.sv',
     'fcart.sv',
     'fifo.sv',

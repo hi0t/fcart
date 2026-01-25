@@ -1,21 +1,96 @@
 PPU_CTRL    = $2000
 PPU_MASK    = $2001
 PPU_STATUS  = $2002
+PPU_OAMADDR = $2003
 PPU_SCROLL  = $2005
 PPU_ADDR    = $2006
 PPU_DATA    = $2007
 JOYPAD1     = $4016
 CTRL_REG    = $5000
-STATUS_REG  = $5002
+STATUS_REG  = $5001
+SST_ADDR    = $5002
+SST_DATA    = $5003
+SST_REC     = $5004
+MAPPER_SW   = $5005
 
 .segment "ZEROPAGE"
-    zp_ctrl:    .res 1
-    zp_halt:    .res 1
 
 .segment "CODE"
 ingame_entry:
-    ; TODO: save state
+    ; registers are saved in order X, Y, A, S
+    ; sst_addr is reset to 0 by hardware when reading NMI vector
+    stx SST_DATA ; X at 0
+    sty SST_DATA ; Y at 1
+    sta SST_DATA ; A at 2
 
+    ; dump S
+    tsx
+    stx SST_DATA ; S at 3
+
+    ; dump Zero Page ($00-$FF)
+    ldx #0
+    dump_zp:
+        lda $00,x
+        sta SST_DATA
+        inx
+        bne dump_zp
+
+    ; Disable NMI to prevent interruptions during state save.
+    ; we get here right after the nmi call
+    lda #0
+    sta PPU_CTRL
+    sta PPU_MASK
+
+    ; now we can overwrite ZP to use as pointer
+    ; dump RAM $0100-$07FF
+    ; A already at 0
+    sta $00
+    lda #1
+    sta $01 ; pointer = $0100
+
+    dump_ram_pages:
+        ldy #0
+        dump_page_bytes:
+            lda ($00),y
+            sta SST_DATA
+            iny
+            bne dump_page_bytes
+        inc $01
+        lda $01
+        cmp #8
+        bne dump_ram_pages
+
+    ; dump Nametables ($2000-$2800)
+    lda #$20
+    sta PPU_ADDR
+    lda #$00
+    sta PPU_ADDR
+    lda PPU_DATA ; dummy read
+
+    lda #8
+    sta $01 ; counter
+    dump_nt_pages:
+        ldy #0
+        dump_nt_bytes:
+            lda PPU_DATA
+            sta SST_DATA
+            iny
+            bne dump_nt_bytes
+        dec $01
+        bne dump_nt_pages
+
+    ; dump Palettes ($3F00-$3F20)
+    lda #$3F
+    sta PPU_ADDR
+    lda #$00
+    sta PPU_ADDR
+    ldx #0
+    dump_pal:
+        lda PPU_DATA
+        sta SST_DATA
+        inx
+        cpx #32
+        bne dump_pal
 
 reset:
     ; start initialization
@@ -108,79 +183,186 @@ reset:
 
     forever:
         lda CTRL_REG
-        sta zp_ctrl
         beq forever         ; If 0, nothing to do
 
-    check_halt:
-        lda zp_ctrl
-        and #%00000001      ; Check bit 0
-        beq check_load      ; If 0, skip halt action
-        lda #$01
-        sta zp_halt         ; Execute halt action
+        lsr                 ; bit 0 -> C
+        bcs start_app        ; If set, start
 
-    check_load:
-        lda zp_ctrl
-        and #%00000010      ; Check bit 1
-        beq end_loop        ; If 0, skip load action
-        jmp load_app        ; Execute load action
+        lsr                 ; bit 1 -> C
+        bcs restore_state   ; If set, restore
 
-    end_loop:
         jmp forever
 
-    load_app:
+    start_app:
         vblank_wait3:
             bit PPU_STATUS
             bpl vblank_wait3
+
+        ; Disable NMI to prevent interruptions during start
+        lda #0
+        sta PPU_CTRL
+        sta PPU_MASK
 
         ldx #$fd
         txs ; reset stack pointer
         lda #$34
         pha
         lda #$00
+        sta STATUS_REG ; launcher finished
         ldx #$00
         ldy #$00
         plp ; default status register
         jmp ($FFFC)
 
+    restore_state:
+        vblank_wait4:
+            bit PPU_STATUS
+            bpl vblank_wait4
+
+        ; Disable NMI to prevent interruptions during restore
+        lda #0
+        sta PPU_CTRL
+        sta PPU_MASK
+
+        ; Restore RAM ($0100-$07FF)
+        ; Regs(4) + ZP(256) = 260 ($104)
+        lda #$04
+        sta SST_ADDR
+        lda #$01
+        sta SST_ADDR ; 0x0104
+
+        ; Setup pointers for RAM copy
+        lda #0
+        sta $00
+        lda #1
+        sta $01 ; pointer = $0100
+
+        res_loop_pages:
+            ldy #0
+            res_loop_bytes:
+                lda SST_DATA
+                sta ($00),y
+                iny
+                bne res_loop_bytes
+            inc $01
+            lda $01
+            cmp #8
+            bne res_loop_pages
+
+        ; Restore Nametables ($2000-$2800)
+        ; Continue reading from SST (linear after RAM)
+        lda #$20
+        sta PPU_ADDR
+        lda #$00
+        sta PPU_ADDR
+
+        lda #8
+        sta $01
+        res_nt_pages:
+            ldy #0
+            res_nt_bytes:
+                lda SST_DATA
+                sta PPU_DATA
+                iny
+                bne res_nt_bytes
+            dec $01
+            bne res_nt_pages
+
+        ; Restore Palettes ($3F00-$3F20)
+        ; Continue reading from SST
+        lda #$3F
+        sta PPU_ADDR
+        lda #$00
+        sta PPU_ADDR
+
+        ldx #0
+        res_pal:
+            lda SST_DATA
+            sta PPU_DATA
+            inx
+            cpx #32
+            bne res_pal
+
+        ; Restore Zero Page ($00-$FF)
+        ; Seek to offset 4 (after Regs)
+        lda #04
+        sta SST_ADDR
+        lda #00
+        sta SST_ADDR
+
+        ldx #0
+        res_zp_loop:
+            lda SST_DATA
+            sta $00,x
+            inx
+            bne res_zp_loop
+
+        ; Restore S
+        ; Seek to offset 3
+        lda #03
+        sta SST_ADDR
+        lda #00
+        sta SST_ADDR
+        ldx SST_DATA ; Value of S
+        txs
+
+        ; Restore X, Y, A
+        ; Seek to offset 0
+        lda #0
+        sta SST_ADDR
+        sta SST_ADDR
+
+        ldx SST_DATA ; Restore X
+        ldy SST_DATA ; Restore Y
+
+        sta SST_REC ; Reset PPU Reg pointer to 0x100
+
+        vblank_wait5:
+            bit PPU_STATUS
+            bpl vblank_wait5
+
+        lda SST_REC
+	    sta PPU_CTRL
+        lda SST_REC
+        sta PPU_MASK
+        lda SST_REC
+        sta PPU_OAMADDR
+        lda SST_REC
+        sta PPU_SCROLL
+        lda SST_REC
+        sta PPU_SCROLL
+
+        lda #%00000100 ; switch to game
+        sta STATUS_REG
+
+        lda SST_DATA ; Restore A (from offset 2)
+
+        rti
 nmi:
     ; save registers
 	pha
     txa
     pha
 
-    lda zp_halt
-    cmp #$01
-    bne nmi_continue
-
-    lda #$00
-    sta PPU_CTRL
-    sta PPU_MASK
-
-    lda #%00000000 ; finished
+    lda #%00000011 ; running|vblank
     sta STATUS_REG
 
-    jmp nmi_end
+    lda #$01
+    sta JOYPAD1
+    lsr a
+    sta JOYPAD1
 
-    nmi_continue:
-        lda #%00000011 ; running|vblank
-        sta STATUS_REG
+    ldx #$08
+    read_loop:
+        lda JOYPAD1 ; strobe joypad read
+        dex
+        bne read_loop
 
-        lda #$01
-        sta JOYPAD1
-        lsr a
-        sta JOYPAD1
-
-        ldx #$08
-        read_loop:
-            lda JOYPAD1
-            dex
-            bne read_loop
-    nmi_end:
-	    ; restore registers and return
-        pla
-        tax
-        pla
-        rti
+    ; restore registers and return
+    pla
+    tax
+    pla
+    rti
 
 irq:
     rti

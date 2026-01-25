@@ -13,12 +13,15 @@
 #define SIZE_16K 0x4000
 #define SIZE_32K 0x8000
 #define WRAM_ADDR 0x7E0000
+#define SST_ADDR 0x7D0000
+#define SST_SIZE 0x1000
 #define SAVE_DIR "/saves"
 
 #define max(a, b) ((a) > (b) ? (a) : (b))
 
 static char *save_name;
 static uint32_t wram_size_save;
+static uint32_t curr_mapper_args;
 
 static bool file_reader(uint8_t *data, uint32_t size, void *arg);
 static bool file_writer(const uint8_t *data, uint32_t size, void *arg);
@@ -40,21 +43,20 @@ static void set_save_name(const char *rom_path)
     if (save_name) {
         free(save_name);
     }
-    save_name = malloc(strlen(filename) + 5); // .sav + \0
+    save_name = malloc(strlen(filename) + 1);
     if (!save_name) {
         return;
     }
     strcpy(save_name, filename);
-    strcat(save_name, ".sav");
 }
 
-static void get_save_path(char *buf, size_t len)
+static void get_save_path(char *buf, size_t len, const char *ext)
 {
     if (!save_name) {
         *buf = 0;
         return;
     }
-    snprintf(buf, len, "%s/%s", SAVE_DIR, save_name);
+    snprintf(buf, len, "%s/%s%s", SAVE_DIR, save_name, ext);
 }
 
 int rom_save_battery()
@@ -62,11 +64,11 @@ int rom_save_battery()
     FRESULT rc;
     int err = 0;
 
-    if (!save_name) {
+    if (!save_name || wram_size_save == 0) {
         return 0;
     }
     char path[256];
-    get_save_path(path, sizeof(path));
+    get_save_path(path, sizeof(path), ".sav");
 
     f_mkdir(SAVE_DIR);
 
@@ -75,6 +77,29 @@ int rom_save_battery()
         return -fresult_to_errno(rc);
     }
     err = fpga_api_read_mem(WRAM_ADDR, wram_size_save, file_writer, &fp);
+    f_close(&fp);
+    return err;
+}
+
+int rom_save_state()
+{
+    FRESULT rc;
+    int err = 0;
+
+    if (!save_name) {
+        return 0;
+    }
+
+    char path[256];
+    get_save_path(path, sizeof(path), ".st");
+
+    f_mkdir(SAVE_DIR);
+
+    FIL fp;
+    if ((rc = f_open(&fp, path, FA_WRITE | FA_CREATE_ALWAYS)) != FR_OK) {
+        return -fresult_to_errno(rc);
+    }
+    err = fpga_api_read_mem(SST_ADDR, SST_SIZE, file_writer, &fp);
     f_close(&fp);
     return err;
 }
@@ -142,21 +167,15 @@ int rom_load(const char *filename)
     uint8_t has_chr_ram = nes20 ? chr_ram_size > 0 : chr_size == 0;
     uint8_t chr_off = get_chr_off(prg_size);
 
-    fpga_api_write_reg(FPGA_REG_LAUNCHER, 1 << 1U); // prelaunch
-    for (;;) {
-        if ((fpga_api_ev_reg() & (1 << 8U)) == 0) { // waiting for loader to exit
-            break;
-        }
-    }
     fpga_api_write_mem(0, prg_size, file_reader, &fp);
     fpga_api_write_mem(1U << chr_off, chr_size, file_reader, &fp);
 
+    set_save_name(filename);
     if (has_battery) {
         wram_size_save = wram_size;
-        set_save_name(filename);
 
         char path[256];
-        get_save_path(path, sizeof(path));
+        get_save_path(path, sizeof(path), ".sav");
 
         FIL sfp;
         if (f_open(&sfp, path, FA_READ) == FR_OK) {
@@ -166,18 +185,13 @@ int rom_load(const char *filename)
             fpga_api_write_mem(WRAM_ADDR, wram_size, const_reader, (void *)0xFF);
         }
     } else {
-        if (save_name) {
-            free(save_name);
-            save_name = NULL;
-        }
+        wram_size_save = 0;
     }
 
-    uint32_t mapper_args = choose_mapper(mapper_id);
-    mapper_args |= chr_off << 5U;
-    mapper_args |= mirroring << 10U;
-    mapper_args |= has_chr_ram << 11U;
-
-    fpga_api_write_reg(FPGA_REG_MAPPER, mapper_args);
+    curr_mapper_args = choose_mapper(mapper_id);
+    curr_mapper_args |= chr_off << 5U;
+    curr_mapper_args |= mirroring << 10U;
+    curr_mapper_args |= has_chr_ram << 11U;
     //   mapper args:
     //   11|10|9|8|7|6|5|4|3|2|1|0
     //    |  | | | | | | | | | | |
@@ -185,9 +199,22 @@ int rom_load(const char *filename)
     //    |  | +-+-+-+-+----------- CHR offset
     //    |  +--------------------- mirroring: 0 = horizontal, 1 = vertical
     //    +------------------------ has CHR RAM
+
+    rom_select_current_app();
+    fpga_api_write_reg(FPGA_REG_LAUNCHER, 1U << 1); // start app
 out:
     f_close(&fp);
     return err;
+}
+
+void rom_select_launcher()
+{
+    fpga_api_write_reg(FPGA_REG_MAPPER, curr_mapper_args & ~0x1f);
+}
+
+void rom_select_current_app()
+{
+    fpga_api_write_reg(FPGA_REG_MAPPER, curr_mapper_args);
 }
 
 static bool file_reader(uint8_t *data, uint32_t size, void *arg)

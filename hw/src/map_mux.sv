@@ -43,9 +43,9 @@ module map_mux #(
     localparam MAP_CNT = 32;
 
     typedef struct packed {
-        logic load_menu;
-        logic load_app;
-        logic halt;
+        logic ingame_menu;
+        logic restore_app;
+        logic start_app;
         logic buffer_num;
     } launcher_ctrl_t;
 
@@ -55,10 +55,12 @@ module map_mux #(
     logic [ADDR_BITS-1:0] prg_mask, chr_mask;
     logic [7:0] cpu_data_out, ppu_data_out;
     launcher_ctrl_t launcher_ctrl;
-    logic launcher_status;
+    logic [1:0] launcher_status;
     logic video_enable;
     logic reset_hijack;
     logic nmi_hijack;
+    logic [8:0] st_rec_addr;
+    logic [7:0] st_rec_data;
 
     // Muxed bus signals
     logic [7:0] bus_cpu_data_out[MAP_CNT];
@@ -78,10 +80,22 @@ module map_mux #(
 
     map_bus map[MAP_CNT] ();
 
+    state_recorder recorder (
+        .reset(select == '0 || cpu_reset),
+        .m2(m2),
+        .cpu_addr(cpu_addr),
+        .cpu_data(cpu_data),
+        .cpu_rw(cpu_rw),
+        .read_addr(st_rec_addr),
+        .read_data(st_rec_data)
+    );
+
     launcher launcher (
         .bus(map[0]),
         .ctrl(launcher_ctrl),
-        .status(launcher_status)
+        .status(launcher_status),
+        .st_rec_addr(st_rec_addr),
+        .st_rec_data(st_rec_data)
     );
     NROM NROM (.bus(map[1]));
     MMC1 MMC1 (.bus(map[2]));
@@ -91,10 +105,10 @@ module map_mux #(
     AxROM AxROM (.bus(map[6]));
 
     // Detect the exact cycle when interrupt is read to switch mappers instantaneously
-    assign reset_hijack = launcher_ctrl.load_app && cpu_addr == 'hFFFC && cpu_rw;
-    assign nmi_hijack = launcher_ctrl.load_menu && cpu_addr == 'hFFFA && cpu_rw;
+    assign reset_hijack = launcher_ctrl.start_app && cpu_addr == 'hFFFC && cpu_rw;
+    assign nmi_hijack = launcher_ctrl.ingame_menu && cpu_addr == 'hFFFA && cpu_rw;
     assign select = (reset_hijack || nmi_hijack) ? pending_select : select_reg;
-    assign video_enable = launcher_status && !cpu_reset;
+    assign video_enable = launcher_status[0] && !cpu_reset && !launcher_ctrl.start_app;
 
     genvar n;
     for (n = 0; n < MAP_CNT; n = n + 1) begin
@@ -143,7 +157,12 @@ module map_mux #(
         .clk(clk),
         .ram(ch_prg),
         .refresh(refresh),
-        .addr(bus_wram_ce[select] ? (bus_prg_addr[select] | WRAM_MASK) : (bus_prg_addr[select] & prg_mask)),
+        .addr(
+            bus_wram_ce[select] ?
+            (bus_prg_addr[select] | WRAM_MASK) :
+            (select == '0) ? (bus_prg_addr[select] | SST_MASK) :
+            (bus_prg_addr[select] & prg_mask)
+        ),
         .data_in(cpu_data),
         .data_out(cpu_data_out),
         .oe(bus_prg_oe[select] && m2 && !bus_custom_cpu_out[select]),
@@ -153,7 +172,7 @@ module map_mux #(
     chr_ram chr_ram (
         .clk(clk),
         .ram(ch_chr),
-        .addr(bus_chr_addr[select] | ((select == 0) ? LAUNCHER_MASK : chr_mask)),
+        .addr(bus_chr_addr[select] | ((select == '0) ? LAUNCHER_MASK : chr_mask)),
         .data_in(ppu_data),
         .data_out(ppu_data_out),
         .ce(bus_chr_ce[select]),
@@ -166,6 +185,7 @@ module map_mux #(
 
     logic [2:0] wr_reg_sync;
     logic [4:0] pending_select;
+    logic [2:0] resume_timer;
 
     always_ff @(negedge m2 or posedge cpu_reset) begin
         if (cpu_reset) begin
@@ -181,28 +201,33 @@ module map_mux #(
                     pending_select <= wr_reg[4:0];
                     map_args <= wr_reg[11:10];
                     prg_mask <= ADDR_BITS'((1 << wr_reg[9:5]) - 5'd1);
-                    chr_mask <= (wr_reg[9:5] == '0) ? '0 : ADDR_BITS'(1 << wr_reg[9:5]);
-                    launcher_ctrl.load_app <= 1;
+                    chr_mask <= ADDR_BITS'(1 << wr_reg[9:5]);
                 end else if (wr_reg_addr == REG_LAUNCHER) begin
                     launcher_ctrl.buffer_num <= wr_reg[0];
-                    launcher_ctrl.halt <= launcher_ctrl.halt | wr_reg[1];
-                    launcher_ctrl.load_menu <= launcher_ctrl.load_menu | wr_reg[2];
-                    if (wr_reg[2]) pending_select <= '0;
+                    launcher_ctrl[3:1] <= launcher_ctrl[3:1] | wr_reg[3:1];
                 end
             end
 
-            // Detect reset vector load to switch to selected mapper
             if (reset_hijack) begin
                 select_reg <= pending_select;
-                launcher_ctrl.load_app <= 0;
+                launcher_ctrl.start_app <= 0;
             end
-            // Detect NMI vector load to switch to menu mapper (mapper 0)
-            if (nmi_hijack) begin
+
+            if (launcher_ctrl.ingame_menu && cpu_addr == 'hFFFB && cpu_rw) begin
                 select_reg <= pending_select;
+                launcher_ctrl.ingame_menu <= 0;
             end
-            if (launcher_ctrl.load_menu && cpu_addr == 'hFFFB && cpu_rw) begin
-                launcher_ctrl.load_menu <= 0;
-                launcher_ctrl.halt <= 0;
+
+            if (launcher_ctrl.restore_app && launcher_status[1]) begin
+                resume_timer <= resume_timer + 1;
+            end else begin
+                resume_timer <= '0;
+            end
+
+            if (resume_timer == 3'd7) begin
+                select_reg <= pending_select;
+                launcher_ctrl.restore_app <= 0;
+                resume_timer <= '0;
             end
         end
     end
@@ -215,7 +240,7 @@ module map_mux #(
         m2_sync <= {m2_sync[1:0], m2};
 
         if (m2_sync[2:1] == 2'b10) begin
-            status_reg <= {23'd0, launcher_status, joy1};
+            status_reg <= {23'd0, launcher_status[0], joy1};
             reset_seq  <= '0;
         end else if (reset_seq != '1) begin
             reset_seq <= reset_seq + 1'd1;

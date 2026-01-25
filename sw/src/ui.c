@@ -151,7 +151,7 @@ static void draw_pause_menu()
     gfx_clear();
 
     const int w_chars = 14;
-    const int h_chars = 7;
+    const int h_chars = 8;
     int box_x = (COLS - w_chars) / 2 * FONT_WIDTH;
     int box_y = (ROWS - h_chars) / 2 * FONT_WIDTH;
     int box_w = w_chars * FONT_WIDTH;
@@ -169,8 +169,8 @@ static void draw_pause_menu()
     gfx_text(box_x + (box_w - title_len * FONT_WIDTH) / 2, box_y + FONT_WIDTH, title, -1, 1);
 
     // Items
-    const char *items[] = { "Continue", "Reset" };
-    for (int i = 0; i < 2; i++) {
+    const char *items[] = { "Continue", "Save State", "Reset" };
+    for (int i = 0; i < 3; i++) {
         int y = box_y + (3 + i) * FONT_WIDTH;
         if (i == ingame_cursor) {
             gfx_fill_rect(box_x + 4, y, box_w - 8, FONT_WIDTH, 3);
@@ -310,12 +310,18 @@ static void pause_control(uint8_t buttons)
             ingame_cursor--;
         }
     } else if (buttons & BUTTON_DOWN) {
-        if (ingame_cursor < 1) {
+        if (ingame_cursor < 2) {
             ingame_cursor++;
         }
     } else if (buttons & BUTTON_A) {
-        // TODO: Implement restore state
-        if (ingame_cursor == 1) {
+        if (ingame_cursor == 0) {
+            rom_select_current_app();
+            fpga_api_write_reg(FPGA_REG_LAUNCHER, 1U << 2); // request resume
+            state = UI_STATE_GAME;
+        } else if (ingame_cursor == 1) {
+            show_message("Saving...");
+            rom_save_state();
+        } else if (ingame_cursor == 2) {
             state = UI_STATE_RESET;
         }
     } else {
@@ -328,7 +334,8 @@ static void process_input(uint8_t pressed, uint8_t current)
 {
     if (state == UI_STATE_GAME) {
         if ((current & (BUTTON_SELECT | BUTTON_DOWN)) == (BUTTON_SELECT | BUTTON_DOWN)) {
-            fpga_api_write_reg(FPGA_REG_LAUNCHER, 1U << 2);
+            rom_select_launcher();
+            fpga_api_write_reg(FPGA_REG_LAUNCHER, 1U << 3); // request pause
             state = UI_STATE_REQ_PAUSE;
         }
     } else if (state == UI_STATE_PAUSE) {
