@@ -14,8 +14,8 @@ module state_recorder (
 
     // Memory Map:
     // 0x000 - 0x0FF: OAM Data (256 bytes). Updated via writes to $2004
-    // 0x100 - 0x106: PPU Registers ($2000, $2001, $2003, $2005x2, $2006x2).
-    // 0x107 - 0x11E: APU / IO Registers ($4000 - $4017).
+    // 0x100 - 0x103: PPU Registers ($2000, $2001, $2005x2).
+    // 0x104 - 0x11B: APU Registers ($4000 - $4017).
 
     (* syn_ramstyle = "block_ram" *) logic [7:0] memory[512];
 
@@ -29,10 +29,10 @@ module state_recorder (
     logic [2:0] low_addr;
 
     assign low_addr = cpu_addr[2:0];
-    // Allow mirrored PPU addresses ($2000-$3FFF)
-    assign is_ppu_range = (cpu_addr[15:13] == 3'b001);
+    // Capture PPU ($2000-$2007)
+    assign is_ppu_range = ({cpu_addr[15:3], 3'b0} == 'h2000);
     // Capture APU ($4000-$4017)
-    assign is_apu_range = ({cpu_addr[15:5], 5'b0} == 16'h4000) && (cpu_addr[4:3] != 2'b11);
+    assign is_apu_range = ({cpu_addr[15:5], 5'b0} == 'h4000) && (cpu_addr[4:3] != 2'b11);
 
     always_comb begin
         memory_we   = 0;
@@ -41,32 +41,31 @@ module state_recorder (
         if (!reset && !cpu_rw) begin
             if (is_ppu_range) begin
                 case (low_addr)
-                    3'b000, 3'b001: begin  // $2000, $2001
-                        memory_we   = 1;
-                        memory_addr = {8'h80, low_addr[0]};
-                    end
-                    3'b011: begin  // $2003
-                        memory_we   = 1;
-                        memory_addr = 9'h102;
-                    end
-                    3'b100: begin  // $2004
+                    3'b100: begin  // $2004 OAM Data
                         memory_we   = 1;
                         memory_addr = {1'b0, oam_ptr};
                     end
+
+                    3'b000: begin  // $2000
+                        memory_we   = 1;
+                        memory_addr = 9'h100;
+                    end
+
                     3'b101: begin  // $2005
                         memory_we   = 1;
-                        memory_addr = (write_toggle == 0) ? 9'h103 : 9'h104;
+                        memory_addr = (write_toggle == 0) ? 9'h101 : 9'h102;
                     end
-                    3'b110: begin  // $2006
+
+                    3'b001: begin  //$2001
                         memory_we   = 1;
-                        memory_addr = (write_toggle == 0) ? 9'h105 : 9'h106;
+                        memory_addr = 9'h103;
                     end
                     default;
                 endcase
             end else if (is_apu_range) begin
-                // APU Registers $4000-$4017 -> 0x107-0x11E
+                // APU Registers $4000-$4017 -> 0x104-0x11B
                 memory_we   = 1;
-                memory_addr = 9'h107 + {4'h0, cpu_addr[4:0]};
+                memory_addr = 9'h104 + {4'h0, cpu_addr[4:0]};
             end
         end
     end

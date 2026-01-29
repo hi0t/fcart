@@ -14,7 +14,7 @@
 #define SIZE_32K 0x8000
 #define WRAM_ADDR 0x7E0000
 #define SST_ADDR 0x7D0000
-#define SST_SIZE 0x1000
+#define SST_SIZE 0x1400 // 5KB
 #define SAVE_DIR "/saves"
 
 #define max(a, b) ((a) > (b) ? (a) : (b))

@@ -20,7 +20,9 @@ module UxROM (
     assign bus.audio = '0;
 
     always_ff @(negedge bus.m2) begin
-        if (bus.cpu_addr[15] && !bus.cpu_rw) begin
+        if (bus.sst_enable) begin
+
+        end else if (bus.cpu_addr[15] && !bus.cpu_rw) begin
             prg_bank <= bus.cpu_data_in[4:0];
         end
     end

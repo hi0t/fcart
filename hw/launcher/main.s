@@ -12,7 +12,6 @@ STATUS_REG  = $5001
 SST_ADDR    = $5002
 SST_DATA    = $5003
 SST_REC     = $5004
-MAPPER_SW   = $5005
 
 .segment "ZEROPAGE"
 ptr:       .res 1
@@ -20,7 +19,7 @@ pages_cnt: .res 1
 
 .segment "CODE"
 ingame_entry:
-    ; State Dump Map (Total size: $1143 = 4419 bytes)
+    ; State Dump Map (Total size: $1180 = 4480 bytes)
     ; -----------------------------------------------
     ; Offset | Size  | Description
     ; -------|-------|--------------------
@@ -30,8 +29,8 @@ ingame_entry:
     ; $0804  | $0800 | Nametables ($2000-$27FF)
     ; $1004  | $0020 | Palettes ($3F00-$3F1F)
     ; $1024  | $0100 | OAM Data (256 bytes)
-    ; $1124  | $0007 | PPU Registers (CTRL, MASK, OAMADDR, SCROLLx2, ADDRx2)
-    ; $112B  | $0018 | APU Registers ($4000-$4017)
+    ; $1124  | $0004 | PPU Registers (CTRL, MASK, SCROLLx2)
+    ; $1128  | $0018 | APU Registers ($4000-$4017)
 
     ; registers are saved in order A, X, Y, S
     ; sst_addr is reset to 0 by hardware when reading NMI vector
@@ -43,10 +42,11 @@ ingame_entry:
     tsx
     stx SST_DATA ; S at 3
 
-    ; Disable NMI immediately to prevent re-entrancy
+    ; Disable all IRQ immediately
     lda #0
     sta PPU_CTRL
     sta PPU_MASK
+    sei
 
     ; dump Zero Page ($00-$FF)
     ldx #0
@@ -116,9 +116,9 @@ ingame_entry:
         inx
         bne dump_oam
 
-    ; dump PPU registers (7 bytes)
+    ; dump PPU registers (4 bytes)
     ; SST_REC continues at 0x100
-    ldx #7
+    ldx #4
     dump_ppu_loop:
         lda SST_REC
         sta SST_DATA
@@ -212,7 +212,7 @@ reset:
         inx
         bne fill_nametable2
 
-    lda #%10000000 ; Enable NMI on vblank
+    lda #%00000000 ; Disable NMI on vblank
 	sta PPU_CTRL
 
     lda #%00001010 ; enbale background rendering
@@ -224,6 +224,24 @@ reset:
     sta PPU_SCROLL
 
     forever:
+        bit PPU_STATUS
+        bpl check_cmds
+
+        lda #%00000011 ; running|vblank
+        sta STATUS_REG
+
+        lda #$01
+        sta JOYPAD1
+        lsr a
+        sta JOYPAD1
+
+        ldx #8
+    read_loop:
+        lda JOYPAD1 ; strobe joypad read
+        dex
+        bne read_loop
+
+    check_cmds:
         lda CTRL_REG
         beq forever         ; If 0, nothing to do
 
@@ -236,34 +254,37 @@ reset:
         jmp forever
 
     start_app:
+        lda #0
+        sta STATUS_REG ; launcher finished
+
         vblank_wait3:
             bit PPU_STATUS
             bpl vblank_wait3
 
-        ; Disable NMI to prevent interruptions during start
+        ; Disable background rendering
         lda #0
-        sta PPU_CTRL
         sta PPU_MASK
 
         ldx #$fd
         txs ; reset stack pointer
         lda #$34
         pha
-        lda #$00
-        sta STATUS_REG ; launcher finished
-        ldx #$00
-        ldy #$00
+        lda #0
+        ldx #0
+        ldy #0
         plp ; default status register
         jmp ($FFFC)
 
     restore_state:
+        lda #0
+        sta STATUS_REG ; launcher finished
+
         vblank_wait4:
             bit PPU_STATUS
             bpl vblank_wait4
 
-        ; Disable NMI to prevent interruptions during restore
+        ; Disable background rendering
         lda #0
-        sta PPU_CTRL
         sta PPU_MASK
 
         ; Restore RAM ($0100-$07FF)
@@ -292,7 +313,6 @@ reset:
             bne res_loop_pages
 
         ; Restore Nametables ($2000-$2800)
-        ; Continue reading from SST (linear after RAM)
         lda #$20
         sta PPU_ADDR
         lda #$00
@@ -311,7 +331,6 @@ reset:
             bne res_nt_pages
 
         ; Restore Palettes ($3F00-$3F20)
-        ; Continue reading from SST
         lda #$3F
         sta PPU_ADDR
         lda #$00
@@ -335,34 +354,20 @@ reset:
             inx
             bne res_oam
 
-        ; Restore PPU registers (7 bytes)
-        ; PPU_CTRL (Skip, restored at the end)
-        lda SST_DATA
-        ; PPU_MASK
-        lda SST_DATA
-        sta PPU_MASK
-        ; PPU_OAMADDR
-        lda SST_DATA
-        sta PPU_OAMADDR
-        ; PPU_SCROLL (X)
-        lda SST_DATA
-        sta PPU_SCROLL
-        ; PPU_SCROLL (Y)
-        lda SST_DATA
-        sta PPU_SCROLL
-        ; PPU_ADDR (High)
-        lda SST_DATA
-        sta PPU_ADDR
-        ; PPU_ADDR (Low)
-        lda SST_DATA
-        sta PPU_ADDR
-
         ; Restore APU Registers (24 bytes)
-        ; Skip $4014 (offset 20) to prevent DMA
+        ; Skip $4014 (offset 20)
+        ; Skip $4016 (offset 22)
+        lda #$28
+        sta SST_ADDR
+        lda #$11
+        sta SST_ADDR
+
         ldx #0
         res_apu_loop:
             lda SST_DATA
             cpx #20 ; $4014
+            beq res_apu_skip
+            cpx #22 ; $4016
             beq res_apu_skip
             sta $4000,x
         res_apu_skip:
@@ -384,81 +389,75 @@ reset:
             inx
             bne res_zp_loop
 
-        ; Restore S
-        ; Seek to offset 3
-        lda #03
-        sta SST_ADDR
-        lda #00
-        sta SST_ADDR
-        ldx SST_DATA ; Value of S
-        txs
-
-        ; Seek to offset 1 (X)
-        lda #01
+        ; Seek to offset 2 (Y)
+        lda #02
         sta SST_ADDR
         lda #00
         sta SST_ADDR
 
-        ldx SST_DATA ; Restore X
         ldy SST_DATA ; Restore Y
-
-        lda #$00
-        sta STATUS_REG ; launcher finished
 
         vblank_wait5:
             bit PPU_STATUS
             bpl vblank_wait5
 
-        ; Restore PPU_CTRL ($1124)
         lda #$24
         sta SST_ADDR
         lda #$11
         sta SST_ADDR
-        lda SST_DATA
-        sta PPU_CTRL
 
-        ; Restore A from offset 0
-        lda #00
-        sta SST_ADDR
-        sta SST_ADDR
         lda SST_DATA
+        sta PPU_CTRL ; PPU_CTRL (2000)
+        lda SST_DATA
+        sta PPU_SCROLL ; PPU_SCROLL (2005 X)
+        lda SST_DATA
+        sta PPU_SCROLL ; PPU_SCROLL (2005 Y)
+        lda SST_DATA
+        sta PPU_MASK ; PPU_MASK (2001)
 
-        jmp resume_app
+        ; Prepare to restore stack
+        lda #$01
+        sta SST_ADDR  ; Low $01
+        lda #$02
+        sta SST_ADDR  ; High $02
+
+        wait_for_exit_nmi:
+            jmp wait_for_exit_nmi
+
 nmi:
-    ; save registers
-	pha
-    txa
-    pha
-
-    lda #%00000011 ; running|vblank
+    lda #%00000100 ; nmi trampoline
     sta STATUS_REG
 
-    lda #$01
-    sta JOYPAD1
-    lsr a
-    sta JOYPAD1
+    ; Restore 3 bytes corrupted by NMI (Launcher Stack $1FD-$1FF)
+    ; SST Offset for $1FD is $0104 + $FD = $0201
+    lda SST_DATA
+    sta $01FD
+    lda SST_DATA
+    sta $01FE
+    lda SST_DATA
+    sta $01FF
 
-    ldx #$08
-    read_loop:
-        lda JOYPAD1 ; strobe joypad read
-        dex
-        bne read_loop
+    ; Restore S from SST
+    lda #03
+    sta SST_ADDR
+    lda #00
+    sta SST_ADDR
+    ldx SST_DATA
+    txs
 
-    ; restore registers and return
-    pla
-    tax
-    pla
-    rti
+    lda #00
+    sta SST_ADDR
+    sta SST_ADDR
+    lda SST_DATA ; A
+    ldx SST_DATA ; X
+
+    jmp ($FFFA)
 
 irq:
     rti
 
 initial_palette:
 	.byte $0F,$30,$28,$21
-
-.segment "RTI_TRAP"
-resume_app:
-    rti
 
 .segment "VECTORS"
     .addr nmi, reset, irq

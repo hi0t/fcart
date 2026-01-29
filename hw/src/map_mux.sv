@@ -55,7 +55,7 @@ module map_mux #(
     logic [ADDR_BITS-1:0] prg_mask, chr_mask;
     logic [7:0] cpu_data_out, ppu_data_out;
     launcher_ctrl_t launcher_ctrl;
-    logic launcher_status;
+    logic [1:0] launcher_status;
     logic video_enable;
     logic reset_hijack;
     logic nmi_hijack;
@@ -106,9 +106,9 @@ module map_mux #(
 
     // Detect the exact cycle when interrupt is read to switch mappers instantaneously
     assign reset_hijack = launcher_ctrl.start_app && cpu_addr == 'hFFFC && cpu_rw;
-    assign nmi_hijack = launcher_ctrl.ingame_menu && cpu_addr == 'hFFFA && cpu_rw;
+    assign nmi_hijack = (launcher_ctrl.ingame_menu || launcher_status[1]) && cpu_addr == 'hFFFA && cpu_rw;
     assign select = (reset_hijack || nmi_hijack) ? pending_select : select_reg;
-    assign video_enable = launcher_status && !cpu_reset && !launcher_ctrl.start_app;
+    assign video_enable = launcher_status[0] && !cpu_reset && !launcher_ctrl.start_app;
 
     genvar n;
     for (n = 0; n < MAP_CNT; n = n + 1) begin
@@ -124,6 +124,8 @@ module map_mux #(
 
         assign map[n].mirroring = map_args[0];
         assign map[n].chr_ram = map_args[1];
+
+        assign map[n].sst_enable = (select == '0);
 
         // unpack interface array
         assign bus_cpu_data_out[n] = map[n].cpu_data_out;
@@ -212,18 +214,15 @@ module map_mux #(
                 launcher_ctrl.start_app <= 0;
             end
 
-            // Enter in-game menu
+            // Enter/Exit menu
             if (nmi_hijack) begin
                 select_reg <= pending_select;
+                if (launcher_ctrl.restore_app) begin
+                    launcher_ctrl.restore_app <= 0;
+                end
             end
             if (launcher_ctrl.ingame_menu && cpu_addr == 'hFFFB && cpu_rw) begin
                 launcher_ctrl.ingame_menu <= 0;
-            end
-
-            // Resume from saved state
-            if (launcher_ctrl.restore_app && cpu_addr == 'hFFEB && cpu_rw) begin
-                select_reg <= pending_select;
-                launcher_ctrl.restore_app <= 0;
             end
         end
     end
@@ -236,7 +235,7 @@ module map_mux #(
         m2_sync <= {m2_sync[1:0], m2};
 
         if (m2_sync[2:1] == 2'b10) begin
-            status_reg <= {23'd0, launcher_status, joy1};
+            status_reg <= {23'd0, launcher_status[0], joy1};
             reset_seq  <= '0;
         end else if (reset_seq != '1) begin
             reset_seq <= reset_seq + 1'd1;

@@ -1,7 +1,7 @@
 module launcher (
     map_bus.mapper bus,
     input logic [3:0] ctrl,
-    output logic status,
+    output logic [1:0] status,
     output logic [8:0] st_rec_addr,
     input logic [7:0] st_rec_data
 );
@@ -68,7 +68,7 @@ module launcher (
             if (!bus.cpu_rw) begin
                 // read status register
                 if (bus.cpu_addr == 'h5001) begin
-                    {status, vblank} <= bus.cpu_data_in[1:0];
+                    {status, vblank} <= bus.cpu_data_in[2:0];
                 end else if (bus.cpu_addr == 'h5002) begin
                     if (sst_addr_toggle) bus.prg_addr[14:8] <= bus.cpu_data_in[6:0];
                     else bus.prg_addr[7:0] <= bus.cpu_data_in;
