@@ -31,7 +31,7 @@ module fcart (
     output logic CIRAM_CE,
     input logic [13:0] PPU_ADDR,
     inout wire [7:0] PPU_DATA,
-    output logic SND_SYN,
+    output logic SND_OUT,
     output logic CPU_DIR,
     output logic PPU_DIR
 );
@@ -91,7 +91,7 @@ module fcart (
         .m2(M2),
         .pcm_in(pcm),
         .volume(8'd255),
-        .pdm_out(SND_SYN)
+        .pdm_out(SND_OUT)
     );
 
     pll pll (

@@ -173,11 +173,6 @@ static void gpio_init()
 static void dma_init()
 {
     __HAL_RCC_DMA2_CLK_ENABLE();
-    HAL_NVIC_SetPriority(DMA2_Stream0_IRQn, 0, 0);
-    HAL_NVIC_EnableIRQ(DMA2_Stream0_IRQn);
-
-    HAL_NVIC_SetPriority(DMA2_Stream2_IRQn, 0, 0);
-    HAL_NVIC_EnableIRQ(DMA2_Stream2_IRQn);
 
     HAL_NVIC_SetPriority(DMA2_Stream3_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(DMA2_Stream3_IRQn);
@@ -200,7 +195,7 @@ static void qspi_init()
     dev.hqspi.Init.FlashSize = 22; // 2^(FlashSize+1) bytes
     dev.hqspi.Init.ChipSelectHighTime = QSPI_CS_HIGH_TIME_1_CYCLE;
     dev.hqspi.Init.ClockMode = QSPI_CLOCK_MODE_0;
-    dev.hqspi.Init.FlashID = QSPI_FLASH_ID_1;
+    dev.hqspi.Init.FlashID = QSPI_FLASH_ID_2;
     dev.hqspi.Init.DualFlash = QSPI_DUALFLASH_DISABLE;
     if ((rc = HAL_QSPI_Init(&dev.hqspi)) != HAL_OK) {
         LOG_ERR("HAL_QSPI_Init() failed: %d", rc);
@@ -242,7 +237,7 @@ static void spi_init()
 {
     HAL_StatusTypeDef rc;
 
-    dev.hspi.Instance = SPI1;
+    dev.hspi.Instance = SPI2;
     dev.hspi.Init.Mode = SPI_MODE_MASTER;
     dev.hspi.Init.Direction = SPI_DIRECTION_2LINES;
     dev.hspi.Init.DataSize = SPI_DATASIZE_8BIT;

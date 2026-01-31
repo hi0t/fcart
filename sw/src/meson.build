@@ -12,7 +12,7 @@ src = files(
 
 ver = meson.project_version().split('.')
 
-compile_args = ['-DENABLE_SD_FS', '-DCFG_TUD_CDC=1']
+compile_args = ['-DENABLE_SD_FS', '-DCFG_TUD_CDC=1', '-DENABLE_USB_VBUS_SENSING']
 
 if get_option('buildtype') == 'debug'
     compile_args += ['-g', '-gdwarf-2']

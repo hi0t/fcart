@@ -11,6 +11,7 @@ bootloader = files(
 compile_args = [
     '-DBOOTLOADER_ADDRESS=@0@'.format(get_option('bootloader_address')),
     '-DAPP_ADDRESS=@0@'.format(get_option('app_address')),
+    '-DENABLE_USB_VBUS_SENSING',
 ]
 
 if get_option('buildtype') == 'debug'

@@ -62,27 +62,9 @@ void SDIO_IRQHandler()
 }
 #endif
 
-void SPI1_IRQHandler()
-{
-    struct peripherals *p = get_peripherals();
-    HAL_SPI_IRQHandler(&p->hspi);
-}
-
 void OTG_FS_IRQHandler()
 {
     tud_int_handler(0);
-}
-
-void DMA2_Stream0_IRQHandler()
-{
-    struct peripherals *p = get_peripherals();
-    HAL_DMA_IRQHandler(&p->hdma_spi_rx);
-}
-
-void DMA2_Stream2_IRQHandler()
-{
-    struct peripherals *p = get_peripherals();
-    HAL_DMA_IRQHandler(&p->hdma_spi_tx);
 }
 
 void DMA2_Stream3_IRQHandler()

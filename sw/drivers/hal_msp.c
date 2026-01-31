@@ -37,7 +37,7 @@ void HAL_QSPI_MspInit(QSPI_HandleTypeDef *hqspi)
 
     __HAL_RCC_QSPI_CLK_ENABLE();
 
-    gpio.Alternate = GPIO_AF9_QSPI;
+    gpio.Alternate = GPIO_AF10_QSPI;
     gpio.Pin = GPIO_QSPI_IO0_PIN;
     HAL_GPIO_Init(GPIO_QSPI_IO0_PORT, &gpio);
     gpio.Pin = GPIO_QSPI_IO1_PIN;
@@ -46,10 +46,12 @@ void HAL_QSPI_MspInit(QSPI_HandleTypeDef *hqspi)
     HAL_GPIO_Init(GPIO_QSPI_IO2_PORT, &gpio);
     gpio.Pin = GPIO_QSPI_IO3_PIN;
     HAL_GPIO_Init(GPIO_QSPI_IO3_PORT, &gpio);
+
+    gpio.Alternate = GPIO_AF9_QSPI;
     gpio.Pin = GPIO_QSPI_CLK_PIN;
     HAL_GPIO_Init(GPIO_QSPI_CLK_PORT, &gpio);
 
-    gpio.Alternate = GPIO_AF10_QSPI;
+    gpio.Alternate = GPIO_AF9_QSPI;
     gpio.Pull = GPIO_PULLUP;
     gpio.Pin = GPIO_QSPI_NCS_PIN;
     HAL_GPIO_Init(GPIO_QSPI_NCS_PORT, &gpio);
@@ -206,19 +208,17 @@ void HAL_RTC_MspInit(RTC_HandleTypeDef *hrtc)
 
 void HAL_SPI_MspInit(SPI_HandleTypeDef *hspi)
 {
-    HAL_StatusTypeDef rc;
     GPIO_InitTypeDef gpio = {
         .Mode = GPIO_MODE_AF_PP,
         .Pull = GPIO_NOPULL,
         .Speed = GPIO_SPEED_FREQ_VERY_HIGH,
+        .Alternate = GPIO_AF5_SPI2,
     };
 
-    if (hspi->Instance != SPI1) {
+    if (hspi->Instance != SPI2) {
         return;
     }
-
-    gpio.Alternate = GPIO_AF5_SPI1;
-    __HAL_RCC_SPI1_CLK_ENABLE();
+    __HAL_RCC_SPI2_CLK_ENABLE();
 
     gpio.Pin = GPIO_SPI_SCK_PIN;
     HAL_GPIO_Init(GPIO_SPI_SCK_PORT, &gpio);
@@ -232,46 +232,6 @@ void HAL_SPI_MspInit(SPI_HandleTypeDef *hspi)
     gpio.Speed = GPIO_SPEED_FREQ_LOW;
     HAL_GPIO_WritePin(GPIO_SPI_NCS_PORT, GPIO_SPI_NCS_PIN, GPIO_PIN_SET);
     HAL_GPIO_Init(GPIO_SPI_NCS_PORT, &gpio);
-
-    struct peripherals *p = get_peripherals();
-
-    // SPI1 TX init
-    p->hdma_spi_tx.Instance = DMA2_Stream2;
-    p->hdma_spi_tx.Init.Channel = DMA_CHANNEL_2;
-    p->hdma_spi_tx.Init.Direction = DMA_MEMORY_TO_PERIPH;
-    p->hdma_spi_tx.Init.PeriphInc = DMA_PINC_DISABLE;
-    p->hdma_spi_tx.Init.MemInc = DMA_MINC_ENABLE;
-    p->hdma_spi_tx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
-    p->hdma_spi_tx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
-    p->hdma_spi_tx.Init.Mode = DMA_NORMAL;
-    p->hdma_spi_tx.Init.Priority = DMA_PRIORITY_LOW;
-    p->hdma_spi_tx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
-    if ((rc = HAL_DMA_Init(&p->hdma_spi_tx)) != HAL_OK) {
-        LOG_ERR("HAL_DMA_Init() failed: %d", rc);
-        LOG_PANIC();
-    }
-    __HAL_LINKDMA(hspi, hdmatx, p->hdma_spi_tx);
-
-    // SPI1 RX init
-    p->hdma_spi_rx.Instance = DMA2_Stream0;
-    p->hdma_spi_rx.Init.Channel = DMA_CHANNEL_3;
-    p->hdma_spi_rx.Init.Direction = DMA_PERIPH_TO_MEMORY;
-    p->hdma_spi_rx.Init.PeriphInc = DMA_PINC_DISABLE;
-    p->hdma_spi_rx.Init.MemInc = DMA_MINC_ENABLE;
-    p->hdma_spi_rx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
-    p->hdma_spi_rx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
-    p->hdma_spi_rx.Init.Mode = DMA_NORMAL;
-    p->hdma_spi_rx.Init.Priority = DMA_PRIORITY_LOW;
-    p->hdma_spi_rx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
-    if ((rc = HAL_DMA_Init(&p->hdma_spi_rx)) != HAL_OK) {
-        LOG_ERR("HAL_DMA_Init() failed: %d", rc);
-        LOG_PANIC();
-    }
-    __HAL_LINKDMA(hspi, hdmarx, p->hdma_spi_rx);
-
-    // SPI1 interrupt init
-    HAL_NVIC_SetPriority(SPI1_IRQn, 0, 0);
-    HAL_NVIC_EnableIRQ(SPI1_IRQn);
 }
 
 void HAL_TIM_Base_MspInit(TIM_HandleTypeDef *htim)
