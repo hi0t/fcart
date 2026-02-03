@@ -76,6 +76,10 @@ ingame_entry:
         bne dump_ram_pages
 
     ; dump Nametables ($2000-$2800)
+    bit PPU_STATUS ; Reset latch
+    lda #0
+    sta PPU_CTRL   ; Ensure increment is +1
+
     lda #$20
     sta PPU_ADDR
     lda #$00
@@ -313,6 +317,10 @@ reset:
             bne res_loop_pages
 
         ; Restore Nametables ($2000-$2800)
+        bit PPU_STATUS ; Reset latch
+        lda #0
+        sta PPU_CTRL   ; Ensure increment is +1
+
         lda #$20
         sta PPU_ADDR
         lda #$00
