@@ -14,8 +14,8 @@ module state_recorder (
 
     // Memory Map:
     // 0x000 - 0x0FF: OAM Data (256 bytes). Updated via writes to $2004
-    // 0x100 - 0x103: PPU Registers ($2000, $2001, $2005x2).
-    // 0x104 - 0x11B: APU Registers ($4000 - $4017).
+    // 0x100 - 0x117: APU Registers ($4000 - $4017).
+    // 0x118 - 0x11B: PPU Registers ($2000, $2001, $2005x2).
 
     (* syn_ramstyle = "block_ram" *) logic [7:0] memory[512];
 
@@ -48,24 +48,24 @@ module state_recorder (
 
                     3'b000: begin  // $2000
                         memory_we   = 1;
-                        memory_addr = 9'h100;
+                        memory_addr = 9'h118;
                     end
 
                     3'b101: begin  // $2005
                         memory_we   = 1;
-                        memory_addr = (write_toggle == 0) ? 9'h101 : 9'h102;
+                        memory_addr = (write_toggle == 0) ? 9'h119 : 9'h11A;
                     end
 
                     3'b001: begin  //$2001
                         memory_we   = 1;
-                        memory_addr = 9'h103;
+                        memory_addr = 9'h11B;
                     end
                     default;
                 endcase
             end else if (is_apu_range) begin
-                // APU Registers $4000-$4017 -> 0x104-0x11B
+                // APU Registers $4000-$4017 -> 0x100-0x117
                 memory_we   = 1;
-                memory_addr = 9'h104 + {4'h0, cpu_addr[4:0]};
+                memory_addr = 9'h100 + {4'h0, cpu_addr[4:0]};
             end
         end
     end
