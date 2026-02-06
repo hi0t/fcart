@@ -81,7 +81,8 @@ module map_mux #(
     map_bus map[MAP_CNT] ();
 
     state_recorder recorder (
-        .reset(select == '0 || cpu_reset),
+        .reset(cpu_reset || launcher_ctrl.start_app),
+        .enable(select != '0),
         .m2(m2),
         .cpu_addr(cpu_addr),
         .cpu_data(cpu_data),
