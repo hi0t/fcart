@@ -6,6 +6,7 @@ PPU_OAMDATA = $2004
 PPU_SCROLL  = $2005
 PPU_ADDR    = $2006
 PPU_DATA    = $2007
+DMC_STATUS  = $4015
 JOYPAD1     = $4016
 CTRL_REG    = $5000
 STATUS_REG  = $5001
@@ -42,11 +43,12 @@ ingame_entry:
     tsx
     stx SST_DATA ; S at 3
 
-    ; Disable all IRQ immediately
+    ; Disable all IRQ
+    sei
     lda #0
     sta PPU_CTRL
     sta PPU_MASK
-    sei
+    sta DMC_STATUS
 
     ; dump Zero Page ($00-$FF)
     ldx #0
@@ -150,7 +152,7 @@ reset:
     stx PPU_CTRL
     stx PPU_MASK
     stx $4010
-    stx $4015
+    stx DMC_STATUS
 
     bit PPU_STATUS ; read PPU status to reset high-low latch
 
@@ -174,7 +176,6 @@ reset:
         bit PPU_STATUS
         bpl vblank_wait2
     ; end initialization
-
 
     lda #%00000011 ; running|vblank
     sta STATUS_REG
@@ -244,9 +245,9 @@ reset:
         lda #0
         sta STATUS_REG ; launcher finished
 
-        vblank_wait3:
+        vblank_wait_start:
             bit PPU_STATUS
-            bpl vblank_wait3
+            bpl vblank_wait_start
 
         ; Disable background rendering
         lda #0
@@ -266,9 +267,9 @@ reset:
         lda #0
         sta STATUS_REG ; launcher finished
 
-        vblank_wait4:
+        vblank_wait_restore1:
             bit PPU_STATUS
-            bpl vblank_wait4
+            bpl vblank_wait_restore1
 
         ; Disable nmi and background rendering
         lda #0
@@ -347,13 +348,10 @@ reset:
             bne res_oam
 
         ; Restore APU Registers (24 bytes)
-        ; Skip $4014 (offset 20)
         ; Skip $4016 (offset 22)
         ldx #0
         res_apu_loop:
             lda SST_DATA
-            cpx #20 ; $4014
-            beq res_apu_skip
             cpx #22 ; $4016
             beq res_apu_skip
             sta $4000,x
@@ -379,17 +377,9 @@ reset:
             inx
             bne res_zp_loop
 
-        ; Seek to offset 1 (X)
-        lda #01
-        sta SST_ADDR
-        lda #00
-        sta SST_ADDR
-        ldx SST_DATA ; X
-        ldy SST_DATA ; Y
-
-        vblank_wait5:
+        vblank_wait_restore2:
             bit PPU_STATUS
-            bpl vblank_wait5
+            bpl vblank_wait_restore2
 
         lda #$3C
         sta SST_ADDR
@@ -409,6 +399,8 @@ reset:
         sta SST_ADDR
         sta SST_ADDR
         lda SST_DATA ; A
+        ldx SST_DATA ; X
+        ldy SST_DATA ; Y
 
         jmp resume_app
 
