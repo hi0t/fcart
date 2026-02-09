@@ -108,7 +108,7 @@ module map_mux #(
     // Detect the exact cycle when interrupt is read to switch mappers instantaneously
     assign reset_hijack = launcher_ctrl.start_app && cpu_addr == 'hFFFC && cpu_rw;
     assign nmi_hijack = launcher_ctrl.ingame_menu && cpu_addr == 'hFFFA && cpu_rw;
-    assign select = (reset_hijack || nmi_hijack) ? pending_select : select_reg;
+    assign select = reset_hijack ? game_select : (nmi_hijack ? '0 : select_reg);
     assign video_enable = launcher_status && !cpu_reset && !launcher_ctrl.start_app;
 
     genvar n;
@@ -187,7 +187,7 @@ module map_mux #(
     localparam REG_LAUNCHER = 4'd1;
 
     logic [2:0] wr_reg_sync;
-    logic [4:0] pending_select;
+    logic [4:0] game_select;
 
     always_ff @(negedge m2 or posedge cpu_reset) begin
         if (cpu_reset) begin
@@ -200,7 +200,7 @@ module map_mux #(
             wr_reg_sync <= {wr_reg_sync[1:0], wr_reg_changed};
             if (wr_reg_sync[1] != wr_reg_sync[2]) begin
                 if (wr_reg_addr == REG_MAPPER) begin
-                    pending_select <= wr_reg[4:0];
+                    game_select <= wr_reg[4:0];
                     map_args <= wr_reg[11:10];
                     prg_mask <= ADDR_BITS'((1 << wr_reg[9:5]) - 5'd1);
                     chr_mask <= ADDR_BITS'(1 << wr_reg[9:5]);
@@ -211,13 +211,13 @@ module map_mux #(
 
             // Launch game
             if (reset_hijack) begin
-                select_reg <= pending_select;
+                select_reg <= game_select;
                 launcher_ctrl.start_app <= 0;
             end
 
             // Enter in-game menu
             if (nmi_hijack) begin
-                select_reg <= pending_select;
+                select_reg <= '0;
             end
             if (launcher_ctrl.ingame_menu && cpu_addr == 'hFFFB && cpu_rw) begin
                 launcher_ctrl.ingame_menu <= 0;
@@ -225,7 +225,7 @@ module map_mux #(
 
             // Resume from saved state
             if (launcher_ctrl.restore_app && cpu_addr == 'hFFEB && cpu_rw) begin
-                select_reg <= pending_select;
+                select_reg <= game_select;
                 launcher_ctrl.restore_app <= 0;
             end
         end

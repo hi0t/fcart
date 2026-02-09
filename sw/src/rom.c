@@ -200,21 +200,11 @@ int rom_load(const char *filename)
     //    |  +--------------------- mirroring: 0 = horizontal, 1 = vertical
     //    +------------------------ has CHR RAM
 
-    rom_select_current_app();
+    fpga_api_write_reg(FPGA_REG_MAPPER, curr_mapper_args);
     fpga_api_write_reg(FPGA_REG_LAUNCHER, 1U << 1); // start app
 out:
     f_close(&fp);
     return err;
-}
-
-void rom_select_launcher()
-{
-    fpga_api_write_reg(FPGA_REG_MAPPER, curr_mapper_args & ~0x1f);
-}
-
-void rom_select_current_app()
-{
-    fpga_api_write_reg(FPGA_REG_MAPPER, curr_mapper_args);
 }
 
 static bool file_reader(uint8_t *data, uint32_t size, void *arg)

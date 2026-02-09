@@ -315,7 +315,6 @@ static void pause_control(uint8_t buttons)
         }
     } else if (buttons & BUTTON_A) {
         if (ingame_cursor == 0) {
-            rom_select_current_app();
             fpga_api_write_reg(FPGA_REG_LAUNCHER, 1U << 2); // request resume
             state = UI_STATE_GAME;
         } else if (ingame_cursor == 1) {
@@ -334,7 +333,6 @@ static void process_input(uint8_t pressed, uint8_t current)
 {
     if (state == UI_STATE_GAME) {
         if ((current & (BUTTON_SELECT | BUTTON_DOWN)) == (BUTTON_SELECT | BUTTON_DOWN)) {
-            rom_select_launcher();
             fpga_api_write_reg(FPGA_REG_LAUNCHER, 1U << 3); // request pause
             state = UI_STATE_REQ_PAUSE;
         }
