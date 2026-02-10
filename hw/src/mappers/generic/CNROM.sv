@@ -18,6 +18,8 @@ module CNROM (
     assign bus.wram_ce = 0;
     assign bus.prg_we = 0;
     assign bus.audio = '0;
+    assign bus.irq = 1;
+    assign bus.sst_data_out = 'hFF;
 
     always_ff @(negedge bus.m2) begin
         if (bus.cpu_addr[15] && !bus.cpu_rw) begin

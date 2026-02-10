@@ -29,6 +29,8 @@ module launcher (
 
     assign bus.wram_ce = 0;
     assign bus.audio = '0;
+    assign bus.irq = 1;
+    assign bus.sst_data_out = 'hFF;
 
     logic [7:0] rom_q;
     always_ff @(posedge bus.m2) begin

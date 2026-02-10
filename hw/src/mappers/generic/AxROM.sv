@@ -20,13 +20,16 @@ module AxROM (
     assign bus.wram_ce = 0;
     assign bus.prg_we = 0;
     assign bus.audio = '0;
+    assign bus.irq = 1;
 
     always_ff @(negedge bus.m2) begin
         if (bus.sst_enable) begin
-
+            if (bus.sst_we && bus.sst_addr == 'd0) {nametable_page, prg_bank} <= bus.sst_data_in[4:0];
         end else if (bus.cpu_addr[15] && !bus.cpu_rw) begin
             prg_bank <= bus.cpu_data_in[3:0];
             nametable_page <= bus.cpu_data_in[4];
         end
     end
+
+    assign bus.sst_data_out = (bus.sst_addr == 'd0) ? {3'b0, nametable_page, prg_bank} : 'hFF;
 endmodule

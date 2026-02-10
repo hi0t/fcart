@@ -16,4 +16,6 @@ module NROM (
     assign bus.wram_ce = 0;
     assign bus.prg_we = 0;
     assign bus.audio = '0;
+    assign bus.irq = 1;
+    assign bus.sst_data_out = 'hFF;
 endmodule

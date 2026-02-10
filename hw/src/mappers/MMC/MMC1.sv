@@ -26,6 +26,8 @@ module MMC1 (
 
     assign bus.cpu_data_oe = 0;
     assign bus.audio = '0;
+    assign bus.irq = 1;
+    assign bus.sst_data_out = 'hFF;
 
     always_comb begin
         case (control[1:0])

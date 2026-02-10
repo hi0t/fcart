@@ -28,6 +28,7 @@ module VRC6 (
     assign bus.cpu_data_oe = 0;
     assign bus.wram_ce = 0;
     assign bus.prg_we = 0;
+    assign bus.sst_data_out = 'hFF;
 
     always_comb begin
         case (mirroring)

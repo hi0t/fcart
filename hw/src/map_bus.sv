@@ -36,9 +36,13 @@ interface map_bus #(
 
     // Save state
     logic sst_enable;
+    logic sst_we;
+    logic [5:0] sst_addr;
+    logic [7:0] sst_data_in;
+    logic [7:0] sst_data_out;
 
     modport mapper(
-        input reset, m2, cpu_addr, cpu_data_in, cpu_rw, ppu_rd, ppu_wr, ppu_addr, chr_ram, mirroring, sst_enable,
-        output cpu_data_oe, cpu_data_out, irq, ciram_a10, ciram_ce, prg_addr, prg_oe, prg_we, wram_ce, chr_addr, chr_ce, chr_oe, chr_we, audio
+        input reset, m2, cpu_addr, cpu_data_in, cpu_rw, ppu_rd, ppu_wr, ppu_addr, chr_ram, mirroring, sst_enable, sst_we, sst_addr, sst_data_in,
+        output cpu_data_oe, cpu_data_out, irq, ciram_a10, ciram_ce, prg_addr, prg_oe, prg_we, wram_ce, chr_addr, chr_ce, chr_oe, chr_we, audio, sst_data_out
     );
 endinterface
