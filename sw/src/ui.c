@@ -47,12 +47,10 @@ static inline bool console_reset()
 }
 static void show_message(const char *msg);
 static void redraw_screen();
-static void sd_state(bool present);
 static void process_input(uint8_t pressed, uint8_t current);
 
 void ui_init()
 {
-    set_sd_callback(sd_state);
     joypad_can_repeat(BUTTON_UP | BUTTON_DOWN);
 }
 
@@ -71,7 +69,7 @@ void ui_poll()
         if (is_active) {
             rom_save_battery();
             state = UI_STATE_MENU;
-            sd_state(is_sd_present());
+            sd_callback(is_sd_present());
         }
         break;
     case UI_STATE_REQ_PAUSE:
@@ -194,7 +192,7 @@ static void redraw_screen()
     }
 }
 
-static void sd_state(bool present)
+void sd_callback(bool present)
 {
     if (present) {
         if (f_mount(&fs, "/SD", 1) != FR_OK) {
@@ -340,5 +338,13 @@ static void process_input(uint8_t pressed, uint8_t current)
         pause_control(pressed);
     } else if (state == UI_STATE_MENU) {
         menu_control(pressed);
+    }
+}
+
+void button_callback(void)
+{
+    if (state == UI_STATE_GAME) {
+        fpga_api_write_reg(FPGA_REG_LAUNCHER, 1U << 3); // request pause
+        state = UI_STATE_REQ_PAUSE;
     }
 }

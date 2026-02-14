@@ -1,17 +1,20 @@
-PPU_CTRL    = $2000
-PPU_MASK    = $2001
-PPU_STATUS  = $2002
-PPU_OAMADDR = $2003
-PPU_OAMDATA = $2004
-PPU_SCROLL  = $2005
-PPU_ADDR    = $2006
-PPU_DATA    = $2007
-JOYPAD1     = $4016
-CTRL_REG    = $5000
-STATUS_REG  = $5001
-SST_ADDR    = $5002
-SST_DATA    = $5003
-SST_REC     = $5004
+PPU_CTRL      = $2000
+PPU_MASK      = $2001
+PPU_STATUS    = $2002
+PPU_OAMADDR   = $2003
+PPU_OAMDATA   = $2004
+PPU_SCROLL    = $2005
+PPU_ADDR      = $2006
+PPU_DATA      = $2007
+APU_STATUS    = $4015
+APU_FRAME_CNT = $4017
+JOYPAD1       = $4016
+CTRL_REG      = $5000
+STATUS_REG    = $5001
+SST_ADDR      = $5002
+SST_DATA      = $5003
+SST_REC_ADDR  = $5004
+SST_REC_DATA  = $5005
 
 .segment "ZEROPAGE"
 ptr:       .res 1
@@ -24,13 +27,14 @@ ingame_entry:
     ; Offset | Size  | Description
     ; -------|-------|--------------------
     ; $0000  | $0004 | CPU Registers (A, X, Y, S)
-    ; $0004  | $0100 | Zero Page ($00-$FF)
-    ; $0104  | $0700 | RAM ($0100-$07FF)
-    ; $0804  | $0800 | Nametables ($2000-$27FF)
-    ; $1004  | $0020 | Palettes ($3F00-$3F1F)
-    ; $1024  | $0100 | OAM Data (256 bytes)
-    ; $1124  | $0018 | APU Registers ($4000-$4017)
-    ; $113C  | $0004 | PPU Registers (CTRL, MASK, SCROLLx2)
+    ; $0004  | $0100 | Zero Page
+    ; $0104  | $0700 | RAM
+    ; $0804  | $0040 | Mapper Registers
+    ; $0844  | $0800 | Nametables
+    ; $1044  | $0020 | Palettes
+    ; $1064  | $0100 | OAM Data
+    ; $1164  | $0018 | APU Registers
+    ; $117C  | $0004 | PPU Registers (CTRL, SCROLLx2, MASK)
 
     ; registers are saved in order A, X, Y, S
     ; sst_addr is reset to 0 by hardware when reading NMI vector
@@ -48,9 +52,8 @@ ingame_entry:
     sta PPU_CTRL
     sta PPU_MASK
     sta $4010
-    sta $4015
-    sta $4017
-    bit PPU_STATUS ; reset high-low latch
+    sta APU_STATUS
+    sta APU_FRAME_CNT
 
     ; dump Zero Page ($00-$FF)
     ldx #0
@@ -78,6 +81,20 @@ ingame_entry:
         lda pages_cnt
         cmp #8
         bne dump_ram_pages
+
+    ; dump Mapper registers (64 bytes)
+    ; SST_REC mapper area starts at 0x200
+    lda #0
+    sta SST_REC_ADDR
+    lda #2
+    sta SST_REC_ADDR
+
+    ldx #64
+    dump_mapper_loop:
+        lda SST_REC_DATA
+        sta SST_DATA
+        dex
+        bne dump_mapper_loop
 
     vblank_wait_dump:
         bit PPU_STATUS
@@ -118,8 +135,10 @@ ingame_entry:
     ; dump OAM (256 bytes)
     ; SST_REC starts at 0x000 (OAM)
     ldx #0
+    stx SST_REC_ADDR
+    stx SST_REC_ADDR
     dump_oam:
-        lda SST_REC
+        lda SST_REC_DATA
         sta SST_DATA
         inx
         bne dump_oam
@@ -128,7 +147,7 @@ ingame_entry:
     ; SST_REC continues at 0x100
     ldx #24
     dump_apu_loop:
-        lda SST_REC
+        lda SST_REC_DATA
         sta SST_DATA
         dex
         bne dump_apu_loop
@@ -137,7 +156,7 @@ ingame_entry:
     ; SST_REC continues at 0x118
     ldx #4
     dump_ppu_loop:
-        lda SST_REC
+        lda SST_REC_DATA
         sta SST_DATA
         dex
         bne dump_ppu_loop
@@ -147,7 +166,7 @@ reset:
     sei
     cld
     ldx #$40
-    stx $4017
+    stx APU_FRAME_CNT
     ldx #$FF
     txs
     inx
@@ -303,8 +322,25 @@ reset:
             cmp #8
             bne res_loop_pages
 
+        ; Restore Mapper registers (64 bytes)
+        ; SST_REC mapper area starts at 0x200
+        lda #0
+        sta SST_REC_ADDR
+        lda #2
+        sta SST_REC_ADDR
+
+        ldx #64
+        res_mapper_loop:
+            lda SST_DATA
+            sta SST_REC_DATA
+            dex
+            bne res_mapper_loop
+
+        vblank_wait_restore2:
+            bit PPU_STATUS
+            bpl vblank_wait_restore2
+
         ; Restore Nametables ($2000-$2800)
-        bit PPU_STATUS ; Reset latch
         lda #$20
         sta PPU_ADDR
         lda #$00
@@ -337,9 +373,8 @@ reset:
             bne res_pal
 
         ; Restore OAM
-        lda #0
-        sta PPU_OAMADDR
         ldx #0
+        stx PPU_OAMADDR
         res_oam:
             lda SST_DATA
             sta PPU_OAMDATA
@@ -347,11 +382,32 @@ reset:
             bne res_oam
 
         ; Restore APU Registers (24 bytes)
-        ; Skip $4016 (offset 22)
+        ; 1. Enable Square/Triangle/Noise channels (Bits 0-3) safely first.
+        lda #$79
+        sta SST_ADDR
+        lda #$11
+        sta SST_ADDR
+
+        lda SST_DATA
+        and #$0F ; Mask out DMC (Bit 4) to prevent freeze, keep channels enabled
+        sta APU_STATUS
+
+        ; 2. Restore APU Registers $4000-$4013
+        lda #$64
+        sta SST_ADDR
+        lda #$11
+        sta SST_ADDR
+
         ldx #0
         res_apu_loop:
             lda SST_DATA
-            cpx #22 ; $4016
+            cpx #20         ; Skip $4014 (OAM DMA)
+            beq res_apu_skip
+            cpx #21         ; Skip $4015 (Status) - Handled separately
+            beq res_apu_skip
+            cpx #22         ; Skip $4016 (Joypad)
+            beq res_apu_skip
+            cpx #23         ; Skip $4017 (Frame Counter) - Handled last
             beq res_apu_skip
             sta $4000,x
         res_apu_skip:
@@ -376,11 +432,11 @@ reset:
             inx
             bne res_zp_loop
 
-        vblank_wait_restore2:
+        vblank_wait_restore3:
             bit PPU_STATUS
-            bpl vblank_wait_restore2
+            bpl vblank_wait_restore3
 
-        lda #$3C
+        lda #$7C
         sta SST_ADDR
         lda #$11
         sta SST_ADDR
@@ -393,6 +449,25 @@ reset:
         sta PPU_SCROLL ; PPU_SCROLL (2005 Y)
         lda SST_DATA
         sta PPU_MASK ; PPU_MASK (2001)
+
+        ; Restore APU IRQ sources ($4017 and $4015) LAST
+        ; This ensures Stack and ZP are valid if an IRQ fires immediately.
+
+        ; Restore $4017 (Frame Counter)
+        lda #$7B
+        sta SST_ADDR
+        lda #$11
+        sta SST_ADDR
+        lda SST_DATA
+        sta APU_FRAME_CNT
+
+        ; Restore $4015 (DMC)
+        lda #$79
+        sta SST_ADDR
+        lda #$11
+        sta SST_ADDR
+        lda SST_DATA
+        sta APU_STATUS
 
         lda #00
         sta SST_ADDR

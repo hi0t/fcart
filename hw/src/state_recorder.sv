@@ -16,7 +16,7 @@ module state_recorder (
     // Memory Map:
     // 0x000 - 0x0FF: OAM Data (256 bytes). Updated via writes to $2004
     // 0x100 - 0x117: APU Registers ($4000 - $4017).
-    // 0x118 - 0x11B: PPU Registers ($2000, $2001, $2005x2).
+    // 0x118 - 0x11B: PPU Registers ($2000, $2005x2, $2001).
 
     (* syn_ramstyle = "block_ram" *) logic [7:0] memory[512];
 

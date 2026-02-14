@@ -50,7 +50,7 @@ module map_mux #(
     } launcher_ctrl_t;
 
     logic cpu_reset;
-    logic [4:0] select_reg, select;
+    logic [4:0] select_reg, select, game_select;
     logic [1:0] map_args;
     logic [ADDR_BITS-1:0] prg_mask, chr_mask;
     logic [7:0] cpu_data_out, ppu_data_out;
@@ -59,8 +59,9 @@ module map_mux #(
     logic video_enable;
     logic reset_hijack;
     logic nmi_hijack;
-    logic [8:0] st_rec_addr;
-    logic [7:0] st_rec_data;
+    logic [9:0] st_rec_addr;
+    logic [7:0] st_rec_read, st_rec_write;
+    logic [7:0] st_rec_read_recorder;
 
     // Muxed bus signals
     logic [7:0] bus_cpu_data_out[MAP_CNT];
@@ -77,6 +78,7 @@ module map_mux #(
     logic bus_chr_oe[MAP_CNT];
     logic bus_chr_we[MAP_CNT];
     logic [15:0] bus_audio[MAP_CNT];
+    logic [7:0] bus_sst_data_out[MAP_CNT];
 
     map_bus map[MAP_CNT] ();
 
@@ -87,8 +89,8 @@ module map_mux #(
         .cpu_addr(cpu_addr),
         .cpu_data(cpu_data),
         .cpu_rw(cpu_rw),
-        .read_addr(st_rec_addr),
-        .read_data(st_rec_data)
+        .read_addr(st_rec_addr[8:0]),
+        .read_data(st_rec_read_recorder)
     );
 
     launcher launcher (
@@ -96,7 +98,8 @@ module map_mux #(
         .ctrl(launcher_ctrl),
         .status(launcher_status),
         .st_rec_addr(st_rec_addr),
-        .st_rec_data(st_rec_data)
+        .st_rec_read(st_rec_read),
+        .st_rec_write(st_rec_write)
     );
     NROM NROM (.bus(map[1]));
     MMC1 MMC1 (.bus(map[2]));
@@ -110,6 +113,7 @@ module map_mux #(
     assign nmi_hijack = launcher_ctrl.ingame_menu && cpu_addr == 'hFFFA && cpu_rw;
     assign select = reset_hijack ? game_select : (nmi_hijack ? '0 : select_reg);
     assign video_enable = launcher_status && !cpu_reset && !launcher_ctrl.start_app;
+    assign st_rec_read = st_rec_addr[9] ? bus_sst_data_out[game_select] : st_rec_read_recorder;
 
     genvar n;
     for (n = 0; n < MAP_CNT; n = n + 1) begin
@@ -127,6 +131,9 @@ module map_mux #(
         assign map[n].chr_ram = map_args[1];
 
         assign map[n].sst_enable = (select == '0);
+        assign map[n].sst_addr = st_rec_addr[5:0];
+        assign map[n].sst_data_in = st_rec_write;
+        assign map[n].sst_we = (select == '0) && st_rec_addr[9] && !cpu_rw && (cpu_addr == 'h5005);
 
         // unpack interface array
         assign bus_cpu_data_out[n] = map[n].cpu_data_out;
@@ -143,6 +150,7 @@ module map_mux #(
         assign bus_chr_oe[n] = map[n].chr_oe;
         assign bus_chr_we[n] = map[n].chr_we;
         assign bus_audio[n] = map[n].audio;
+        assign bus_sst_data_out[n] = map[n].sst_data_out;
     end
 
     // mux for outgoing signals
@@ -187,7 +195,6 @@ module map_mux #(
     localparam REG_LAUNCHER = 4'd1;
 
     logic [2:0] wr_reg_sync;
-    logic [4:0] game_select;
 
     always_ff @(negedge m2 or posedge cpu_reset) begin
         if (cpu_reset) begin

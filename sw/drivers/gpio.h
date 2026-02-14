@@ -30,22 +30,22 @@ void set_blink_interval(uint32_t interval_ms);
 void gpio_poll();
 
 /**
- * @brief Sets the callback function for button press events.
+ * @brief Callback function for button press events.
  *
- * This function sets a callback function that will be called when the button is pressed.
- *
- * @param cb The callback function to set.
+ * This function is called when the button is pressed.
+ * It is defined as weak and can be overridden by the user.
  */
-void set_button_callback(void (*cb)());
+void button_callback(void);
 
 /**
- * @brief Sets the callback function for SD card presence events.
+ * @brief Callback function for SD card presence events.
  *
- * This function sets a callback function that will be called when the SD card presence changes.
+ * This function is called when the SD card presence changes.
+ * It is defined as weak and can be overridden by the user.
  *
- * @param cb The callback function to set, which takes a boolean indicating SD card presence.
+ * @param present true if the SD card is present, false otherwise.
  */
-void set_sd_callback(void (*cb)(bool));
+void sd_callback(bool present);
 
 /**
  * @brief Checks if the SD card is currently present.

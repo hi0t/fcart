@@ -9,9 +9,6 @@
 static uint16_t sd_history = RESET;
 static uint32_t led_blink_interval = 0;
 
-static void (*button_cb)();
-static void (*sd_cb)(bool);
-
 void set_blink_interval(uint32_t interval_ms)
 {
     led_blink_interval = interval_ms;
@@ -43,32 +40,28 @@ void gpio_poll()
         btn_history = (btn_history << 1) | (HAL_GPIO_ReadPin(GPIO_BTN_PORT, GPIO_BTN_PIN) == GPIO_PIN_SET);
         sd_history = (sd_history << 1) | is_sd_present();
 
-        if (button_cb != NULL && !btn_pressed && (btn_history & MASK) == PRESS) {
-            button_cb();
+        if (!btn_pressed && (btn_history & MASK) == PRESS) {
+            button_callback();
+            btn_pressed = true;
         }
 
         if (!sd_present && sd_history == SET) {
             sd_present = true;
-            if (sd_cb != NULL) {
-                sd_cb(true);
-            }
+            sd_callback(true);
         } else if (sd_present && sd_history == RESET) {
             sd_present = false;
-            if (sd_cb != NULL) {
-                sd_cb(false);
-            }
+            sd_callback(false);
         }
     }
 }
 
-void set_button_callback(void (*cb)())
+__weak void button_callback(void)
 {
-    button_cb = cb;
 }
 
-void set_sd_callback(void (*cb)(bool))
+__weak void sd_callback(bool present)
 {
-    sd_cb = cb;
+    UNUSED(present);
 }
 
 bool is_sd_present()
