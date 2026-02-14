@@ -79,7 +79,7 @@ module fcart (
         .cpu_oe(CPU_DIR),
         .ppu_oe(PPU_DIR),
 
-        .wr_reg(wr_reg[11:0]),
+        .wr_reg(wr_reg[12:0]),
         .wr_reg_addr(wr_reg_addr),
         .wr_reg_changed(wr_reg_changed),
         .status_reg(launcher_status),

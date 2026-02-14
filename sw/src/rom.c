@@ -30,7 +30,7 @@ static bool file_writer(const uint8_t *data, uint32_t size, void *arg);
 static bool const_reader(uint8_t *data, uint32_t size, void *arg);
 static uint32_t exp_size(uint32_t size);
 static uint32_t shift_size(uint8_t shift);
-static uint16_t choose_mapper(uint16_t id);
+static uint16_t choose_mapper(uint16_t id, uint8_t sub, bool *bus_conflict);
 static uint8_t get_chr_off(uint32_t prg_size);
 
 static void set_save_name(const char *rom_path)
@@ -163,8 +163,10 @@ int rom_load(const char *filename)
     uint16_t mapper_id = (header[7] & 0xF0) | (header[6] >> 4U);
     bool has_battery = (header[6] & 0x02) != 0;
     wram_size = SIZE_8K;
+    uint8_t sub = -1;
 
     if (nes20) {
+        sub = header[8] >> 4;
         if ((header[9] & 0x0F) == 0x0F) {
             prg_size = exp_size(prg_size);
         } else {
@@ -219,17 +221,20 @@ int rom_load(const char *filename)
         wram_size = 0;
     }
 
-    curr_mapper_args = choose_mapper(mapper_id);
+    bool bus_conflict = false;
+    curr_mapper_args = choose_mapper(mapper_id, sub, &bus_conflict);
     curr_mapper_args |= chr_off << 5U;
     curr_mapper_args |= mirroring << 10U;
     curr_mapper_args |= has_chr_ram << 11U;
+    curr_mapper_args |= bus_conflict << 12U;
     //   mapper args:
-    //   11|10|9|8|7|6|5|4|3|2|1|0
-    //    |  | | | | | | | | | | |
-    //    |  | | | | | | +-+-+-+-+- mapper ID (5 bits)
-    //    |  | +-+-+-+-+----------- CHR offset
-    //    |  +--------------------- mirroring: 0 = horizontal, 1 = vertical
-    //    +------------------------ has CHR RAM
+    //   12|11|10|9|8|7|6|5|4|3|2|1|0
+    //    |  |  | | | | | | | | | | |
+    //    |  |  | | | | | | +-+-+-+-+- mapper ID (5 bits)
+    //    |  |  | +-+-+-+-+----------- CHR offset
+    //    |  |  +--------------------- mirroring: 0 = horizontal, 1 = vertical
+    //    |  +------------------------ has CHR RAM
+    //    +--------------------------- bus conflict
 
     fpga_api_write_reg(FPGA_REG_MAPPER, curr_mapper_args);
     fpga_api_write_reg(FPGA_REG_LAUNCHER, 1U << 1); // start app
@@ -275,18 +280,22 @@ static uint32_t shift_size(uint8_t shift)
 }
 
 // translate NES mapper ID to FPGA mapper ID
-static uint16_t choose_mapper(uint16_t id)
+static uint16_t choose_mapper(uint16_t id, uint8_t sub, bool *bus_conflict)
 {
+    *bus_conflict = false;
     switch (id) {
     case 0:
         return 1;
     case 1:
         return 2;
-    case 2:
+    case 2: // UxROM
+        *bus_conflict = (sub == 2);
         return 3;
-    case 3:
+    case 3: // CNROM
+        *bus_conflict = (sub == 2);
         return 4;
-    case 7:
+    case 7: // AxROM
+        *bus_conflict = (sub == 2);
         return 6;
     case 24:
         return 5;
