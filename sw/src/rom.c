@@ -20,8 +20,10 @@
 #define max(a, b) ((a) > (b) ? (a) : (b))
 
 static char *save_name;
-static uint32_t wram_size_save;
+static uint32_t wram_size;
 static uint32_t curr_mapper_args;
+static uint32_t chr_ram_size;
+static uint32_t chr_ram_addr;
 
 static bool file_reader(uint8_t *data, uint32_t size, void *arg);
 static bool file_writer(const uint8_t *data, uint32_t size, void *arg);
@@ -64,7 +66,7 @@ int rom_save_battery()
     FRESULT rc;
     int err = 0;
 
-    if (!save_name || wram_size_save == 0) {
+    if (!save_name || wram_size == 0) {
         return 0;
     }
     char path[256];
@@ -76,7 +78,7 @@ int rom_save_battery()
     if ((rc = f_open(&fp, path, FA_WRITE | FA_CREATE_ALWAYS)) != FR_OK) {
         return -fresult_to_errno(rc);
     }
-    err = fpga_api_read_mem(WRAM_ADDR, wram_size_save, file_writer, &fp);
+    err = fpga_api_read_mem(WRAM_ADDR, wram_size, file_writer, &fp);
     f_close(&fp);
     return err;
 }
@@ -100,6 +102,33 @@ int rom_save_state()
         return -fresult_to_errno(rc);
     }
     err = fpga_api_read_mem(SST_ADDR, SST_SIZE, file_writer, &fp);
+    if (err == 0 && chr_ram_size > 0) {
+        err = fpga_api_read_mem(chr_ram_addr, chr_ram_size, file_writer, &fp);
+    }
+    f_close(&fp);
+    return err;
+}
+
+int rom_restore_state()
+{
+    FRESULT rc;
+    int err = 0;
+
+    if (!save_name) {
+        return 0;
+    }
+
+    char path[256];
+    get_save_path(path, sizeof(path), ".st");
+
+    FIL fp;
+    if ((rc = f_open(&fp, path, FA_READ)) != FR_OK) {
+        return -fresult_to_errno(rc);
+    }
+    err = fpga_api_write_mem(SST_ADDR, SST_SIZE, file_reader, &fp);
+    if (err == 0 && chr_ram_size > 0) {
+        err = fpga_api_write_mem(chr_ram_addr, chr_ram_size, file_reader, &fp);
+    }
     f_close(&fp);
     return err;
 }
@@ -130,10 +159,10 @@ int rom_load(const char *filename)
 
     uint32_t prg_size = header[4];
     uint32_t chr_size = header[5];
-    uint32_t chr_ram_size = 0;
+    chr_ram_size = 0;
     uint16_t mapper_id = (header[7] & 0xF0) | (header[6] >> 4U);
     bool has_battery = (header[6] & 0x02) != 0;
-    uint32_t wram_size = SIZE_8K;
+    wram_size = SIZE_8K;
 
     if (nes20) {
         if ((header[9] & 0x0F) == 0x0F) {
@@ -161,19 +190,21 @@ int rom_load(const char *filename)
     } else {
         prg_size *= SIZE_16K;
         chr_size *= SIZE_8K;
+        if (chr_size == 0) {
+            chr_ram_size = SIZE_8K;
+        }
     }
 
     uint8_t mirroring = header[6] & 0x01;
     uint8_t has_chr_ram = nes20 ? chr_ram_size > 0 : chr_size == 0;
     uint8_t chr_off = get_chr_off(prg_size);
+    chr_ram_addr = 1U << chr_off;
 
     fpga_api_write_mem(0, prg_size, file_reader, &fp);
-    fpga_api_write_mem(1U << chr_off, chr_size, file_reader, &fp);
+    fpga_api_write_mem(chr_ram_addr, chr_size, file_reader, &fp);
 
     set_save_name(filename);
     if (has_battery) {
-        wram_size_save = wram_size;
-
         char path[256];
         get_save_path(path, sizeof(path), ".sav");
 
@@ -185,7 +216,7 @@ int rom_load(const char *filename)
             fpga_api_write_mem(WRAM_ADDR, wram_size, const_reader, (void *)0xFF);
         }
     } else {
-        wram_size_save = 0;
+        wram_size = 0;
     }
 
     curr_mapper_args = choose_mapper(mapper_id);

@@ -167,8 +167,8 @@ static void draw_pause_menu()
     gfx_text(box_x + (box_w - title_len * FONT_WIDTH) / 2, box_y + FONT_WIDTH, title, -1, 1);
 
     // Items
-    const char *items[] = { "Continue", "Save State", "Reset" };
-    for (int i = 0; i < 3; i++) {
+    const char *items[] = { "Continue", "Save State", "Restore State", "Reset" };
+    for (int i = 0; i < 4; i++) {
         int y = box_y + (3 + i) * FONT_WIDTH;
         if (i == ingame_cursor) {
             gfx_fill_rect(box_x + 4, y, box_w - 8, FONT_WIDTH, 3);
@@ -308,7 +308,7 @@ static void pause_control(uint8_t buttons)
             ingame_cursor--;
         }
     } else if (buttons & BUTTON_DOWN) {
-        if (ingame_cursor < 2) {
+        if (ingame_cursor < 3) {
             ingame_cursor++;
         }
     } else if (buttons & BUTTON_A) {
@@ -319,6 +319,15 @@ static void pause_control(uint8_t buttons)
             show_message("Saving...");
             rom_save_state();
         } else if (ingame_cursor == 2) {
+            show_message("Restoring...");
+            if (rom_restore_state() == 0) {
+                fpga_api_write_reg(FPGA_REG_LAUNCHER, 1U << 2); // request resume
+                state = UI_STATE_GAME;
+            } else {
+                show_message("Restore failed");
+                return;
+            }
+        } else if (ingame_cursor == 3) {
             state = UI_STATE_RESET;
         }
     } else {
