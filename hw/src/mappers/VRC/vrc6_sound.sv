@@ -4,7 +4,13 @@ module vrc6_sound (
     input  logic [15:0] cpu_addr,
     input  logic [ 7:0] cpu_data_in,
     input  logic        cpu_we,       // Write Enable
-    output logic [15:0] audio_out     // Mixed Audio Output 16-bit
+    output logic [15:0] audio_out,    // Mixed Audio Output 16-bit
+
+    input logic sst_enable,
+    input logic sst_we,
+    input logic [5:0] sst_addr,
+    input logic [7:0] sst_data_in,
+    output logic [7:0] sst_data_out
 );
 
     // Channel state
@@ -20,10 +26,30 @@ module vrc6_sound (
     logic [2:0] duty2cnt;
     logic [7:0] acc;
 
-    // State update on M2 falling edge (matches mapper timing)
     always_ff @(negedge clk) begin
         if (reset) begin
             {en0, en1, en2} <= '0;
+        end
+        if (sst_enable) begin
+            if (sst_we && sst_addr == 'd24) {mode0, mode1, vol0} <= sst_data_in[5:0];
+            if (sst_we && sst_addr == 'd25) vol1 <= sst_data_in[3:0];
+            if (sst_we && sst_addr == 'd26) vol2 <= sst_data_in[5:0];
+            if (sst_we && sst_addr == 'd27) {duty0, duty1} <= sst_data_in[5:0];
+            if (sst_we && sst_addr == 'd28) freq0[7:0] <= sst_data_in;
+            if (sst_we && sst_addr == 'd29) freq0[11:8] <= sst_data_in[3:0];
+            if (sst_we && sst_addr == 'd30) freq1[7:0] <= sst_data_in;
+            if (sst_we && sst_addr == 'd31) freq1[11:8] <= sst_data_in[3:0];
+            if (sst_we && sst_addr == 'd32) freq2[7:0] <= sst_data_in;
+            if (sst_we && sst_addr == 'd33) freq2[11:8] <= sst_data_in[3:0];
+            if (sst_we && sst_addr == 'd34) div0[7:0] <= sst_data_in;
+            if (sst_we && sst_addr == 'd35) div0[11:8] <= sst_data_in[3:0];
+            if (sst_we && sst_addr == 'd36) div1[7:0] <= sst_data_in;
+            if (sst_we && sst_addr == 'd37) div1[11:8] <= sst_data_in[3:0];
+            if (sst_we && sst_addr == 'd38) div2[7:0] <= sst_data_in;
+            if (sst_we && sst_addr == 'd39) div2[12:8] <= sst_data_in[4:0];
+            if (sst_we && sst_addr == 'd40) {en0, en1, en2, duty0cnt} <= sst_data_in[6:0];
+            if (sst_we && sst_addr == 'd41) {duty1cnt, duty2cnt} <= sst_data_in[6:0];
+            if (sst_we && sst_addr == 'd42) acc <= sst_data_in;
         end else begin
             // Register writes
             if (cpu_we) begin
@@ -98,4 +124,24 @@ module vrc6_sound (
         exp_audio = {2'b0, ch0} + {2'b0, ch1} + {1'b0, ch2};
         audio_out = {exp_audio, 10'b0};
     end
+
+    assign sst_data_out = (sst_addr == 'd24) ? {2'b0, mode0, mode1, vol0} :
+                              (sst_addr == 'd25) ? {4'b0, vol1} :
+                              (sst_addr == 'd26) ? {2'b0, vol2} :
+                              (sst_addr == 'd27) ? {2'b0, duty0, duty1} :
+                              (sst_addr == 'd28) ? freq0[7:0] :
+                              (sst_addr == 'd29) ? {4'b0, freq0[11:8]} :
+                              (sst_addr == 'd30) ? freq1[7:0] :
+                              (sst_addr == 'd31) ? {4'b0, freq1[11:8]} :
+                              (sst_addr == 'd32) ? freq2[7:0] :
+                              (sst_addr == 'd33) ? {4'b0, freq2[11:8]} :
+                              (sst_addr == 'd34) ? div0[7:0] :
+                              (sst_addr == 'd35) ? {4'b0, div0[11:8]} :
+                              (sst_addr == 'd36) ? div1[7:0] :
+                              (sst_addr == 'd37) ? {4'b0, div1[11:8]} :
+                              (sst_addr == 'd38) ? div2[7:0] :
+                              (sst_addr == 'd39) ? {3'b0, div2[12:8]} :
+                              (sst_addr == 'd40) ? {1'b0, en0, en1, en2, duty0cnt} :
+                              (sst_addr == 'd41) ? {1'b0, duty1cnt, duty2cnt} :
+                              (sst_addr == 'd42) ? acc : 'hFF;
 endmodule

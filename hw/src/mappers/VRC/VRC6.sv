@@ -9,6 +9,9 @@ module VRC6 (
     logic [1:0] low_addr;
     logic write_en;
 
+    logic [7:0] vrc_sst;
+    logic [7:0] snd_sst;
+
     // CPU
     always_comb begin
         if (bus.cpu_addr[14] == 0) bus.prg_addr = bus.ADDR_BITS'({prg_bank_8000, bus.cpu_addr[13:0]});
@@ -28,7 +31,6 @@ module VRC6 (
     assign bus.cpu_data_oe = 0;
     assign bus.wram_ce = 0;
     assign bus.prg_we = 0;
-    assign bus.sst_data_out = 'hFF;
 
     always_comb begin
         case (mirroring)
@@ -49,6 +51,11 @@ module VRC6 (
             prg_bank_C000 <= '0;
             mirroring <= '0;
             chr_bank <= '{default: 0};
+        end else if (bus.sst_enable) begin
+            if (bus.sst_we && bus.sst_addr[5:3] == 'd0) chr_bank[bus.sst_addr[2:0]] <= bus.sst_data_in;
+            if (bus.sst_we && bus.sst_addr == 'd8) prg_bank_8000 <= bus.sst_data_in;
+            if (bus.sst_we && bus.sst_addr == 'd9) prg_bank_C000 <= bus.sst_data_in;
+            if (bus.sst_we && bus.sst_addr == 'd10) mirroring <= bus.sst_data_in[1:0];
         end else begin
             // Write Logic
             if (write_en) begin
@@ -83,7 +90,13 @@ module VRC6 (
         .wr_latch(write_en && (bank_sel == 3'b111) && (low_addr == 2'b00)),
         .wr_ctrl(write_en && (bank_sel == 3'b111) && (low_addr == 2'b01)),
         .wr_ack(write_en && (bank_sel == 3'b111) && (low_addr == 2'b10)),
-        .irq(bus.irq)
+        .irq(bus.irq),
+
+        .sst_enable(bus.sst_enable),
+        .sst_we(bus.sst_we),
+        .sst_addr(bus.sst_addr),
+        .sst_data_in(bus.sst_data_in),
+        .sst_data_out(vrc_sst)
     );
 
     vrc6_sound vrc6_sound (
@@ -92,6 +105,19 @@ module VRC6 (
         .cpu_addr({bus.cpu_addr[15:2], low_addr}),
         .cpu_data_in(bus.cpu_data_in),
         .cpu_we(write_en),
-        .audio_out(bus.audio)
+        .audio_out(bus.audio),
+
+        .sst_enable(bus.sst_enable),
+        .sst_we(bus.sst_we),
+        .sst_addr(bus.sst_addr),
+        .sst_data_in(bus.sst_data_in),
+        .sst_data_out(snd_sst)
     );
+
+    assign bus.sst_data_out = (bus.sst_addr[5:3] == 'd0) ? chr_bank[bus.sst_addr[2:0]] :
+                                  (bus.sst_addr == 'd8) ? prg_bank_8000 :
+                                  (bus.sst_addr == 'd9) ? prg_bank_C000 :
+                                  (bus.sst_addr == 'd10) ? {6'b0, mirroring} :
+                                  (bus.sst_addr[5:3] == 'd2) ? vrc_sst :
+                                  snd_sst;
 endmodule

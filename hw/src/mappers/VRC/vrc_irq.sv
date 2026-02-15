@@ -5,7 +5,13 @@ module vrc_irq (
     input  logic       wr_latch,
     input  logic       wr_ctrl,
     input  logic       wr_ack,
-    output logic       irq
+    output logic       irq,
+
+    input logic sst_enable,
+    input logic sst_we,
+    input logic [5:0] sst_addr,
+    input logic [7:0] sst_data_in,
+    output logic [7:0] sst_data_out
 );
 
     logic irq_mode, irq_enable, irq_enable_after_ack;
@@ -20,6 +26,12 @@ module vrc_irq (
         if (reset) begin
             {irq_mode, irq_enable, irq_enable_after_ack} <= '0;
             irq_pending <= 1'b0;
+        end else if (sst_enable) begin
+            if (sst_we && sst_addr == 'd16) {irq_pending, irq_mode, irq_enable, irq_enable_after_ack} <= sst_data_in[3:0];
+            if (sst_we && sst_addr == 'd17) irq_latch <= sst_data_in;
+            if (sst_we && sst_addr == 'd18) irq_counter <= sst_data_in;
+            if (sst_we && sst_addr == 'd19) irq_prescaler[7:0] <= sst_data_in;
+            if (sst_we && sst_addr == 'd20) irq_prescaler[8] <= sst_data_in[0];
         end else begin
             // IRQ Counter Logic
             if (irq_enable) begin
@@ -49,4 +61,9 @@ module vrc_irq (
         end
     end
 
+    assign sst_data_out = (sst_addr == 'd16) ? {4'b0, irq_pending, irq_mode, irq_enable, irq_enable_after_ack} :
+                          (sst_addr == 'd17) ? irq_latch :
+                          (sst_addr == 'd18) ? irq_counter :
+                          (sst_addr == 'd19) ? irq_prescaler[7:0] :
+                          (sst_addr == 'd20) ? {7'b0, irq_prescaler[8]} : 'hFF;
 endmodule
