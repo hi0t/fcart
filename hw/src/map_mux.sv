@@ -121,7 +121,7 @@ module map_mux #(
     genvar n;
     for (n = 0; n < MAP_CNT; n = n + 1) begin
         // mux for incoming signals
-        assign map[n].reset = (n != select) || cpu_reset;
+        assign map[n].reset = ((n != select) && (n != game_select)) || cpu_reset;
         assign map[n].m2 = m2;
         assign map[n].cpu_addr = cpu_addr;
         assign map[n].cpu_data_in = bus_conflict ? (cpu_data & cpu_data_out) : cpu_data;
@@ -207,6 +207,7 @@ module map_mux #(
     always_ff @(negedge m2 or posedge cpu_reset) begin
         if (cpu_reset) begin
             select_reg <= '0;
+            game_select <= '0;
             prg_mask <= '0;
             chr_mask <= '0;
             map_args <= '0;

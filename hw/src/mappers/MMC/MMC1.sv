@@ -27,7 +27,6 @@ module MMC1 (
     assign bus.cpu_data_oe = 0;
     assign bus.audio = '0;
     assign bus.irq = 1;
-    assign bus.sst_data_out = 'hFF;
 
     always_comb begin
         case (control[1:0])
@@ -63,6 +62,12 @@ module MMC1 (
             chr_bank_0 <= '0;
             chr_bank_1 <= '0;
             prg_bank <= '0;
+        end else if (bus.sst_enable) begin
+            if (bus.sst_we && bus.sst_addr == 'd0) shift <= bus.sst_data_in[4:0];
+            if (bus.sst_we && bus.sst_addr == 'd1) control <= bus.sst_data_in[4:0];
+            if (bus.sst_we && bus.sst_addr == 'd2) chr_bank_0 <= bus.sst_data_in[4:0];
+            if (bus.sst_we && bus.sst_addr == 'd3) chr_bank_1 <= bus.sst_data_in[4:0];
+            if (bus.sst_we && bus.sst_addr == 'd4) prg_bank <= bus.sst_data_in[3:0];
         end else if (bus.cpu_addr[15] && !bus.cpu_rw) begin
             if (bus.cpu_data_in[7]) begin
                 shift   <= 5'b10000;
@@ -81,7 +86,9 @@ module MMC1 (
         end
     end
 
-`ifdef DEBUG
-    logic debug_wram_ce = bus.wram_ce;
-`endif
+    assign bus.sst_data_out = (bus.sst_addr == 'd0) ? {3'b0, shift} :
+                              (bus.sst_addr == 'd1) ? {3'b0, control} :
+                              (bus.sst_addr == 'd2) ? {3'b0, chr_bank_0} :
+                              (bus.sst_addr == 'd3) ? {3'b0, chr_bank_1} :
+                              (bus.sst_addr == 'd4) ? {4'b0, prg_bank} : 'hFF;
 endmodule

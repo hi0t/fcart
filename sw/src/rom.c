@@ -105,6 +105,9 @@ int rom_save_state()
     if (err == 0 && chr_ram_size > 0) {
         err = fpga_api_read_mem(chr_ram_addr, chr_ram_size, file_writer, &fp);
     }
+    if (err == 0 && wram_size > 0) {
+        err = fpga_api_read_mem(WRAM_ADDR, wram_size, file_writer, &fp);
+    }
     f_close(&fp);
     return err;
 }
@@ -128,6 +131,9 @@ int rom_restore_state()
     err = fpga_api_write_mem(SST_ADDR, SST_SIZE, file_reader, &fp);
     if (err == 0 && chr_ram_size > 0) {
         err = fpga_api_write_mem(chr_ram_addr, chr_ram_size, file_reader, &fp);
+    }
+    if (err == 0 && wram_size > 0) {
+        err = fpga_api_write_mem(WRAM_ADDR, wram_size, file_reader, &fp);
     }
     f_close(&fp);
     return err;
