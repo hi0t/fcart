@@ -1,7 +1,7 @@
 module MMC1 (
     map_bus.mapper bus
 );
-    logic [4:0] shift;
+    (* syn_state_machine=0 *)logic [4:0] shift;
     logic [4:0] shift_next;
     logic [4:0] control;
     logic [4:0] chr_bank_0;

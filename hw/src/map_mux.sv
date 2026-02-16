@@ -40,7 +40,8 @@ module map_mux #(
     localparam LAUNCHER_MASK = {8'b11111011, {ADDR_BITS - 8{1'b0}}};
     localparam WRAM_MASK = {6'b111111, {ADDR_BITS - 6{1'b0}}};
 
-    localparam MAP_CNT = 32;
+    localparam MAP_CNT = 7;
+    localparam MAP_BITS = $clog2(MAP_CNT);
 
     typedef struct packed {
         logic ingame_menu;
@@ -50,7 +51,7 @@ module map_mux #(
     } launcher_ctrl_t;
 
     logic cpu_reset;
-    logic [4:0] select_reg, select, game_select;
+    logic [MAP_BITS-1:0] select_reg, select, game_select;
     logic [1:0] map_args;
     logic bus_conflict;
     logic bus_conflict_enable;
@@ -217,7 +218,7 @@ module map_mux #(
             wr_reg_sync <= {wr_reg_sync[1:0], wr_reg_changed};
             if (wr_reg_sync[1] != wr_reg_sync[2]) begin
                 if (wr_reg_addr == REG_MAPPER) begin
-                    game_select <= wr_reg[4:0];
+                    game_select <= wr_reg[MAP_BITS-1:0];
                     map_args <= wr_reg[11:10];
                     bus_conflict_enable <= wr_reg[12];
                     prg_mask <= ADDR_BITS'((1 << wr_reg[9:5]) - 5'd1);
