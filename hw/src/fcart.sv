@@ -40,6 +40,8 @@ module fcart (
     logic clk;
     logic async_nreset;
     logic reset;
+    logic [7:0] cpu_data_out;
+    logic [7:0] ppu_data_out;
     logic [31:0] wr_reg;
     logic [3:0] wr_reg_addr;
     logic wr_reg_changed;
@@ -47,6 +49,9 @@ module fcart (
     logic sdram_refresh;
     logic [15:0] pcm;
     logic [7:0] joy1;
+
+    assign CPU_DATA = CPU_DIR ? cpu_data_out : 'z;
+    assign PPU_DATA = PPU_DIR ? ppu_data_out : 'z;
 
     joy_snoop joy (
         .m2(M2),
@@ -66,7 +71,8 @@ module fcart (
 
         .m2(M2),
         .cpu_addr({!ROMSEL, CPU_ADDR}),
-        .cpu_data(CPU_DATA),
+        .cpu_data_in(CPU_DATA),
+        .cpu_data_out(cpu_data_out),
         .cpu_rw(CPU_RW),
         .irq(IRQ),
         .ppu_rd(PPU_RD),
@@ -74,10 +80,11 @@ module fcart (
         .ciram_a10(CIRAM_A10),
         .ciram_ce(CIRAM_CE),
         .ppu_addr(PPU_ADDR),
-        .ppu_data(PPU_DATA),
+        .ppu_data_in(PPU_DATA),
+        .ppu_data_out(ppu_data_out),
 
-        .cpu_oe(CPU_DIR),
-        .ppu_oe(PPU_DIR),
+        .cpu_dir(CPU_DIR),
+        .ppu_dir(PPU_DIR),
 
         .wr_reg(wr_reg[12:0]),
         .wr_reg_addr(wr_reg_addr),

@@ -9,7 +9,8 @@ module map_mux #(
     // Cart interface
     input logic m2,
     input logic [15:0] cpu_addr,
-    inout wire [7:0] cpu_data,
+    input logic [7:0] cpu_data_in,
+    output logic [7:0] cpu_data_out,
     input logic cpu_rw,
     output logic irq,
     input logic ppu_rd,
@@ -17,10 +18,11 @@ module map_mux #(
     output logic ciram_a10,
     output logic ciram_ce,
     input logic [13:0] ppu_addr,
-    inout wire [7:0] ppu_data,
+    input logic [7:0] ppu_data_in,
+    output logic [7:0] ppu_data_out,
 
-    output logic cpu_oe,
-    output logic ppu_oe,
+    output logic cpu_dir,
+    output logic ppu_dir,
 
     input logic [12:0] wr_reg,
     input logic [3:0] wr_reg_addr,
@@ -56,7 +58,7 @@ module map_mux #(
     logic bus_conflict;
     logic bus_conflict_enable;
     logic [ADDR_BITS-1:0] prg_mask, chr_mask;
-    logic [7:0] cpu_data_out, ppu_data_out;
+    logic [7:0] prg_data_out, chr_data_out;
     launcher_ctrl_t launcher_ctrl;
     logic launcher_status;
     logic video_enable;
@@ -90,7 +92,7 @@ module map_mux #(
         .enable(select != '0),
         .m2(m2),
         .cpu_addr(cpu_addr),
-        .cpu_data(cpu_data),
+        .cpu_data(cpu_data_in),
         .cpu_rw(cpu_rw),
         .read_addr(st_rec_addr[8:0]),
         .read_data(st_rec_read_recorder)
@@ -125,7 +127,7 @@ module map_mux #(
         assign map[n].reset = ((n != select) && (n != game_select)) || cpu_reset;
         assign map[n].m2 = m2;
         assign map[n].cpu_addr = cpu_addr;
-        assign map[n].cpu_data_in = bus_conflict ? (cpu_data & cpu_data_out) : cpu_data;
+        assign map[n].cpu_data_in = bus_conflict ? (cpu_data_in & prg_data_out) : cpu_data_in;
         assign map[n].cpu_rw = cpu_rw;
         assign map[n].ppu_rd = ppu_rd;
         assign map[n].ppu_wr = ppu_wr;
@@ -159,19 +161,19 @@ module map_mux #(
 
     // mux for outgoing signalss
     logic [7:0] prg_data;
-    assign prg_data = bus_cpu_data_oe[select] ? bus_cpu_data_out[select] : cpu_data_out;
+    assign prg_data = bus_cpu_data_oe[select] ? bus_cpu_data_out[select] : prg_data_out;
 
     // M2 gating is required to correctly coordinate bidirectional level shifters
-    assign cpu_oe = m2 && (bus_prg_oe[select] || (cpu_rw && (cpu_addr[15] || (cpu_addr[14] && (|cpu_addr[13:5])))));  // > h4020
-    assign ppu_oe = bus_chr_ce[select] && bus_chr_oe[select];
+    assign cpu_dir = m2 && (bus_prg_oe[select] || (cpu_rw && (cpu_addr[15] || (cpu_addr[14] && (|cpu_addr[13:5])))));  // > h4020
+    assign ppu_dir = bus_chr_ce[select] && bus_chr_oe[select];
 
     // Data output: Real data if mapper drives, otherwise Open Bus (high byte of address)
-    assign cpu_data = cpu_oe ? (bus_prg_oe[select] ? prg_data : cpu_addr[15:8]) : 'z;
+    assign cpu_data_out = bus_prg_oe[select] ? prg_data : cpu_addr[15:8];
     assign irq = bus_irq[select];
     assign audio = bus_audio[select];
     assign ciram_a10 = bus_ciram_a10[select];
     assign ciram_ce = bus_ciram_ce[select];
-    assign ppu_data = ppu_oe ? (video_enable || select != 0 ? ppu_data_out : '0) : 'z;
+    assign ppu_data_out = video_enable || select != 0 ? chr_data_out : '0;
 
     prg_ram prg_ram (
         .clk(clk),
@@ -183,8 +185,8 @@ module map_mux #(
             (select == '0) ? (bus_prg_addr[select] | SST_MASK) :
             (bus_prg_addr[select] & prg_mask)
         ),
-        .data_in(cpu_data),
-        .data_out(cpu_data_out),
+        .data_in(cpu_data_in),
+        .data_out(prg_data_out),
         .oe((bus_prg_oe[select] || bus_conflict) && m2 && !bus_cpu_data_oe[select]),
         .we(bus_prg_we[select] && m2)
     );
@@ -193,8 +195,8 @@ module map_mux #(
         .clk(clk),
         .ram(ch_chr),
         .addr(bus_chr_addr[select] | ((select == '0) ? LAUNCHER_MASK : chr_mask)),
-        .data_in(ppu_data),
-        .data_out(ppu_data_out),
+        .data_in(ppu_data_in),
+        .data_out(chr_data_out),
         .ce(bus_chr_ce[select]),
         .oe(bus_chr_oe[select]),
         .we(bus_chr_we[select])
