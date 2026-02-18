@@ -1,0 +1,63 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*.*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      LICENSE_MAC_ADDRESS: ${{ secrets.LICENSE_MAC_ADDRESS }}
+      LICENSE_FILE: ${{ github.workspace }}/license.dat
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Set up Python
+      uses: actions/setup-python@v6
+
+    - name: Install ARM GCC
+      uses: carlosperate/arm-none-eabi-gcc-action@v1
+      with:
+        release: '15.2.Rel1'
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ninja-build cc65
+
+    - name: Install Meson
+      run: pip install meson
+
+    - name: Setup License File
+      run: echo '${{ secrets.LICENSE_FILE_CONTENT }}' > license.dat
+
+    - name: Configure Meson
+      run: |
+        meson setup builddir \
+          --cross-file sw/build.ini \
+          --buildtype=release \
+          -Dhw_use_docker=true
+
+    - name: Run Tests
+      run: meson test -C builddir
+
+    - name: Build
+      run: meson compile -C builddir summary bootloader.bin fcart.uf2
+
+    - name: Create Release
+      if: github.ref_type == 'tag'
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          builddir/sw/bootloader.bin
+          builddir/fcart.uf2
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

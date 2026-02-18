@@ -20,8 +20,6 @@ def main():
     command_args = sys.argv[2:]
 
     # Build the docker compose command
-    # Use -T to disable pseudo-tty allocation (important for build systems)
-    # Use --rm to remove the container after execution
     docker_cmd = [
         "docker",
         "compose",
@@ -34,8 +32,16 @@ def main():
     ] + command_args
 
     # Run the command, passing the current environment (to preserve variables like USER)
+    # Also inject UID/GID so the container user matches the host user
+    env = os.environ.copy()
+
+    if "USER_UID" not in env:
+        env["USER_UID"] = str(os.getuid())
+    if "USER_GID" not in env:
+        env["USER_GID"] = str(os.getgid())
+
     try:
-        result = subprocess.run(docker_cmd)
+        result = subprocess.run(docker_cmd, env=env)
         sys.exit(result.returncode)
     except KeyboardInterrupt:
         sys.exit(130)

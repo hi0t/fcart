@@ -1,11 +1,10 @@
 name: diamond
 x-app-template: &app-template
-  build:
-    context: .
-    args:
-      USER_NAME: ${USER}
+  image: ghcr.io/hi0t/lattice-diamond-docker:latest
   platform: linux/amd64
-  user: ${USER}
+  environment:
+    - USER_UID=${USER_UID}
+    - USER_GID=${USER_GID}
   hostname: diamond
   mac_address: ${LICENSE_MAC_ADDRESS}
   volumes:
