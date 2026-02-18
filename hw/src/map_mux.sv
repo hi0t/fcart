@@ -24,7 +24,7 @@ module map_mux #(
     output logic cpu_dir,
     output logic ppu_dir,
 
-    input logic [12:0] wr_reg,
+    input logic [14:0] wr_reg,
     input logic [3:0] wr_reg_addr,
     input logic wr_reg_changed,
     output logic [31:0] status_reg,
@@ -54,9 +54,8 @@ module map_mux #(
 
     logic cpu_reset;
     logic [MAP_BITS-1:0] select_reg, select, game_select;
-    logic [1:0] map_args;
+    logic [4:0] map_args;
     logic bus_conflict;
-    logic bus_conflict_enable;
     logic [ADDR_BITS-1:0] prg_mask, chr_mask;
     logic [7:0] prg_data_out, chr_data_out;
     launcher_ctrl_t launcher_ctrl;
@@ -119,7 +118,7 @@ module map_mux #(
     assign select = reset_hijack ? game_select : (nmi_hijack ? '0 : select_reg);
     assign video_enable = launcher_status && !cpu_reset && !launcher_ctrl.start_app;
     assign st_rec_read = st_rec_addr[9] ? bus_sst_data_out[game_select] : st_rec_read_recorder;
-    assign bus_conflict = bus_conflict_enable && (select != '0) && cpu_addr[15] && !cpu_rw;
+    assign bus_conflict = map_args[2] && (select != '0) && cpu_addr[15] && !cpu_rw;
 
     genvar n;
     for (n = 0; n < MAP_CNT; n = n + 1) begin
@@ -135,6 +134,7 @@ module map_mux #(
 
         assign map[n].mirroring = map_args[0];
         assign map[n].chr_ram = map_args[1];
+        assign map[n].submapper = map_args[4:3];
 
         assign map[n].sst_enable = (select == '0);
         assign map[n].sst_addr = st_rec_addr[5:0];
@@ -163,8 +163,8 @@ module map_mux #(
     logic [7:0] prg_data;
     assign prg_data = bus_cpu_data_oe[select] ? bus_cpu_data_out[select] : prg_data_out;
 
-    // M2 gating is required to correctly coordinate bidirectional level shifters
-    assign cpu_dir = m2 && (bus_prg_oe[select] || (cpu_rw && (cpu_addr[15] || (cpu_addr[14] && (|cpu_addr[13:5])))));  // > h4020
+    // Open the line for open bus output > h4020
+    assign cpu_dir = bus_prg_oe[select] || (m2 && cpu_rw && (cpu_addr[14] && (|cpu_addr[13:5])));
     assign ppu_dir = bus_chr_ce[select] && bus_chr_oe[select];
 
     // Data output: Real data if mapper drives, otherwise Open Bus (high byte of address)
@@ -175,20 +175,27 @@ module map_mux #(
     assign ciram_ce = bus_ciram_ce[select];
     assign ppu_data_out = video_enable || select != 0 ? chr_data_out : '0;
 
+    logic [ADDR_BITS-1:0] prg_addr_in;
+    always_comb begin
+        if (bus_wram_ce[select]) begin
+            prg_addr_in = bus_prg_addr[select] | WRAM_MASK;
+        end else if (select == '0) begin
+            prg_addr_in = bus_prg_addr[select] | SST_MASK;
+        end else begin
+            prg_addr_in = bus_prg_addr[select] & prg_mask;
+        end
+    end
+
     prg_ram prg_ram (
         .clk(clk),
+        .m2(m2),
         .ram(ch_prg),
         .refresh(refresh),
-        .addr(
-            bus_wram_ce[select] ?
-            (bus_prg_addr[select] | WRAM_MASK) :
-            (select == '0) ? (bus_prg_addr[select] | SST_MASK) :
-            (bus_prg_addr[select] & prg_mask)
-        ),
+        .addr(prg_addr_in),
         .data_in(cpu_data_in),
         .data_out(prg_data_out),
-        .oe((bus_prg_oe[select] || bus_conflict) && m2 && !bus_cpu_data_oe[select]),
-        .we(bus_prg_we[select] && m2)
+        .oe((bus_prg_oe[select] || bus_conflict) && !bus_cpu_data_oe[select]),
+        .we(bus_prg_we[select])
     );
 
     chr_ram chr_ram (
@@ -214,15 +221,13 @@ module map_mux #(
             prg_mask <= '0;
             chr_mask <= '0;
             map_args <= '0;
-            bus_conflict_enable <= 0;
             launcher_ctrl <= '0;
         end else begin
             wr_reg_sync <= {wr_reg_sync[1:0], wr_reg_changed};
             if (wr_reg_sync[1] != wr_reg_sync[2]) begin
                 if (wr_reg_addr == REG_MAPPER) begin
                     game_select <= wr_reg[MAP_BITS-1:0];
-                    map_args <= wr_reg[11:10];
-                    bus_conflict_enable <= wr_reg[12];
+                    map_args <= wr_reg[14:10];
                     prg_mask <= ADDR_BITS'((1 << wr_reg[9:5]) - 5'd1);
                     chr_mask <= ADDR_BITS'(1 << wr_reg[9:5]);
                 end else if (wr_reg_addr == REG_LAUNCHER) begin

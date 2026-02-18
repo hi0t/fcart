@@ -12,7 +12,7 @@ module chr_ram #(
     input logic we
 );
     logic [1:0] read_sync;
-    logic [3:0] write_sync;
+    logic [2:0] write_sync;
     logic [2:0][ADDR_BITS-1:0] addr_gray;
     logic [3:0] match_addr;
 
@@ -23,7 +23,7 @@ module chr_ram #(
         // Prefetch on address setup triggered by CE before OE (read strobe)
         // to hide SDRAM latency.
         read_sync <= {read_sync[0], ce && !oe};
-        write_sync <= {write_sync[2:0], ce && we};
+        write_sync <= {write_sync[1:0], ce && we};
         addr_gray <= {addr_gray[1:0], addr ^ (addr >> 1)};
 
         if (read_sync[1] && addr_gray[2] == addr_gray[1]) begin
@@ -36,7 +36,7 @@ module chr_ram #(
             ram.we <= 1'b0;
             ram.address <= addr[ADDR_BITS-1:1];
             ram.req <= 1'b1;
-        end else if (write_sync[3:1] == 3'b100) begin
+        end else if (write_sync[2:1] == 2'b10) begin
             ram.we <= 1'b1;
             ram.address <= addr[ADDR_BITS-1:1];
             ram.data_write <= {data_in, data_in};

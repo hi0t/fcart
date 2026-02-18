@@ -30,7 +30,7 @@ static bool file_writer(const uint8_t *data, uint32_t size, void *arg);
 static bool const_reader(uint8_t *data, uint32_t size, void *arg);
 static uint32_t exp_size(uint32_t size);
 static uint32_t shift_size(uint8_t shift);
-static uint16_t choose_mapper(uint16_t id, uint8_t sub, bool *bus_conflict);
+static bool choose_mapper(uint16_t id, uint8_t sub, uint8_t *int_id, uint8_t *int_sub, bool *bus_conflict);
 static uint8_t get_chr_off(uint32_t prg_size);
 
 static void set_save_name(const char *rom_path)
@@ -221,26 +221,35 @@ int rom_load(const char *filename)
             fpga_api_write_mem(WRAM_ADDR, wram_size, file_reader, &sfp);
             f_close(&sfp);
         } else {
-            fpga_api_write_mem(WRAM_ADDR, wram_size, const_reader, (void *)0xFF);
+            fpga_api_write_mem(WRAM_ADDR, wram_size, const_reader, (void *)0x00);
         }
     } else {
         wram_size = 0;
     }
 
     bool bus_conflict = false;
-    curr_mapper_args = choose_mapper(mapper_id, sub, &bus_conflict);
+    uint8_t int_id = 0;
+    uint8_t int_sub = 0;
+    if (!choose_mapper(mapper_id, sub, &int_id, &int_sub, &bus_conflict)) {
+        err = -EINVAL;
+        goto out;
+    }
+
+    curr_mapper_args = int_id;
     curr_mapper_args |= chr_off << 5U;
     curr_mapper_args |= mirroring << 10U;
     curr_mapper_args |= has_chr_ram << 11U;
     curr_mapper_args |= bus_conflict << 12U;
+    curr_mapper_args |= (int_sub & 0x03) << 13U;
     //   mapper args:
-    //   12|11|10|9|8|7|6|5|4|3|2|1|0
-    //    |  |  | | | | | | | | | | |
-    //    |  |  | | | | | | +-+-+-+-+- mapper ID (5 bits)
-    //    |  |  | +-+-+-+-+----------- CHR offset
-    //    |  |  +--------------------- mirroring: 0 = horizontal, 1 = vertical
-    //    |  +------------------------ has CHR RAM
-    //    +--------------------------- bus conflict
+    //   14|13|12|11|10|9|8|7|6|5|4|3|2|1|0
+    //    |  |  |  |  | | | | | | | | | | |
+    //    |  |  |  |  | | | | | | +-+-+-+-+- mapper ID (5 bits)
+    //    |  |  |  |  | +-+-+-+-+----------- CHR offset
+    //    |  |  |  |  +--------------------- mirroring: 0 = horizontal, 1 = vertical
+    //    |  |  |  +------------------------ has CHR RAM
+    //    |  |  +--------------------------- bus conflict
+    //    +--+------------------------------ submapper
 
     fpga_api_write_reg(FPGA_REG_MAPPER, curr_mapper_args);
     fpga_api_write_reg(FPGA_REG_LAUNCHER, 1U << 1); // start app
@@ -286,29 +295,39 @@ static uint32_t shift_size(uint8_t shift)
 }
 
 // translate NES mapper ID to FPGA mapper ID
-static uint16_t choose_mapper(uint16_t id, uint8_t sub, bool *bus_conflict)
+static bool choose_mapper(uint16_t id, uint8_t sub, uint8_t *int_id, uint8_t *int_sub, bool *bus_conflict)
 {
+    *int_sub = 0;
     *bus_conflict = false;
+
     switch (id) {
     case 0:
-        return 1;
+        *int_id = 1;
+        return true;
     case 1:
-        return 2;
+        *int_id = 2;
+        return true;
     case 2: // UxROM
+        *int_id = 3;
         *bus_conflict = (sub == 2);
-        return 3;
+        return true;
     case 3: // CNROM
+        *int_id = 4;
         *bus_conflict = (sub == 2);
-        return 4;
+        return true;
     case 7: // AxROM
+        *int_id = 6;
         *bus_conflict = (sub == 2);
-        return 6;
-    case 24:
-        return 5;
-    case 26:
-        return 5;
+        return true;
+    case 24: // VRC6a
+        *int_id = 5;
+        return true;
+    case 26: // VRC6b
+        *int_id = 5;
+        *int_sub = 1;
+        return true;
     default:
-        return 0;
+        return false;
     }
 }
 

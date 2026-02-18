@@ -49,6 +49,7 @@ module vrc_irq (
             if (wr_latch) begin
                 irq_latch <= cpu_data_in;
             end else if (wr_ctrl) begin
+                irq_pending <= 1'b0;
                 {irq_mode, irq_enable, irq_enable_after_ack} <= cpu_data_in[2:0];
                 if (cpu_data_in[1]) begin
                     irq_counter   <= irq_latch;

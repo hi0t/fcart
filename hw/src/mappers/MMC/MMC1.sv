@@ -6,7 +6,7 @@ module MMC1 (
     logic [4:0] control;
     logic [4:0] chr_bank_0;
     logic [4:0] chr_bank_1;
-    logic [3:0] prg_bank;
+    logic [4:0] prg_bank;
     logic [3:0] prg_sel;
     logic [4:0] chr_sel;
 
@@ -14,7 +14,7 @@ module MMC1 (
     assign bus.prg_addr = bus.wram_ce ? bus.ADDR_BITS'(bus.cpu_addr[12:0]) : bus.ADDR_BITS'({chr_sel[4], prg_sel, bus.cpu_addr[13:0]});
     assign bus.prg_oe = bus.cpu_rw && (bus.cpu_addr[15] || bus.wram_ce);
     assign bus.prg_we = !bus.cpu_rw && bus.wram_ce;
-    assign bus.wram_ce = bus.cpu_addr[15:13] == 3'b011;  // WRAM at $6000-$7FFF
+    assign bus.wram_ce = (bus.cpu_addr[15:13] == 3'b011) && !prg_bank[4];  // WRAM at $6000-$7FFF
 
     // PPU
     assign bus.chr_addr = bus.ADDR_BITS'({bus.chr_ram ? {4'b0000, bus.ppu_addr[12]} : chr_sel, bus.ppu_addr[11:0]});
@@ -67,7 +67,7 @@ module MMC1 (
             if (bus.sst_we && bus.sst_addr == 'd1) control <= bus.sst_data_in[4:0];
             if (bus.sst_we && bus.sst_addr == 'd2) chr_bank_0 <= bus.sst_data_in[4:0];
             if (bus.sst_we && bus.sst_addr == 'd3) chr_bank_1 <= bus.sst_data_in[4:0];
-            if (bus.sst_we && bus.sst_addr == 'd4) prg_bank <= bus.sst_data_in[3:0];
+            if (bus.sst_we && bus.sst_addr == 'd4) prg_bank <= bus.sst_data_in[4:0];
         end else if (bus.cpu_addr[15] && !bus.cpu_rw) begin
             if (bus.cpu_data_in[7]) begin
                 shift   <= 5'b10000;
@@ -78,7 +78,7 @@ module MMC1 (
                         2'd0: control <= shift_next;
                         2'd1: chr_bank_0 <= shift_next;
                         2'd2: chr_bank_1 <= shift_next;
-                        2'd3: prg_bank <= shift_next[3:0];
+                        2'd3: prg_bank <= shift_next;
                     endcase
                     shift <= 5'b10000;
                 end else shift <= shift_next;
@@ -90,5 +90,5 @@ module MMC1 (
                               (bus.sst_addr == 'd1) ? {3'b0, control} :
                               (bus.sst_addr == 'd2) ? {3'b0, chr_bank_0} :
                               (bus.sst_addr == 'd3) ? {3'b0, chr_bank_1} :
-                              (bus.sst_addr == 'd4) ? {4'b0, prg_bank} : 'hFF;
+                              (bus.sst_addr == 'd4) ? {3'b0, prg_bank} : 'hFF;
 endmodule

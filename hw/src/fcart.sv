@@ -86,7 +86,7 @@ module fcart (
         .cpu_dir(CPU_DIR),
         .ppu_dir(PPU_DIR),
 
-        .wr_reg(wr_reg[12:0]),
+        .wr_reg(wr_reg[14:0]),
         .wr_reg_addr(wr_reg_addr),
         .wr_reg_changed(wr_reg_changed),
         .status_reg(launcher_status),
