@@ -69,6 +69,8 @@ module sdram #(
     logic [1:0] wm;
     logic [2:0] pending_req;
 
+    initial cmd = CMD_NOOP;
+
     assign {sdram_ras, sdram_cas, sdram_we} = cmd;
     assign sdram_cs = (cmd == CMD_NOOP);
     assign sdram_dq = (cmd == CMD_WRITE) ? data : 'z;

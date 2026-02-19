@@ -24,11 +24,12 @@ module map_mux #(
     output logic cpu_dir,
     output logic ppu_dir,
 
-    input logic [14:0] wr_reg,
+    input logic [15:0] wr_reg,
     input logic [3:0] wr_reg_addr,
     input logic wr_reg_changed,
     output logic [31:0] status_reg,
     output logic [15:0] audio,
+    output logic snd_bypass,
     input logic [7:0] joy1
 );
     // SDRAM mapping
@@ -54,7 +55,7 @@ module map_mux #(
 
     logic cpu_reset;
     logic [MAP_BITS-1:0] select_reg, select, game_select;
-    logic [4:0] map_args;
+    logic [5:0] map_args;
     logic bus_conflict;
     logic [ADDR_BITS-1:0] prg_mask, chr_mask;
     logic [7:0] prg_data_out, chr_data_out;
@@ -119,6 +120,7 @@ module map_mux #(
     assign video_enable = launcher_status && !cpu_reset && !launcher_ctrl.start_app;
     assign st_rec_read = st_rec_addr[9] ? bus_sst_data_out[game_select] : st_rec_read_recorder;
     assign bus_conflict = map_args[2] && (select != '0) && cpu_addr[15] && !cpu_rw;
+    assign snd_bypass = !((select != '0) && map_args[3]);
 
     genvar n;
     for (n = 0; n < MAP_CNT; n = n + 1) begin
@@ -134,7 +136,7 @@ module map_mux #(
 
         assign map[n].mirroring = map_args[0];
         assign map[n].chr_ram = map_args[1];
-        assign map[n].submapper = map_args[4:3];
+        assign map[n].submapper = map_args[5:4];
 
         assign map[n].sst_enable = (select == '0);
         assign map[n].sst_addr = st_rec_addr[5:0];
@@ -226,8 +228,8 @@ module map_mux #(
             wr_reg_sync <= {wr_reg_sync[1:0], wr_reg_changed};
             if (wr_reg_sync[1] != wr_reg_sync[2]) begin
                 if (wr_reg_addr == REG_MAPPER) begin
-                    game_select <= wr_reg[MAP_BITS-1:0];
-                    map_args <= wr_reg[14:10];
+                    game_select <= MAP_BITS'(wr_reg[4:0]);
+                    map_args <= wr_reg[15:10];
                     prg_mask <= ADDR_BITS'((1 << wr_reg[9:5]) - 5'd1);
                     chr_mask <= ADDR_BITS'(1 << wr_reg[9:5]);
                 end else if (wr_reg_addr == REG_LAUNCHER) begin

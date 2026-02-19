@@ -32,6 +32,7 @@ module fcart (
     input logic [13:0] PPU_ADDR,
     inout wire [7:0] PPU_DATA,
     output logic SND_OUT,
+    output wire SND_BYPASS,
     output logic CPU_DIR,
     output logic PPU_DIR
 );
@@ -86,11 +87,12 @@ module fcart (
         .cpu_dir(CPU_DIR),
         .ppu_dir(PPU_DIR),
 
-        .wr_reg(wr_reg[14:0]),
+        .wr_reg(wr_reg[15:0]),
         .wr_reg_addr(wr_reg_addr),
         .wr_reg_changed(wr_reg_changed),
         .status_reg(launcher_status),
         .audio(pcm),
+        .snd_bypass(SND_BYPASS),
         .joy1(joy1)
     );
 
