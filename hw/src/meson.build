@@ -29,9 +29,23 @@ foreach f : src
     src_list += 'prj_src add "@0@"'.format(fs.relative_to(f, build_dir))
 endforeach
 
+# Generate parallel config file for Diamond
+system = (host_machine.system() == 'windows' and not get_option('hw_use_docker')) ? 'PC' : 'Linux'
+hostname_expr = get_option('hw_use_docker') ? '\'diamond\'' : 'socket.gethostname()'
+parallel_conf = configure_file(
+    output: 'parallel.conf',
+    capture: true,
+    command: [
+        py,
+        '-c',
+        f'import multiprocessing; import socket; print(f"[{@hostname_expr@}]"); print("SYSTEM=@system@"); print(f"CORENUM=" + str(multiprocessing.cpu_count()))',
+    ],
+)
+
 tcl = configure_file(
     input: 'diamond.tcl.in',
     output: 'diamond.tcl',
+
     configuration: {
         'PROJECT_NAME': diamond_prj,
         'DEVICE': get_option('device'),
@@ -41,5 +55,6 @@ tcl = configure_file(
         'TOP_MODULE': diamond_prj,
         'STRATEGY': get_option('debug') ? 'Debug' : 'Release',
         'VERSION': meson.project_version(),
+        'PARALLEL_CONF': fs.relative_to(parallel_conf, build_dir),
     },
 )

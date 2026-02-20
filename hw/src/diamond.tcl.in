@@ -25,7 +25,8 @@ prj_strgy set_value -strategy Release \
     par_routing_res_opt=6 \
     par_route_delay_reduction_pass=10 \
     par_place_iterator=16 \
-    par_routeing_pass=100
+    par_routeing_pass=100 \
+    par_multi_node_list=@PARALLEL_CONF@
 
 prj_impl option top @TOP_MODULE@
 
