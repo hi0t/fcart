@@ -58,7 +58,9 @@ module sdram #(
         STATE_REFRESH
     } state;
 
-    logic [2:0] cmd;
+    /* verilator lint_off PROCASSINIT */
+    logic [2:0] cmd = CMD_NOOP;
+    /* verilator lint_on PROCASSINIT */
     logic [10:0] refresh_timer;
     logic pending_refresh;
     logic [4:0] step;
@@ -68,8 +70,6 @@ module sdram #(
     logic we;
     logic [1:0] wm;
     logic [2:0] pending_req;
-
-    initial cmd = CMD_NOOP;
 
     assign {sdram_ras, sdram_cas, sdram_we} = cmd;
     assign sdram_cs = (cmd == CMD_NOOP);
