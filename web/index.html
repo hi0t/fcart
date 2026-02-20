@@ -20,11 +20,12 @@
             <ol>
                 <li>Hold the button on the cartridge.</li>
                 <li>While holding the button, connect the USB cable. The device will enter DFU mode.</li>
-                <li>Click the button below, then select the device in the popup window to start flashing.</li>
+                <li>Click the "Download & Flash Latest" button, then select the device <strong>STM32 BOOTLOADER</strong>
+                    in the popup window to start flashing.</li>
             </ol>
             <p>
                 <small>
-                    <strong>Windows Users:</strong> You may need to install the WinUSB driver for the "STM32 BOOTLOADER"
+                    <strong>Windows users:</strong> You may need to install the WinUSB driver for the "STM32 BOOTLOADER"
                     device using <a href="https://zadig.akeo.ie/" target="_blank">Zadig</a> if the device does not
                     appear or fails to connect.
                 </small>
@@ -57,7 +58,7 @@
         const progressBar = document.getElementById('progressBar');
         const logEl = document.getElementById('log');
 
-        const FIRMWARE_URL = "https://github.com/hi0t/fcart/releases/download/dummy/fcart_bootloader.bin";
+        const FIRMWARE_URL = "bootloader.bin";
 
         function log(message) {
             logEl.textContent += message + '\n';
@@ -89,7 +90,7 @@
                 const data = await response.arrayBuffer();
                 log(`Downloaded ${data.byteLength} bytes.`);
 
-                //
+                // 3. Flash firmware
                 await dfu.runUpdateSequence(data);
             } catch (error) {
                 log("Error: " + (error.message || error));

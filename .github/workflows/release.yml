@@ -8,6 +8,8 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 jobs:
   build:
@@ -61,3 +63,20 @@ jobs:
           builddir/fcart.uf2
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    # --- GitHub Pages Deployment Steps ---
+
+    - name: Prepare Web Directory
+      run: cp builddir/sw/bootloader.bin web/bootloader.bin
+
+    - name: Setup Pages
+      uses: actions/configure-pages@v5
+
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v4
+      with:
+        path: 'web'
+
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
