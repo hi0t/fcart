@@ -30,7 +30,7 @@ static bool file_writer(const uint8_t *data, uint32_t size, void *arg);
 static bool const_reader(uint8_t *data, uint32_t size, void *arg);
 static uint32_t exp_size(uint32_t size);
 static uint32_t shift_size(uint8_t shift);
-static bool choose_mapper(uint16_t id, uint8_t sub, uint8_t *int_id, uint8_t *int_sub, bool *bus_conflict, bool *ext_sound);
+static bool choose_mapper(uint16_t id, uint8_t sub, uint8_t *int_id, uint8_t *int_sub, bool *bus_conflict);
 static uint8_t get_chr_off(uint32_t prg_size);
 
 static void set_save_name(const char *rom_path)
@@ -228,10 +228,9 @@ int rom_load(const char *filename)
     }
 
     bool bus_conflict = false;
-    bool ext_sound = false;
     uint8_t int_id = 0;
     uint8_t int_sub = 0;
-    if (!choose_mapper(mapper_id, sub, &int_id, &int_sub, &bus_conflict, &ext_sound)) {
+    if (!choose_mapper(mapper_id, sub, &int_id, &int_sub, &bus_conflict)) {
         err = -EINVAL;
         goto out;
     }
@@ -241,17 +240,15 @@ int rom_load(const char *filename)
     curr_mapper_args |= mirroring << 10U;
     curr_mapper_args |= has_chr_ram << 11U;
     curr_mapper_args |= bus_conflict << 12U;
-    curr_mapper_args |= ext_sound << 13U;
-    curr_mapper_args |= (int_sub & 0x03) << 14U;
+    curr_mapper_args |= (int_sub & 0x03) << 13U;
     //   mapper args:
-    //   15|14|13|12|11|10|9|8|7|6|5|4|3|2|1|0
-    //    |  |  |  |  |  | | | | | | | | | | |
-    //    |  |  |  |  |  | | | | | +-+-+-+-+- mapper ID (5 bits)
-    //    |  |  |  |  |  +-+-+-+-+----------- CHR offset
+    //   14|13|12|11|10|9|8|7|6|5|4|3|2|1|0
+    //    |  |  |  |  | | | | | | | | | | |
+    //    |  |  |  |  | | | | | | +-+-+-+-+- mapper ID (5 bits)
+    //    |  |  |  |  | +-+-+-+-+----------- CHR offset
     //    |  |  |  |  +---------------------- mirroring: 0 = horizontal, 1 = vertical
     //    |  |  |  +------------------------- has CHR RAM
     //    |  |  +---------------------------- bus conflict
-    //    |  +------------------------------- has ext sound
     //    +--+------------------------------- submapper
 
     fpga_api_write_reg(FPGA_REG_MAPPER, curr_mapper_args);
@@ -298,11 +295,10 @@ static uint32_t shift_size(uint8_t shift)
 }
 
 // translate NES mapper ID to FPGA mapper ID
-static bool choose_mapper(uint16_t id, uint8_t sub, uint8_t *int_id, uint8_t *int_sub, bool *bus_conflict, bool *ext_sound)
+static bool choose_mapper(uint16_t id, uint8_t sub, uint8_t *int_id, uint8_t *int_sub, bool *bus_conflict)
 {
     *int_sub = 0;
     *bus_conflict = false;
-    *ext_sound = false;
 
     switch (id) {
     case 0:
@@ -325,12 +321,10 @@ static bool choose_mapper(uint16_t id, uint8_t sub, uint8_t *int_id, uint8_t *in
         return true;
     case 24: // VRC6a
         *int_id = 5;
-        *ext_sound = true;
         return true;
     case 26: // VRC6b
         *int_id = 5;
         *int_sub = 1;
-        *ext_sound = true;
         return true;
     default:
         return false;

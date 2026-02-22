@@ -1,21 +1,28 @@
 module snd_dac (
+    input logic clk,
     input logic m2,
+    /* verilator lint_off UNUSEDSIGNAL */
     input logic [15:0] pcm_in,
-    input logic [7:0] volume,
+    /* verilator lint_on UNUSEDSIGNAL */
+    input logic [6:0] volume,
     output logic pdm_out
 );
-
     logic [16:0] acc;
+    logic [15:0] product;
+    logic [ 2:0] m2_sync;
 
-    always_ff @(posedge m2) begin
-        // Temporary variable for multiplication result (top 16 bits of 24-bit product)
-        logic [15:0] product;
+    always_ff @(posedge clk) begin
+        m2_sync <= {m2_sync[1:0], m2};
+    end
 
-        // Apply volume
-        product = 16'((24'(pcm_in) * 24'(volume)) >> 8);
+    always_ff @(posedge clk) begin
+        if (m2_sync[2:1] == 2'b10) begin
+            // Apply volume (9-bit * 7-bit = 16-bit result)
+            product <= pcm_in[15:7] * volume;
+        end
 
-        // First-order delta-sigma modulation running at M2 speed (~1.79 MHz)
+        // First-order delta-sigma modulation running at 100 MHz speed
         acc <= {1'b0, acc[15:0]} + {1'b0, product};
-        pdm_out <= acc[16];
+        pdm_out <= !acc[16];
     end
 endmodule

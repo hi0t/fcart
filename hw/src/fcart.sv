@@ -51,8 +51,9 @@ module fcart (
     logic [15:0] pcm;
     logic [7:0] joy1;
 
-    assign CPU_DATA = CPU_DIR ? cpu_data_out : 'z;
-    assign PPU_DATA = PPU_DIR ? ppu_data_out : 'z;
+    assign CPU_DATA   = CPU_DIR ? cpu_data_out : 'z;
+    assign PPU_DATA   = PPU_DIR ? ppu_data_out : 'z;
+    assign SND_BYPASS = 0;
 
     joy_snoop joy (
         .m2(M2),
@@ -92,14 +93,14 @@ module fcart (
         .wr_reg_changed(wr_reg_changed),
         .status_reg(launcher_status),
         .audio(pcm),
-        .snd_bypass(SND_BYPASS),
         .joy1(joy1)
     );
 
     snd_dac snd_dac (
+        .clk(clk),
         .m2(M2),
         .pcm_in(pcm),
-        .volume(8'd255),
+        .volume(7'd127),
         .pdm_out(SND_OUT)
     );
 
