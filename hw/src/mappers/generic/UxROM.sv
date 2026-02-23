@@ -2,9 +2,20 @@ module UxROM (
     map_bus.mapper bus
 );
     logic [4:0] prg_bank;
+    logic [4:0] bank;
+
+    always_comb begin
+        if (bus.submapper == 2) begin
+            bank = bus.cpu_addr[14] ? prg_bank : 5'b00000;
+        end else if (bus.submapper == 1) begin
+            bank = bus.cpu_addr[14] ? 5'b11111 : {2'b0, prg_bank[4:2]};
+        end else begin
+            bank = bus.cpu_addr[14] ? 5'b11111 : prg_bank;
+        end
+    end
 
     // CPU
-    assign bus.prg_addr = bus.ADDR_BITS'({bus.cpu_addr[14] ? 5'b11111 : prg_bank[4:0], bus.cpu_addr[13:0]});
+    assign bus.prg_addr = bus.ADDR_BITS'({bank, bus.cpu_addr[13:0]});
     assign bus.prg_oe = bus.cpu_addr[15] && bus.cpu_rw;
     // PPU
     assign bus.chr_addr = bus.ADDR_BITS'({bus.ppu_addr[12:0]});
