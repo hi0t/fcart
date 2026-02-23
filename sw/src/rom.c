@@ -301,11 +301,19 @@ static bool choose_mapper(uint16_t id, uint8_t sub, uint8_t *int_id, uint8_t *in
     *bus_conflict = false;
 
     switch (id) {
-    case 0:
+    case 0: // NROM
         *int_id = 1;
         return true;
-    case 1:
+    case 1: // MMC1B
         *int_id = 2;
+        return true;
+    case 155: // MMC1A
+        *int_id = 2;
+        *int_sub = 1;
+        return true;
+    case 171: // KS7058
+        *int_id = 2;
+        *int_sub = 2;
         return true;
     case 2: // UxROM
         *int_id = 3;

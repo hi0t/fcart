@@ -14,7 +14,7 @@ module MMC1 (
     assign bus.prg_addr = bus.wram_ce ? bus.ADDR_BITS'(bus.cpu_addr[12:0]) : bus.ADDR_BITS'({chr_sel[4], prg_sel, bus.cpu_addr[13:0]});
     assign bus.prg_oe = bus.cpu_rw && (bus.cpu_addr[15] || bus.wram_ce);
     assign bus.prg_we = !bus.cpu_rw && bus.wram_ce;
-    assign bus.wram_ce = (bus.cpu_addr[15:13] == 3'b011) && !prg_bank[4];  // WRAM at $6000-$7FFF
+    assign bus.wram_ce = (bus.cpu_addr[15:13] == 3'b011) && (bus.submapper == 1 || !prg_bank[4]);  // WRAM at $6000-$7FFF
 
     // PPU
     assign bus.chr_addr = bus.ADDR_BITS'({bus.chr_ram ? {4'b0000, bus.ppu_addr[12]} : chr_sel, bus.ppu_addr[11:0]});
@@ -29,12 +29,16 @@ module MMC1 (
     assign bus.irq = 1;
 
     always_comb begin
-        case (control[1:0])
-            2'b00: bus.ciram_a10 = 0;
-            2'b01: bus.ciram_a10 = 1;
-            2'b10: bus.ciram_a10 = bus.ppu_addr[10];
-            2'b11: bus.ciram_a10 = bus.ppu_addr[11];
-        endcase
+        if (bus.submapper == 2) begin
+            bus.ciram_a10 = bus.mirroring ? bus.ppu_addr[10] : bus.ppu_addr[11];
+        end else begin
+            case (control[1:0])
+                2'b00: bus.ciram_a10 = 0;
+                2'b01: bus.ciram_a10 = 1;
+                2'b10: bus.ciram_a10 = bus.ppu_addr[10];
+                2'b11: bus.ciram_a10 = bus.ppu_addr[11];
+            endcase
+        end
 
         casez ({
             control[3:2], bus.cpu_addr[14]
