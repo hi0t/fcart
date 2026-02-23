@@ -315,6 +315,9 @@ static bool choose_mapper(uint16_t id, uint8_t sub, uint8_t *int_id, uint8_t *in
         *int_id = 4;
         *bus_conflict = (sub == 2);
         return true;
+    case 4: // MMC3
+        *int_id = 7;
+        return true;
     case 7: // AxROM
         *int_id = 6;
         *bus_conflict = (sub == 2);
