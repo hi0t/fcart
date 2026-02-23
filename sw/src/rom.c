@@ -307,27 +307,9 @@ static bool choose_mapper(uint16_t id, uint8_t sub, uint8_t *int_id, uint8_t *in
     case 1: // MMC1B
         *int_id = 2;
         return true;
-    case 155: // MMC1A
-        *int_id = 2;
-        *int_sub = 1;
-        return true;
-    case 171: // KS7058
-        *int_id = 2;
-        *int_sub = 2;
-        return true;
     case 2: // UxROM
         *int_id = 3;
         *bus_conflict = (sub == 2);
-        return true;
-    case 94: // UN1ROM
-        *int_id = 3;
-        *int_sub = 1;
-        *bus_conflict = true;
-        return true;
-    case 180: // UNROM (Crazy Climber)
-        *int_id = 3;
-        *int_sub = 2;
-        *bus_conflict = true;
         return true;
     case 3: // CNROM
         *int_id = 4;
@@ -343,6 +325,29 @@ static bool choose_mapper(uint16_t id, uint8_t sub, uint8_t *int_id, uint8_t *in
     case 26: // VRC6b
         *int_id = 5;
         *int_sub = 1;
+        return true;
+    case 94: // UN1ROM
+        *int_id = 3;
+        *int_sub = 1;
+        *bus_conflict = true;
+        return true;
+    case 155: // MMC1A
+        *int_id = 2;
+        *int_sub = 1;
+        return true;
+    case 171: // KS7058
+        *int_id = 2;
+        *int_sub = 2;
+        return true;
+    case 180: // UNROM (Crazy Climber)
+        *int_id = 3;
+        *int_sub = 2;
+        *bus_conflict = true;
+        return true;
+    case 185: // CNROM with copy protection
+        *int_id = 4;
+        *int_sub = 1;
+        *bus_conflict = true;
         return true;
     default:
         return false;

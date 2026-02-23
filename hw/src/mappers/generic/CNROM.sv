@@ -2,6 +2,15 @@ module CNROM (
     map_bus.mapper bus
 );
     logic [3:0] chr_bank;
+    logic ce;
+
+    always_comb begin
+        if (bus.submapper == 1) begin
+            ce = bus.ciram_ce && (chr_bank[1:0] == 2'b11);
+        end else begin
+            ce = bus.ciram_ce;
+        end
+    end
 
     // CPU
     assign bus.prg_addr = bus.ADDR_BITS'(bus.cpu_addr[14:0]);
@@ -9,7 +18,7 @@ module CNROM (
     // PPU
     assign bus.chr_addr = bus.ADDR_BITS'({chr_bank, bus.ppu_addr[12:0]});
     assign bus.ciram_ce = !bus.ppu_addr[13];
-    assign bus.chr_ce = bus.ciram_ce;
+    assign bus.chr_ce = ce;
     assign bus.chr_oe = !bus.ppu_rd;
     assign bus.chr_we = bus.chr_ram ? !bus.ppu_wr : 0;
     assign bus.ciram_a10 = bus.mirroring ? bus.ppu_addr[10] : bus.ppu_addr[11];
