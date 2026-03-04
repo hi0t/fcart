@@ -58,24 +58,7 @@
           "width": 0.0
         }
       ],
-      "drc_exclusions": [
-        [
-          "silk_edge_clearance|156125000|68000000|41fb22dd-aa69-4dfe-ac90-683bdc6d4971|18558926-ee85-4587-b86e-82529b888e4f",
-          ""
-        ],
-        [
-          "silk_edge_clearance|170875000|68000000|41fb22dd-aa69-4dfe-ac90-683bdc6d4971|88d5780c-ef01-4d2b-ab14-4c868c2f2eee",
-          ""
-        ],
-        [
-          "silk_edge_clearance|200000000|70405000|99db6886-c782-452e-becd-60d8b07da686|72aec80b-8761-4365-a9ff-feee7865ac85",
-          ""
-        ],
-        [
-          "silk_edge_clearance|200000000|79595000|99db6886-c782-452e-becd-60d8b07da686|0db600f2-85bc-4465-bac8-8455f91e9938",
-          ""
-        ]
-      ],
+      "drc_exclusions": [],
       "meta": {
         "version": 2
       },
@@ -206,6 +189,7 @@
       ],
       "track_widths": [
         0.0,
+        0.2,
         0.6
       ],
       "tuning_pattern_settings": {
@@ -240,8 +224,12 @@
           "drill": 0.0
         },
         {
-          "diameter": 1.0,
-          "drill": 0.5
+          "diameter": 0.6,
+          "drill": 0.3
+        },
+        {
+          "diameter": 1.2,
+          "drill": 0.6
         }
       ],
       "zones_allow_external_fillets": false
@@ -572,7 +560,7 @@
       "plot": "plot/",
       "pos_files": "",
       "specctra_dsn": "",
-      "step": "",
+      "step": "../../../Downloads/fcart.step",
       "svg": "",
       "vrml": ""
     },

@@ -13512,7 +13512,7 @@
 		(uuid "0f4b858e-f319-4cbf-94b3-82d3d7c00eb3")
 	)
 	(no_connect
-		(at 549.91 194.31)
+		(at 549.91 138.43)
 		(uuid "10540352-43e5-4c3e-b795-48d5281daf35")
 	)
 	(no_connect
@@ -15260,6 +15260,16 @@
 			(type default)
 		)
 		(uuid "23f759fe-90ef-48b8-98d8-af77c8ad0dd8")
+	)
+	(wire
+		(pts
+			(xy 549.91 194.31) (xy 552.45 194.31)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "24069071-1789-4c3a-a2b4-cf6df8eac819")
 	)
 	(wire
 		(pts
@@ -19830,16 +19840,6 @@
 			(type default)
 		)
 		(uuid "9df8567a-b16b-4f80-b892-683a5da0c1f7")
-	)
-	(wire
-		(pts
-			(xy 549.91 138.43) (xy 552.45 138.43)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "9e22e958-4087-47b9-ad46-ab7b067fa402")
 	)
 	(wire
 		(pts
@@ -31385,7 +31385,7 @@
 	)
 	(global_label "BTN"
 		(shape input)
-		(at 552.45 138.43 0)
+		(at 552.45 194.31 0)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -31395,7 +31395,7 @@
 		)
 		(uuid "fb368e6f-da00-4a86-ba19-0562bfa60700")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 559.0033 138.43 0)
+			(at 559.0033 194.31 0)
 			(effects
 				(font
 					(size 1.27 1.27)
