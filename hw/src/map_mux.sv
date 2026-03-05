@@ -42,7 +42,7 @@ module map_mux #(
     localparam LAUNCHER_MASK = {8'b11111011, {ADDR_BITS - 8{1'b0}}};
     localparam WRAM_MASK = {6'b111111, {ADDR_BITS - 6{1'b0}}};
 
-    localparam MAP_CNT = 8;
+    localparam MAP_CNT = 9;
     localparam MAP_BITS = $clog2(MAP_CNT);
 
     typedef struct packed {
@@ -54,7 +54,7 @@ module map_mux #(
 
     logic cpu_reset;
     logic [MAP_BITS-1:0] select_reg, select, game_select;
-    logic [4:0] map_args;
+    logic [5:0] map_args;
     logic bus_conflict;
     logic [ADDR_BITS-1:0] prg_mask, chr_mask;
     logic [7:0] prg_data_out, chr_data_out;
@@ -112,6 +112,7 @@ module map_mux #(
     VRC6 VRC6 (.bus(map[5]));
     AxROM AxROM (.bus(map[6]));
     MMC3 MMC3 (.bus(map[7]));
+    VRC4 VRC4 (.bus(map[8]));
 
     // Detect the exact cycle when interrupt is read to switch mappers instantaneously
     assign reset_hijack = launcher_ctrl.start_app && cpu_addr == 'hFFFC && cpu_rw;
@@ -135,7 +136,7 @@ module map_mux #(
 
         assign map[n].mirroring = map_args[0];
         assign map[n].chr_ram = map_args[1];
-        assign map[n].submapper = map_args[4:3];
+        assign map[n].submapper = map_args[5:3];
 
         assign map[n].sst_enable = (select == '0);
         assign map[n].sst_addr = st_rec_addr[5:0];
@@ -228,7 +229,7 @@ module map_mux #(
             if (wr_reg_sync[1] != wr_reg_sync[2]) begin
                 if (wr_reg_addr == REG_MAPPER) begin
                     game_select <= MAP_BITS'(wr_reg[4:0]);
-                    map_args <= wr_reg[14:10];
+                    map_args <= {wr_reg[15], wr_reg[14:10]};
                     prg_mask <= ADDR_BITS'((1 << wr_reg[9:5]) - 5'd1);
                     chr_mask <= ADDR_BITS'(1 << wr_reg[9:5]);
                 end else if (wr_reg_addr == REG_LAUNCHER) begin

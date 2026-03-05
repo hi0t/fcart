@@ -240,16 +240,16 @@ int rom_load(const char *filename)
     curr_mapper_args |= mirroring << 10U;
     curr_mapper_args |= has_chr_ram << 11U;
     curr_mapper_args |= bus_conflict << 12U;
-    curr_mapper_args |= (int_sub & 0x03) << 13U;
+    curr_mapper_args |= (int_sub & 0x07) << 13U;
     //   mapper args:
-    //   14|13|12|11|10|9|8|7|6|5|4|3|2|1|0
-    //    |  |  |  |  | | | | | | | | | | |
-    //    |  |  |  |  | | | | | | +-+-+-+-+- mapper ID (5 bits)
-    //    |  |  |  |  | +-+-+-+-+----------- CHR offset
-    //    |  |  |  |  +---------------------- mirroring: 0 = horizontal, 1 = vertical
-    //    |  |  |  +------------------------- has CHR RAM
-    //    |  |  +---------------------------- bus conflict
-    //    +--+------------------------------- submapper
+    //   15|14|13|12|11|10|9|8|7|6|5|4|3|2|1|0
+    //    |  |  |  |  |  | | | | | | | | | | |
+    //    |  |  |  |  |  | | | | | | +-+-+-+-+- mapper ID (5 bits)
+    //    |  |  |  |  |  | +-+-+-+-+----------- CHR offset
+    //    |  |  |  |  |  +---------------------- mirroring: 0 = horizontal, 1 = vertical
+    //    |  |  |  |  +------------------------- has CHR RAM
+    //    |  |  |  +---------------------------- bus conflict
+    //    +--+--+------------------------------- submapper
 
     fpga_api_write_reg(FPGA_REG_MAPPER, curr_mapper_args);
     fpga_api_write_reg(FPGA_REG_LAUNCHER, 1U << 1); // start app
@@ -321,6 +321,26 @@ static bool choose_mapper(uint16_t id, uint8_t sub, uint8_t *int_id, uint8_t *in
     case 7: // AxROM
         *int_id = 6;
         *bus_conflict = (sub == 2);
+        return true;
+    case 21: // VRC4a/c
+        *int_id = 8;
+        *int_sub = 0;
+        return true;
+    case 22: // VRC2a
+        *int_id = 8;
+        *int_sub = 1;
+        return true;
+    case 23: // VRC2b
+        *int_id = 8;
+        *int_sub = 2;
+        return true;
+    case 25: // VRC4b
+        *int_id = 8;
+        *int_sub = 2;
+        return true;
+    case 27: // VRC4
+        *int_id = 8;
+        *int_sub = 3;
         return true;
     case 24: // VRC6a
         *int_id = 5;

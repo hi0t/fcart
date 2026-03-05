@@ -30,7 +30,7 @@ interface map_bus #(
     // Config
     logic chr_ram;
     logic mirroring;
-    logic [1:0] submapper;
+    logic [2:0] submapper;
 
     // Audio
     logic [15:0] audio;
