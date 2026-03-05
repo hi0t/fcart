@@ -1,9 +1,9 @@
 #include "dirlist.h"
-#include "drivers/qspi.h"
 #include "fpga_api.h"
 #include "gfx.h"
 #include <errno.h>
 #include <ff.h>
+#include <qspi.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -162,7 +162,7 @@ static int readdir()
         uint16_t count;
     } cache_entries = { 0 };
 
-    static uint8_t buf[4096];
+    static uint8_t buf[512];
     uint16_t buf_len = 0;
 
     for (;;) {

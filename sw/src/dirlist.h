@@ -5,8 +5,7 @@
 struct dirlist_entry {
     char name[256];
     bool is_dir;
-    uint8_t _padding[31];
-} __attribute__((aligned(32)));
+};
 
 int dirlist_load();
 int dirlist_push(const char *subdir);
