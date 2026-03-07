@@ -349,6 +349,9 @@ static bool choose_mapper(uint16_t id, uint8_t sub, uint8_t *int_id, uint8_t *in
         *int_id = 5;
         *int_sub = 1;
         return true;
+    case 69: // FME-7
+        *int_id = 9;
+        return true;
     case 94: // UN1ROM
         *int_id = 3;
         *int_sub = 1;

@@ -42,7 +42,7 @@ module map_mux #(
     localparam LAUNCHER_MASK = {8'b11111011, {ADDR_BITS - 8{1'b0}}};
     localparam WRAM_MASK = {6'b111111, {ADDR_BITS - 6{1'b0}}};
 
-    localparam MAP_CNT = 9;
+    localparam MAP_CNT = 10;
     localparam MAP_BITS = $clog2(MAP_CNT);
 
     typedef struct packed {
@@ -113,6 +113,7 @@ module map_mux #(
     AxROM AxROM (.bus(map[6]));
     MMC3 MMC3 (.bus(map[7]));
     VRC4 VRC4 (.bus(map[8]));
+    FME7 FME7 (.bus(map[9]));
 
     // Detect the exact cycle when interrupt is read to switch mappers instantaneously
     assign reset_hijack = launcher_ctrl.start_app && cpu_addr == 'hFFFC && cpu_rw;
