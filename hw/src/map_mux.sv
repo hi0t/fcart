@@ -42,7 +42,7 @@ module map_mux #(
     localparam LAUNCHER_MASK = {8'b11111011, {ADDR_BITS - 8{1'b0}}};
     localparam WRAM_MASK = {6'b111111, {ADDR_BITS - 6{1'b0}}};
 
-    localparam MAP_CNT = 9;
+    localparam MAP_CNT = 10;
     localparam MAP_BITS = $clog2(MAP_CNT);
 
     typedef struct packed {
@@ -113,6 +113,7 @@ module map_mux #(
     AxROM AxROM (.bus(map[6]));
     MMC3 MMC3 (.bus(map[7]));
     VRC4 VRC4 (.bus(map[8]));
+    FME7 FME7 (.bus(map[9]));
 
     // Detect the exact cycle when interrupt is read to switch mappers instantaneously
     assign reset_hijack = launcher_ctrl.start_app && cpu_addr == 'hFFFC && cpu_rw;
@@ -166,7 +167,7 @@ module map_mux #(
     assign prg_data = bus_cpu_data_oe[select] ? bus_cpu_data_out[select] : prg_data_out;
 
     // Open the line for open bus output > h4020
-    assign cpu_dir = bus_prg_oe[select] || (m2 && cpu_rw && (cpu_addr[14] && (|cpu_addr[13:5])));
+    assign cpu_dir = (m2 && bus_prg_oe[select]) || (m2 && cpu_rw && (cpu_addr[14] && (|cpu_addr[13:5])));
     assign ppu_dir = bus_chr_ce[select] && bus_chr_oe[select];
 
     // Data output: Real data if mapper drives, otherwise Open Bus (high byte of address)
@@ -200,10 +201,13 @@ module map_mux #(
         .we(bus_prg_we[select])
     );
 
+    logic [ADDR_BITS-1:0] chr_addr_in;
+    assign chr_addr_in = bus_chr_addr[select] + ((select == '0) ? LAUNCHER_MASK : chr_mask);
+
     chr_ram chr_ram (
         .clk(clk),
         .ram(ch_chr),
-        .addr(bus_chr_addr[select] | ((select == '0) ? LAUNCHER_MASK : chr_mask)),
+        .addr(chr_addr_in),
         .data_in(ppu_data_in),
         .data_out(chr_data_out),
         .ce(bus_chr_ce[select]),
@@ -215,7 +219,6 @@ module map_mux #(
     localparam REG_LAUNCHER = 4'd1;
 
     logic [2:0] wr_reg_sync;
-
     always_ff @(negedge m2 or posedge cpu_reset) begin
         if (cpu_reset) begin
             select_reg <= '0;

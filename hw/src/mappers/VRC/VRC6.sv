@@ -57,10 +57,21 @@ module VRC6 (
             wram_enable <= '0;
             chr_bank <= '{default: 0};
         end else if (bus.sst_enable) begin
-            if (bus.sst_we && bus.sst_addr[5:3] == 'd0) chr_bank[bus.sst_addr[2:0]] <= bus.sst_data_in;
-            if (bus.sst_we && bus.sst_addr == 'd8) prg_bank_8000 <= bus.sst_data_in[4:0];
-            if (bus.sst_we && bus.sst_addr == 'd9) prg_bank_C000 <= bus.sst_data_in[5:0];
-            if (bus.sst_we && bus.sst_addr == 'd10) {wram_enable, mirroring} <= {bus.sst_data_in[7], bus.sst_data_in[1:0]};
+            if (bus.sst_we) begin
+                case (bus.sst_addr)
+                    0: chr_bank[0] <= bus.sst_data_in;
+                    1: chr_bank[1] <= bus.sst_data_in;
+                    2: chr_bank[2] <= bus.sst_data_in;
+                    3: chr_bank[3] <= bus.sst_data_in;
+                    4: chr_bank[4] <= bus.sst_data_in;
+                    5: chr_bank[5] <= bus.sst_data_in;
+                    6: chr_bank[6] <= bus.sst_data_in;
+                    7: chr_bank[7] <= bus.sst_data_in;
+                    8: prg_bank_8000 <= bus.sst_data_in[4:0];
+                    9: prg_bank_C000 <= bus.sst_data_in[5:0];
+                    10: {wram_enable, mirroring} <= {bus.sst_data_in[7], bus.sst_data_in[1:0]};
+                endcase
+            end
         end else begin
             // Write Logic
             if (write_en) begin
@@ -122,10 +133,21 @@ module VRC6 (
         .sst_data_out(snd_sst)
     );
 
-    assign bus.sst_data_out = (bus.sst_addr[5:3] == 'd0) ? chr_bank[bus.sst_addr[2:0]] :
-                                  (bus.sst_addr == 'd8) ? {3'b0, prg_bank_8000} :
-                                  (bus.sst_addr == 'd9) ? {2'b0, prg_bank_C000} :
-                                  (bus.sst_addr == 'd10) ? {wram_enable, 5'b0, mirroring} :
-                                  (bus.sst_addr[5:3] == 'd2) ? vrc_sst :
-                                  snd_sst;
+    always_comb begin
+        case (bus.sst_addr)
+            0: bus.sst_data_out = chr_bank[0];
+            1: bus.sst_data_out = chr_bank[1];
+            2: bus.sst_data_out = chr_bank[2];
+            3: bus.sst_data_out = chr_bank[3];
+            4: bus.sst_data_out = chr_bank[4];
+            5: bus.sst_data_out = chr_bank[5];
+            6: bus.sst_data_out = chr_bank[6];
+            7: bus.sst_data_out = chr_bank[7];
+            8: bus.sst_data_out = {3'b0, prg_bank_8000};
+            9: bus.sst_data_out = {2'b0, prg_bank_C000};
+            10: bus.sst_data_out = {wram_enable, 5'b0, mirroring};
+            16, 17, 18, 19, 20: bus.sst_data_out = vrc_sst;
+            default: bus.sst_data_out = snd_sst;
+        endcase
+    end
 endmodule

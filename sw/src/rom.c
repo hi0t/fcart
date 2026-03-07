@@ -246,10 +246,10 @@ int rom_load(const char *filename)
     //    |  |  |  |  |  | | | | | | | | | | |
     //    |  |  |  |  |  | | | | | | +-+-+-+-+- mapper ID (5 bits)
     //    |  |  |  |  |  | +-+-+-+-+----------- CHR offset
-    //    |  |  |  |  |  +---------------------- mirroring: 0 = horizontal, 1 = vertical
-    //    |  |  |  |  +------------------------- has CHR RAM
-    //    |  |  |  +---------------------------- bus conflict
-    //    +--+--+------------------------------- submapper
+    //    |  |  |  |  |  +--------------------- mirroring: 0 = horizontal, 1 = vertical
+    //    |  |  |  |  +------------------------ has CHR RAM
+    //    |  |  |  +--------------------------- bus conflict
+    //    +--+--+------------------------------ submapper
 
     fpga_api_write_reg(FPGA_REG_MAPPER, curr_mapper_args);
     fpga_api_write_reg(FPGA_REG_LAUNCHER, 1U << 1); // start app
@@ -348,6 +348,9 @@ static bool choose_mapper(uint16_t id, uint8_t sub, uint8_t *int_id, uint8_t *in
     case 26: // VRC6b
         *int_id = 5;
         *int_sub = 1;
+        return true;
+    case 69: // FME-7
+        *int_id = 9;
         return true;
     case 94: // UN1ROM
         *int_id = 3;

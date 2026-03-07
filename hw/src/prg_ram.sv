@@ -54,4 +54,9 @@ module prg_ram #(
             schedule_write <= 1'b0;
         end
     end
+
+`ifdef DEBUG
+    logic debug_oe = oe;
+    logic debug_we = we;
+`endif
 endmodule

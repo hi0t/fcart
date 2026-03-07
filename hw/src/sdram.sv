@@ -207,5 +207,7 @@ module sdram #(
 `ifdef DEBUG
     logic debug_busy = (state == STATE_ACTIVE);
     logic debug_refresh = (state == STATE_REFRESH);
+    logic [21:0] debug_ch0_addr = ch0.address;
+    logic [21:0] debug_ch1_addr = ch1.address;
 `endif
 endmodule
