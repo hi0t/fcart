@@ -24,9 +24,9 @@ module MMC1 (
     assign bus.chr_we = bus.chr_ram ? !bus.ppu_wr : 0;
     assign shift_next = {bus.cpu_data_in[0], shift[4:1]};
 
-    assign bus.cpu_data_oe = 0;
+    assign bus.prg_ce = 1;
     assign bus.audio = '0;
-    assign bus.irq = 1;
+    assign bus.irq = 0;
 
     always_comb begin
         if (bus.submapper == 2) begin

@@ -12,10 +12,10 @@ module NROM (
     assign bus.chr_we = bus.chr_ram ? !bus.ppu_wr : 0;
     assign bus.ciram_a10 = bus.mirroring ? bus.ppu_addr[10] : bus.ppu_addr[11];
 
-    assign bus.cpu_data_oe = 0;
+    assign bus.prg_ce = 1;
     assign bus.wram_ce = 0;
     assign bus.prg_we = 0;
     assign bus.audio = '0;
-    assign bus.irq = 1;
+    assign bus.irq = 0;
     assign bus.sst_data_out = 'hFF;
 endmodule

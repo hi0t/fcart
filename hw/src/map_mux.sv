@@ -69,7 +69,7 @@ module map_mux #(
 
     // Muxed bus signals
     logic [7:0] bus_cpu_data_out[MAP_CNT];
-    logic bus_cpu_data_oe[MAP_CNT];
+    logic bus_prg_ce[MAP_CNT];
     logic bus_irq[MAP_CNT];
     logic bus_ciram_a10[MAP_CNT];
     logic bus_ciram_ce[MAP_CNT];
@@ -146,7 +146,7 @@ module map_mux #(
 
         // unpack interface array
         assign bus_cpu_data_out[n] = map[n].cpu_data_out;
-        assign bus_cpu_data_oe[n] = map[n].cpu_data_oe;
+        assign bus_prg_ce[n] = map[n].prg_ce;
         assign bus_irq[n] = map[n].irq;
         assign bus_ciram_a10[n] = map[n].ciram_a10;
         assign bus_ciram_ce[n] = map[n].ciram_ce;
@@ -164,7 +164,7 @@ module map_mux #(
 
     // mux for outgoing signalss
     logic [7:0] prg_data;
-    assign prg_data = bus_cpu_data_oe[select] ? bus_cpu_data_out[select] : prg_data_out;
+    assign prg_data = bus_prg_ce[select] ? prg_data_out : bus_cpu_data_out[select];
 
     // Open the line for open bus output > h4020
     assign cpu_dir = (m2 && bus_prg_oe[select]) || (m2 && cpu_rw && (cpu_addr[14] && (|cpu_addr[13:5])));
@@ -172,7 +172,7 @@ module map_mux #(
 
     // Data output: Real data if mapper drives, otherwise Open Bus (high byte of address)
     assign cpu_data_out = bus_prg_oe[select] ? prg_data : cpu_addr[15:8];
-    assign irq = bus_irq[select];
+    assign irq = !bus_irq[select];
     assign audio = bus_audio[select];
     assign ciram_a10 = bus_ciram_a10[select];
     assign ciram_ce = bus_ciram_ce[select];
@@ -197,7 +197,7 @@ module map_mux #(
         .addr(prg_addr_in),
         .data_in(cpu_data_in),
         .data_out(prg_data_out),
-        .oe((bus_prg_oe[select] || bus_conflict) && !bus_cpu_data_oe[select]),
+        .oe((bus_prg_oe[select] || bus_conflict) && bus_prg_ce[select]),
         .we(bus_prg_we[select])
     );
 

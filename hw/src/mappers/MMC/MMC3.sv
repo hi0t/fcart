@@ -35,9 +35,9 @@ module MMC3 (
     assign bus.chr_oe = !bus.ppu_rd;
     assign bus.chr_we = bus.chr_ram ? !bus.ppu_wr : 0;
 
-    assign bus.cpu_data_oe = 0;
+    assign bus.prg_ce = 1;
     assign bus.audio = '0;
-    assign bus.irq = !irq_pending;
+    assign bus.irq = irq_pending;
 
     always_comb begin
         bus.ciram_a10 = mirroring ? bus.ppu_addr[11] : bus.ppu_addr[10];

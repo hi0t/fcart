@@ -22,19 +22,19 @@ module VRC6 (
             default: bus.prg_addr = bus.ADDR_BITS'({6'b111111, bus.cpu_addr[12:0]});
         endcase
     end
-    assign bus.prg_oe = bus.cpu_rw && (bus.cpu_addr[15] || bus.wram_ce);
-    assign bus.prg_we = !bus.cpu_rw && bus.wram_ce;
-    assign bus.wram_ce = (bus.cpu_addr[15:13] == 3'b011) && wram_enable;
+    assign bus.prg_oe   = bus.cpu_rw && (bus.cpu_addr[15] || bus.wram_ce);
+    assign bus.prg_we   = !bus.cpu_rw && bus.wram_ce;
+    assign bus.wram_ce  = (bus.cpu_addr[15:13] == 3'b011) && wram_enable;
 
     // PPU
     assign chr_bank_sel = chr_bank[bus.ppu_addr[12:10]];  // 3 bits -> 8 banks
     assign bus.chr_addr = bus.ADDR_BITS'({chr_bank_sel, bus.ppu_addr[9:0]});  // 1KB pages
     assign bus.ciram_ce = !bus.ppu_addr[13];
-    assign bus.chr_ce = bus.ciram_ce;
-    assign bus.chr_we = bus.chr_ram ? !bus.ppu_wr : 0;
-    assign bus.chr_oe = !bus.ppu_rd;
+    assign bus.chr_ce   = bus.ciram_ce;
+    assign bus.chr_we   = bus.chr_ram ? !bus.ppu_wr : 0;
+    assign bus.chr_oe   = !bus.ppu_rd;
 
-    assign bus.cpu_data_oe = 0;
+    assign bus.prg_ce   = 1;
 
     always_comb begin
         case (mirroring)

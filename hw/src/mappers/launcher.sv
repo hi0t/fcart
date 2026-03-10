@@ -20,7 +20,7 @@ module launcher (
     logic sst_inc;
     logic rec_inc;
 
-    assign bus.cpu_data_oe = (bus.cpu_addr != 'h5003);
+    assign bus.prg_ce = (bus.cpu_addr == 'h5003);
     assign bus.prg_oe = bus.cpu_rw && (bus.cpu_addr[15] || (bus.cpu_addr == 'h5000) || (bus.cpu_addr == 'h5003) || (bus.cpu_addr == 'h5005));
     assign bus.prg_we = !bus.cpu_rw && (bus.cpu_addr == 'h5003);
     assign bus.chr_addr = bus.ADDR_BITS'({ctrl[0], chr_bank, bus.ppu_addr[11:0]});
@@ -32,7 +32,7 @@ module launcher (
 
     assign bus.wram_ce = 0;
     assign bus.audio = '0;
-    assign bus.irq = 1;
+    assign bus.irq = 0;
     assign bus.sst_data_out = 'hFF;
     assign st_rec_write = bus.cpu_data_in;
 

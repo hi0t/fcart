@@ -74,8 +74,8 @@ module VRC4 (
         endcase
     end
 
-    assign bus.cpu_data_oe = 0;
-    assign bus.audio = 0;
+    assign bus.prg_ce = 1;
+    assign bus.audio  = 0;
 
     // Write Logic
     logic [7:0] next_irq_latch;

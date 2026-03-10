@@ -49,8 +49,8 @@ module FME7 (
         endcase
     end
 
-    assign bus.cpu_data_oe = 0;
-    assign bus.irq = !(irq_pending && irq_enabled);
+    assign bus.prg_ce = 1;
+    assign bus.irq = irq_pending && irq_enabled;
     assign write_en = bus.cpu_addr[15] && !bus.cpu_rw;
 
     always_ff @(negedge bus.m2) begin

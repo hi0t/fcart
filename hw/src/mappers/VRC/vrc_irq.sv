@@ -20,7 +20,7 @@ module vrc_irq (
     logic [7:0] irq_counter;
     logic [8:0] irq_prescaler;
 
-    assign irq = !(irq_pending && irq_enable);
+    assign irq = irq_pending && irq_enable;
 
     always_ff @(negedge clk) begin
         if (reset) begin
