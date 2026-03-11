@@ -254,7 +254,7 @@ reset:
         beq forever         ; If 0, nothing to do
 
         lsr                 ; bit 0 -> C
-        bcs start_app        ; If set, start
+        bcs start_app       ; If set, start
 
         lsr                 ; bit 1 -> C
         bcs restore_state   ; If set, restore
@@ -262,9 +262,16 @@ reset:
         jmp forever
 
     start_app:
-        lda #0
-        sta STATUS_REG ; launcher finished
+        ldx #0
+    copy_start_app_loop:
+        lda start_app_exec,x
+        sta $0600,x
+        inx
+        cpx #(start_app_exec_end - start_app_exec)
+        bcc copy_start_app_loop
+        jmp $0600
 
+    start_app_exec:
         vblank_wait_start:
             bit PPU_STATUS
             bpl vblank_wait_start
@@ -273,6 +280,15 @@ reset:
         lda #0
         sta PPU_CTRL
         sta PPU_MASK
+
+        lda #0
+        sta STATUS_REG ; launcher finished
+
+        ; loop reading 5006 until magic byte 0x69 appears
+    wait_magic:
+        lda $5006
+        cmp #$69
+        bne wait_magic
 
         ldx #$fd
         txs ; reset stack pointer
@@ -283,6 +299,7 @@ reset:
         ldy #0
         plp ; default status register
         jmp ($FFFC)
+    start_app_exec_end:
 
     restore_state:
         lda #0

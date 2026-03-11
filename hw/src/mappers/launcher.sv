@@ -1,7 +1,7 @@
 module launcher (
     map_bus.mapper bus,
-    input logic [3:0] ctrl,
-    output logic status,
+    input logic [4:0] ctrl,
+    output logic [1:0] status,
     output logic [9:0] st_rec_addr,
     input logic [7:0] st_rec_read,
     output logic [7:0] st_rec_write
@@ -21,7 +21,7 @@ module launcher (
     logic rec_inc;
 
     assign bus.prg_ce = (bus.cpu_addr == 'h5003);
-    assign bus.prg_oe = bus.cpu_rw && (bus.cpu_addr[15] || (bus.cpu_addr == 'h5000) || (bus.cpu_addr == 'h5003) || (bus.cpu_addr == 'h5005));
+    assign bus.prg_oe = bus.cpu_rw && (bus.cpu_addr[15] || (bus.cpu_addr == 'h5000) || (bus.cpu_addr == 'h5003) || (bus.cpu_addr == 'h5005) || (bus.cpu_addr == 'h5006));
     assign bus.prg_we = !bus.cpu_rw && (bus.cpu_addr == 'h5003);
     assign bus.chr_addr = bus.ADDR_BITS'({ctrl[0], chr_bank, bus.ppu_addr[11:0]});
     assign bus.ciram_ce = !bus.ppu_addr[13];
@@ -48,6 +48,9 @@ module launcher (
         end else if (bus.cpu_addr == 'h5005) begin
             // state recorder readout
             bus.cpu_data_out = st_rec_read;
+        end else if (bus.cpu_addr == 'h5006) begin
+            // magic byte loader
+            bus.cpu_data_out = ctrl[4] ? 'h69 : 'hFF;
             // Intercept NMI vector to lad in game menu
         end else if (ctrl[3] && bus.cpu_addr == 'hFFFA) begin
             bus.cpu_data_out = 'h00;  // low byte of $FC00
@@ -60,17 +63,21 @@ module launcher (
 
     always_ff @(negedge bus.m2) begin
         if (bus.reset) begin
-            status <= 0;
+            status <= '0;
             vblank <= 1;
             sst_hi <= 0;
             rec_hi <= 0;
         end else begin
             vblank <= 0;
 
+            if (bus.cpu_rw && (bus.cpu_addr == 'h5006) && ctrl[4]) begin
+                status[1] <= 1;
+            end
+
             if (!bus.cpu_rw) begin
                 // read status register
                 if (bus.cpu_addr == 'h5001) begin
-                    {status, vblank} <= bus.cpu_data_in[1:0];
+                    {status[0], vblank} <= bus.cpu_data_in[1:0];
                 end else if (bus.cpu_addr == 'h5002) begin
                     if (sst_hi) bus.prg_addr[14:8] <= bus.cpu_data_in[6:0];
                     else bus.prg_addr[7:0] <= bus.cpu_data_in;

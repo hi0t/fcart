@@ -203,10 +203,30 @@ int rom_load(const char *filename)
         }
     }
 
+    bool bus_conflict = false;
+    uint8_t int_id = 0;
+    uint8_t int_sub = 0;
+    if (!choose_mapper(mapper_id, sub, &int_id, &int_sub, &bus_conflict)) {
+        err = -EINVAL;
+        goto out;
+    }
+
     uint8_t mirroring = header[6] & 0x01;
     uint8_t has_chr_ram = nes20 ? chr_ram_size > 0 : chr_size == 0;
     uint8_t chr_off = get_chr_off(prg_size);
     chr_ram_addr = 1U << chr_off;
+
+    // Tell the console to jump to RAM and enter wait loop
+    fpga_api_write_reg(FPGA_REG_LAUNCHER, 1U << 1); // start_app
+
+    // Wait for the console to signal it has entered the loop (launcher_status goes 0)
+    uint32_t start = uptime_ms();
+    while (fpga_api_ev_reg() & (1U << 8)) {
+        if (uptime_ms() - start > 1000) {
+            err = -ETIMEDOUT;
+            goto out;
+        }
+    }
 
     fpga_api_write_mem(0, prg_size, file_reader, &fp);
     fpga_api_write_mem(chr_ram_addr, chr_size, file_reader, &fp);
@@ -227,14 +247,6 @@ int rom_load(const char *filename)
         wram_size = 0;
     }
 
-    bool bus_conflict = false;
-    uint8_t int_id = 0;
-    uint8_t int_sub = 0;
-    if (!choose_mapper(mapper_id, sub, &int_id, &int_sub, &bus_conflict)) {
-        err = -EINVAL;
-        goto out;
-    }
-
     curr_mapper_args = int_id;
     curr_mapper_args |= chr_off << 5U;
     curr_mapper_args |= mirroring << 10U;
@@ -252,7 +264,19 @@ int rom_load(const char *filename)
     //    +--+--+------------------------------ submapper
 
     fpga_api_write_reg(FPGA_REG_MAPPER, curr_mapper_args);
-    fpga_api_write_reg(FPGA_REG_LAUNCHER, 1U << 1); // start app
+
+    // Signal the console that ROM is loaded and triggers mapper switch
+    fpga_api_write_reg(FPGA_REG_LAUNCHER, (1U << 4) | (1U << 1)); // rom_loaded + start_app
+
+    // Wait for the mapper switch and console ROM start (rom_start goes to 1)
+    start = uptime_ms();
+    while (!(fpga_api_ev_reg() & (1U << 10))) {
+        if (uptime_ms() - start > 10000) {
+            err = -ETIMEDOUT;
+            goto out;
+        }
+    }
+
 out:
     f_close(&fp);
     return err;
@@ -294,7 +318,7 @@ static uint32_t shift_size(uint8_t shift)
     return 64U << shift;
 }
 
-// translate NES mapper ID to FPGA mapper ID
+// translate console mapper ID to FPGA mapper ID
 static bool choose_mapper(uint16_t id, uint8_t sub, uint8_t *int_id, uint8_t *int_sub, bool *bus_conflict)
 {
     *int_sub = 0;

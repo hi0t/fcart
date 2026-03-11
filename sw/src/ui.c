@@ -271,13 +271,6 @@ static void menu_control(uint8_t buttons)
                 show_message("Load ROM error");
                 return;
             }
-            uint32_t start = uptime_ms();
-            while (launcher_active()) {
-                if (uptime_ms() - start > 10000) {
-                    show_message("Launch timeout");
-                    return;
-                }
-            }
             state = UI_STATE_GAME;
             return;
         }
