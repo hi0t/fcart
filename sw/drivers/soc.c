@@ -47,6 +47,12 @@ void hw_init()
 
     tusb_rhport_init_t dev_init = { .role = TUSB_ROLE_DEVICE, .speed = TUSB_SPEED_AUTO };
     tusb_init(BOARD_TUD_RHPORT, &dev_init);
+
+#ifdef ENABLE_USB_VBUS_SENSING
+    // TinyUSB DWC2 driver forces GOTGCTL_BVALOEN | GOTGCTL_BVALOVAL during init.
+    // We need to clear these bits to allow actual hardware VBUS sensing to work.
+    USB_OTG_FS->GOTGCTL &= ~(USB_OTG_GOTGCTL_BVALOEN | USB_OTG_GOTGCTL_BVALOVAL);
+#endif
 }
 
 void delay_us(uint16_t us)
@@ -291,14 +297,17 @@ static void usb_init()
         .Speed = GPIO_SPEED_FREQ_VERY_HIGH,
         .Alternate = GPIO_AF10_OTG_FS,
     };
-    RCC_PeriphCLKInitTypeDef clk = {
-        .PeriphClockSelection = RCC_PERIPHCLK_CLK48,
-        .Clk48ClockSelection = RCC_CLK48CLKSOURCE_PLLQ,
-    };
+    HAL_GPIO_Init(GPIOA, &gpio);
 
 // VBUS Sensing setup
 #ifdef ENABLE_USB_VBUS_SENSING
     // Enable HW VBUS sensing
+    gpio.Pin = GPIO_PIN_9;
+    gpio.Mode = GPIO_MODE_INPUT;
+    gpio.Pull = GPIO_NOPULL;
+    gpio.Speed = GPIO_SPEED_FREQ_LOW;
+    gpio.Alternate = 0;
+    HAL_GPIO_Init(GPIOA, &gpio);
     USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBDEN;
 #else
     // Deactivate VBUS Sensing B
@@ -309,12 +318,14 @@ static void usb_init()
     USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
 #endif
 
+    RCC_PeriphCLKInitTypeDef clk = {
+        .PeriphClockSelection = RCC_PERIPHCLK_CLK48,
+        .Clk48ClockSelection = RCC_CLK48CLKSOURCE_PLLQ,
+    };
     if ((rc = HAL_RCCEx_PeriphCLKConfig(&clk)) != HAL_OK) {
         LOG_ERR("HAL_RCCEx_PeriphCLKConfig() failed: %d", rc);
         LOG_PANIC();
     }
-
-    HAL_GPIO_Init(GPIOA, &gpio);
 
     __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
     HAL_NVIC_SetPriority(OTG_FS_IRQn, 0, 0);
