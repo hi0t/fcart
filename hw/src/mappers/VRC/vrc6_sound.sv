@@ -29,8 +29,7 @@ module vrc6_sound (
     always_ff @(negedge clk) begin
         if (reset) begin
             {en0, en1, en2} <= '0;
-        end
-        if (sst_enable) begin
+        end else if (sst_enable) begin
             if (sst_we && sst_addr == 'd24) {mode0, mode1, vol0} <= sst_data_in[5:0];
             if (sst_we && sst_addr == 'd25) vol1 <= sst_data_in[3:0];
             if (sst_we && sst_addr == 'd26) vol2 <= sst_data_in[5:0];
