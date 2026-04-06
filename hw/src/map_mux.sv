@@ -167,7 +167,7 @@ module map_mux #(
 
     // Data output: Real data if mapper drives, otherwise Open Bus (high byte of address)
     assign cpu_data_out = bus_prg_oe[select] ? prg_data : cpu_addr[15:8];
-    assign irq = !bus_irq[select];
+    assign irq = bus_irq[select];
     assign audio = bus_audio[select];
     assign ciram_a10 = bus_ciram_a10[select];
     assign ciram_ce = bus_ciram_ce[select];

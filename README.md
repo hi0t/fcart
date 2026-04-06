@@ -62,5 +62,7 @@
 - [ ] **Extended mapper support** - Adding support for a larger number of mappers to increase game compatibility
 - [ ] **FDS support** - Support for loading FDS disk images
 
-## PCB Image
-![PCB Image](pcb.jpg)
+## Photos
+
+![Live Photo](live.jpg)
+![3D Photo](3d.jpg)

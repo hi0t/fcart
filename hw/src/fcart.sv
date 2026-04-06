@@ -1,6 +1,7 @@
 module fcart (
     input  logic CLK_IN,
     output logic FPGA_IRQ,
+    output wire  LS_OE,
 
     // QSPI
     input logic QSPI_CLK,
@@ -32,7 +33,6 @@ module fcart (
     input logic [13:0] PPU_ADDR,
     inout wire [7:0] PPU_DATA,
     output logic SND_OUT,
-    output wire SND_BYPASS,
     output logic CPU_DIR,
     output logic PPU_DIR
 );
@@ -51,9 +51,9 @@ module fcart (
     logic [15:0] pcm;
     logic [7:0] joy1;
 
-    assign CPU_DATA   = CPU_DIR ? cpu_data_out : 'z;
-    assign PPU_DATA   = PPU_DIR ? ppu_data_out : 'z;
-    assign SND_BYPASS = 0;
+    assign CPU_DATA = CPU_DIR ? cpu_data_out : 'z;
+    assign PPU_DATA = PPU_DIR ? ppu_data_out : 'z;
+    assign LS_OE = !async_nreset;
 
     joy_snoop joy (
         .m2(M2),
