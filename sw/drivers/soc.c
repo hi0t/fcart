@@ -49,8 +49,9 @@ void hw_init()
     tusb_init(BOARD_TUD_RHPORT, &dev_init);
 
 #ifdef ENABLE_USB_VBUS_SENSING
-    // TinyUSB DWC2 driver forces GOTGCTL_BVALOEN | GOTGCTL_BVALOVAL during init.
-    // We need to clear these bits to allow actual hardware VBUS sensing to work.
+    // tusb_init/dcd_init unconditionally sets BVALOEN|BVALOVAL which would force
+    // B-session valid regardless of VBUS, overriding hardware VBUS sensing on PA9.
+    // Clear the override bits so that GCCFG_VBDEN + PA9 actually controls session validity.
     USB_OTG_FS->GOTGCTL &= ~(USB_OTG_GOTGCTL_BVALOEN | USB_OTG_GOTGCTL_BVALOVAL);
 #endif
 }
@@ -299,25 +300,6 @@ static void usb_init()
     };
     HAL_GPIO_Init(GPIOA, &gpio);
 
-// VBUS Sensing setup
-#ifdef ENABLE_USB_VBUS_SENSING
-    // Enable HW VBUS sensing
-    gpio.Pin = GPIO_PIN_9;
-    gpio.Mode = GPIO_MODE_INPUT;
-    gpio.Pull = GPIO_NOPULL;
-    gpio.Speed = GPIO_SPEED_FREQ_LOW;
-    gpio.Alternate = 0;
-    HAL_GPIO_Init(GPIOA, &gpio);
-    USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBDEN;
-#else
-    // Deactivate VBUS Sensing B
-    USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_VBDEN;
-
-    // B-peripheral session valid override enable
-    USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOEN;
-    USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
-#endif
-
     RCC_PeriphCLKInitTypeDef clk = {
         .PeriphClockSelection = RCC_PERIPHCLK_CLK48,
         .Clk48ClockSelection = RCC_CLK48CLKSOURCE_PLLQ,
@@ -328,8 +310,26 @@ static void usb_init()
     }
 
     __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
-    HAL_NVIC_SetPriority(OTG_FS_IRQn, 0, 0);
-    HAL_NVIC_EnableIRQ(OTG_FS_IRQn);
+
+    // VBUS Sensing setup
+#ifdef ENABLE_USB_VBUS_SENSING
+    // Enable HW VBUS sensing
+    gpio.Pin = GPIO_PIN_9;
+    gpio.Mode = GPIO_MODE_INPUT;
+    gpio.Pull = GPIO_NOPULL;
+    gpio.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(GPIOA, &gpio);
+
+    // Enable VBUS sense (B device) via pin PA9
+    USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBDEN;
+#else
+    /* Deactivate VBUS Sensing B */
+    USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_VBDEN;
+
+    /* B-peripheral session valid override enable */
+    USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOEN;
+    USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
+#endif
 }
 
 struct peripherals *get_peripherals()
