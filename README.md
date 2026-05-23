@@ -26,6 +26,19 @@
 2. **Install/Update Firmware**: With the SD card removed, connect the cartridge via USB. It will boot into bootloader mode and appear as a USB drive named `FCART BOOT`. Download the latest `fcart.uf2` firmware file from the [Releases page](https://github.com/hi0t/fcart/releases) and copy it to this drive.
 3. **Ready to play**: Insert your SD card with ROMs, plug the cartridge into your console, and it's ready to use!
 
+## Manufacturing (PCB)
+
+**Ordering Specifications:**
+- **Thickness:** 1.2 mm
+- **Surface Finish:** **ENIG** (Electroless Nickel Immersion Gold) is recommended. While this finish is more expensive than standard HASL, it provides significantly better durability.
+- **Edge Connector:** **Gold Fingers** (make sure to specify this option even if ENIG is selected).
+- **Gold Fingers Bevel:** **45° Bevel** (Chamfer). This ensures smooth and safe repeated insertions into the console.
+
+**Production Files:**
+- 🗺️ [Interactive HTML BOM (iBOM)](https://hi0t.github.io/fcart/board/fcart-ibom.html) - Convenient interactive map for hand assembly.
+- 📄 [BOM (CSV)](https://hi0t.github.io/fcart/board/fcart-bom.csv) - Bill of Materials in CSV format (includes DigiKey and LCSC part numbers).
+- 📦 [Gerbers & Drills (ZIP)](https://hi0t.github.io/fcart/board/fcart-gerbers.zip) - Ready-to-order manufacturing archive.
+
 ## Supported Mappers
 
 | | +0 | +1 | +2 | +3 | +4 | +5 | +6 | +7 | +8 | +9 |

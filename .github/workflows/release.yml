@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     env:
       LICENSE_MAC_ADDRESS: ${{ secrets.LICENSE_MAC_ADDRESS }}
@@ -24,6 +24,8 @@ jobs:
 
     - name: Set up Python
       uses: actions/setup-python@v6
+      with:
+        python-version: '3.12'
 
     - name: Install ARM GCC
       uses: carlosperate/arm-none-eabi-gcc-action@v1
@@ -56,7 +58,7 @@ jobs:
 
     - name: Create Release
       if: github.ref_type == 'tag'
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@v3
       with:
         files: |
           builddir/sw/bootloader.bin
@@ -69,14 +71,40 @@ jobs:
     - name: Prepare Web Directory
       run: cp builddir/sw/bootloader.bin web/bootloader.bin
 
+    - name: Generate KiCad Outputs
+      run: |
+        mkdir -p web/board gerber_tmp
+
+        kicad() {
+          docker run --rm --user $(id -u):$(id -g) -e HOME=/tmp -e INTERACTIVE_HTML_BOM_NO_DISPLAY=1 -v ${{ github.workspace }}:/work -w /work kicad/kicad:10.0 "$@"
+        }
+
+        # Generate BOM CSV
+        kicad kicad-cli sch export bom --fields "\${REFERENCE},\${VALUE},\${FOOTPRINT_NAME},\${QUANTITY},DigiKey,LCSC" --labels "Refs,Value,Footprint,Qty,DigiKey,LCSC" --group-by "\${VALUE},\${FOOTPRINT_NAME},DigiKey,LCSC" -o web/board/fcart-bom.csv board/fcart.kicad_sch
+
+        # Generate Gerbers
+        kicad kicad-cli pcb export gerbers --layers "F.Cu,B.Cu,F.Paste,B.Paste,F.SilkS,B.SilkS,F.Mask,B.Mask,Edge.Cuts" --subtract-soldermask --use-drill-file-origin -o gerber_tmp/ board/fcart.kicad_pcb
+        kicad kicad-cli pcb export drill --format excellon --excellon-separate-th --drill-origin plot --generate-map --map-format gerberx2 -o gerber_tmp/ board/fcart.kicad_pcb
+
+        # Zip Gerbers
+        cd gerber_tmp
+        zip -r ../web/board/fcart-gerbers.zip *
+        cd ..
+        rm -rf gerber_tmp
+
+        # Generate Interactive BOM
+        git clone -b v2.11.1 https://github.com/openscopeproject/InteractiveHtmlBom.git --depth 1 ibom_plugin
+        kicad python3 ibom_plugin/InteractiveHtmlBom/generate_interactive_bom.py board/fcart.kicad_pcb --no-browser --dark-mode --dest-dir ../web/board/ --name-format fcart-ibom
+        rm -rf ibom_plugin
+
     - name: Setup Pages
-      uses: actions/configure-pages@v5
+      uses: actions/configure-pages@v6
 
     - name: Upload artifact
-      uses: actions/upload-pages-artifact@v4
+      uses: actions/upload-pages-artifact@v5
       with:
         path: 'web'
 
     - name: Deploy to GitHub Pages
       id: deployment
-      uses: actions/deploy-pages@v4
+      uses: actions/deploy-pages@v5
