@@ -186,7 +186,7 @@ static bool test_bit(uint32_t status, enum status_bit bit)
     return (status & (1U << bit)) != 0;
 }
 
-static int wait_until_ready(uint32_t poll_us)
+static int wait_until_ready(uint32_t poll_ms)
 {
     uint32_t status;
     int rc;
@@ -200,11 +200,7 @@ static int wait_until_ready(uint32_t poll_us)
             LOG_ERR("Timeout waiting for FPGA to become ready");
             return -EBUSY;
         }
-        if (poll_us > 1000U) {
-            delay_ms(poll_us / 1000U);
-        } else {
-            delay_us(poll_us);
-        }
+        delay_ms(poll_ms);
     } while (test_bit(status, BIT_BUSY));
 
     return 0;
@@ -219,7 +215,7 @@ static int enable_cfg_interface()
     rc = spi_send(buf, sizeof(buf));
     spi_end();
 
-    return rc == 0 ? wait_until_ready(2U) : rc;
+    return rc == 0 ? wait_until_ready(1) : rc;
 }
 
 static int disable_cfg_interface()
@@ -260,8 +256,8 @@ static int write_page(uint8_t *data)
     spi_end();
 
     // The operation takes 200 us.
-    // Therefore we will poll every 50 us.
-    return rc == 0 ? wait_until_ready(50U) : rc;
+    // Therefore we will poll every 1 ms.
+    return rc == 0 ? wait_until_ready(1) : rc;
 }
 
 static int program_done()
@@ -273,7 +269,7 @@ static int program_done()
     rc = spi_send(buf, sizeof(buf));
     spi_end();
 
-    return rc == 0 ? wait_until_ready(50U) : rc;
+    return rc == 0 ? wait_until_ready(1) : rc;
 }
 
 static int erase_flash()
@@ -286,7 +282,7 @@ static int erase_flash()
     spi_end();
 
     // Takes 5 seconds for the largest device.
-    return rc == 0 ? wait_until_ready(1000U * 1000U) : rc;
+    return rc == 0 ? wait_until_ready(1000) : rc;
 }
 
 static int refresh()
@@ -300,7 +296,7 @@ static int refresh()
 
     // Takes a few milliseconds depending on the model.
     // We will poll once per millisecond.
-    return rc == 0 ? wait_until_ready(1000U) : rc;
+    return rc == 0 ? wait_until_ready(1) : rc;
 }
 
 static void cleanup()

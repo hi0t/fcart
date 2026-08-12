@@ -12,7 +12,6 @@ struct peripherals {
     SD_HandleTypeDef hsdio;
     RTC_HandleTypeDef hrtc;
     SPI_HandleTypeDef hspi;
-    TIM_HandleTypeDef htim6;
     bool lse_ready;
 };
 

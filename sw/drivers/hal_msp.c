@@ -37,7 +37,7 @@ void HAL_QSPI_MspInit(QSPI_HandleTypeDef *hqspi)
 
     __HAL_RCC_QSPI_CLK_ENABLE();
 
-    gpio.Alternate = GPIO_AF10_QSPI;
+    gpio.Alternate = GPIO_AF9_QSPI;
     gpio.Pin = GPIO_QSPI_IO0_PIN;
     HAL_GPIO_Init(GPIO_QSPI_IO0_PORT, &gpio);
     gpio.Pin = GPIO_QSPI_IO1_PIN;
@@ -51,7 +51,7 @@ void HAL_QSPI_MspInit(QSPI_HandleTypeDef *hqspi)
     gpio.Pin = GPIO_QSPI_CLK_PIN;
     HAL_GPIO_Init(GPIO_QSPI_CLK_PORT, &gpio);
 
-    gpio.Alternate = GPIO_AF9_QSPI;
+    gpio.Alternate = GPIO_AF10_QSPI;
     gpio.Pull = GPIO_PULLUP;
     gpio.Pin = GPIO_QSPI_NCS_PIN;
     HAL_GPIO_Init(GPIO_QSPI_NCS_PORT, &gpio);
@@ -212,13 +212,13 @@ void HAL_SPI_MspInit(SPI_HandleTypeDef *hspi)
         .Mode = GPIO_MODE_AF_PP,
         .Pull = GPIO_NOPULL,
         .Speed = GPIO_SPEED_FREQ_VERY_HIGH,
-        .Alternate = GPIO_AF5_SPI2,
+        .Alternate = GPIO_AF5_SPI1,
     };
 
-    if (hspi->Instance != SPI2) {
+    if (hspi->Instance != SPI1) {
         return;
     }
-    __HAL_RCC_SPI2_CLK_ENABLE();
+    __HAL_RCC_SPI1_CLK_ENABLE();
 
     gpio.Pin = GPIO_SPI_SCK_PIN;
     HAL_GPIO_Init(GPIO_SPI_SCK_PORT, &gpio);
@@ -232,11 +232,4 @@ void HAL_SPI_MspInit(SPI_HandleTypeDef *hspi)
     gpio.Speed = GPIO_SPEED_FREQ_LOW;
     HAL_GPIO_WritePin(GPIO_SPI_NCS_PORT, GPIO_SPI_NCS_PIN, GPIO_PIN_SET);
     HAL_GPIO_Init(GPIO_SPI_NCS_PORT, &gpio);
-}
-
-void HAL_TIM_Base_MspInit(TIM_HandleTypeDef *htim)
-{
-    if (htim->Instance == TIM6) {
-        __HAL_RCC_TIM6_CLK_ENABLE();
-    }
 }

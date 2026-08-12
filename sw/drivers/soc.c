@@ -17,7 +17,6 @@ static void sdio_init();
 #endif
 static void rtc_init();
 static void spi_init();
-static void tim6_init();
 static void usb_init();
 
 #ifdef ENABLE_SEMIHOSTING
@@ -40,10 +39,7 @@ void hw_init()
 #endif
     rtc_init();
     spi_init();
-    tim6_init();
     usb_init();
-
-    HAL_TIM_Base_Start(&dev.htim6);
 
     tusb_rhport_init_t dev_init = { .role = TUSB_ROLE_DEVICE, .speed = TUSB_SPEED_AUTO };
     tusb_init(BOARD_TUD_RHPORT, &dev_init);
@@ -56,21 +52,9 @@ void hw_init()
 #endif
 }
 
-void delay_us(uint16_t us)
-{
-    __HAL_TIM_SET_COUNTER(&dev.htim6, 0);
-    while (__HAL_TIM_GET_COUNTER(&dev.htim6) < us)
-        ;
-}
-
 void delay_ms(uint16_t ms)
 {
-    while (ms > 0) {
-        __HAL_TIM_SET_COUNTER(&dev.htim6, 0);
-        ms--;
-        while (__HAL_TIM_GET_COUNTER(&dev.htim6) < 1000)
-            ;
-    }
+    HAL_Delay(ms);
 }
 
 uint32_t uptime_ms()
@@ -202,7 +186,7 @@ static void qspi_init()
     dev.hqspi.Init.FlashSize = 22; // 2^(FlashSize+1) bytes
     dev.hqspi.Init.ChipSelectHighTime = QSPI_CS_HIGH_TIME_1_CYCLE;
     dev.hqspi.Init.ClockMode = QSPI_CLOCK_MODE_0;
-    dev.hqspi.Init.FlashID = QSPI_FLASH_ID_2;
+    dev.hqspi.Init.FlashID = QSPI_FLASH_ID_1;
     dev.hqspi.Init.DualFlash = QSPI_DUALFLASH_DISABLE;
     if ((rc = HAL_QSPI_Init(&dev.hqspi)) != HAL_OK) {
         LOG_ERR("HAL_QSPI_Init() failed: %d", rc);
@@ -244,46 +228,20 @@ static void spi_init()
 {
     HAL_StatusTypeDef rc;
 
-    dev.hspi.Instance = SPI2;
+    dev.hspi.Instance = SPI1;
     dev.hspi.Init.Mode = SPI_MODE_MASTER;
     dev.hspi.Init.Direction = SPI_DIRECTION_2LINES;
     dev.hspi.Init.DataSize = SPI_DATASIZE_8BIT;
     dev.hspi.Init.CLKPolarity = SPI_POLARITY_LOW;
     dev.hspi.Init.CLKPhase = SPI_PHASE_1EDGE;
     dev.hspi.Init.NSS = SPI_NSS_SOFT;
-    dev.hspi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
+    dev.hspi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
     dev.hspi.Init.FirstBit = SPI_FIRSTBIT_MSB;
     dev.hspi.Init.TIMode = SPI_TIMODE_DISABLE;
     dev.hspi.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
     dev.hspi.Init.CRCPolynomial = 10;
     if ((rc = HAL_SPI_Init(&dev.hspi)) != HAL_OK) {
         LOG_ERR("HAL_SPI_Init() failed: %d", rc);
-        LOG_PANIC();
-    }
-}
-
-static void tim6_init()
-{
-    HAL_StatusTypeDef rc;
-
-    uint32_t ticks = (HAL_RCC_GetHCLKFreq() / 1000000U);
-
-    dev.htim6.Instance = TIM6;
-    dev.htim6.Init.Prescaler = ticks - 1;
-    dev.htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
-    dev.htim6.Init.Period = 65535;
-    dev.htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-    if ((rc = HAL_TIM_Base_Init(&dev.htim6)) != HAL_OK) {
-        LOG_ERR("HAL_TIM_Base_Init() failed: %d", rc);
-        LOG_PANIC();
-    }
-
-    TIM_MasterConfigTypeDef master = {
-        .MasterOutputTrigger = TIM_TRGO_RESET,
-        .MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE,
-    };
-    if ((rc = HAL_TIMEx_MasterConfigSynchronization(&dev.htim6, &master)) != HAL_OK) {
-        LOG_ERR("HAL_TIMEx_MasterConfigSynchronization() failed: %d", rc);
         LOG_PANIC();
     }
 }

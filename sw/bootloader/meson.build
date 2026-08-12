@@ -1,4 +1,4 @@
-bootloader_version = '0.1'
+bootloader_version = '0.2'
 
 bootloader = files(
     'fpga_cfg.c',
@@ -11,7 +11,6 @@ bootloader = files(
 compile_args = [
     '-DBOOTLOADER_ADDRESS=@0@'.format(get_option('bootloader_address')),
     '-DAPP_ADDRESS=@0@'.format(get_option('app_address')),
-    '-DENABLE_USB_VBUS_SENSING',
 ]
 
 if get_option('buildtype') == 'debug'
@@ -29,7 +28,9 @@ bootloader_sw = declare_dependency(
     link_args: [
         '-Wl,--defsym=FLASH_ORIGIN=@0@'.format(get_option('bootloader_address')),
         '-Wl,--defsym=FLASH_SIZE=@0@K'.format(get_option('bootloader_size')),
-        '-Wl,--defsym=APP_HEADER_MAGIC=@0@'.format(get_option('app_header_magic')),
+        '-Wl,--defsym=APP_HEADER_MAGIC=@0@'.format(
+            get_option('app_header_magic'),
+        ),
         '-Wl,--defsym=PROJECT_VERSION_MAJOR=@0@'.format(ver[0]),
         '-Wl,--defsym=PROJECT_VERSION_MINOR=@0@'.format(ver[1]),
     ],
