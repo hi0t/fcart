@@ -1,7 +1,7 @@
 project(
     'fcart',
     'c',
-    version: '0.2',
+    version: '0.3',
     default_options: ['b_ndebug=if-release'],
     meson_version: '>=1.3',
 )

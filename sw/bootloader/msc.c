@@ -27,7 +27,11 @@ static bool msc_medium_ejected = false;
 bool tud_msc_test_unit_ready_cb(uint8_t lun)
 {
     (void)lun;
-    return !msc_medium_ejected;
+    if (msc_medium_ejected) {
+        tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x3a, 0x00);
+        return false;
+    }
+    return true;
 }
 
 // Invoked when received SCSI_CMD_READ_CAPACITY_10 and SCSI_CMD_READ_FORMAT_CAPACITY to determine the disk size
@@ -47,9 +51,8 @@ bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, boo
     (void)lun;
     (void)power_condition;
 
-    if (load_eject && !start) {
-        msc_medium_ejected = true;
-        tud_disconnect();
+    if (load_eject) {
+        msc_medium_ejected = !start;
     }
     return true;
 }
@@ -109,7 +112,6 @@ void tud_msc_write10_complete_cb(uint8_t lun)
 {
     (void)lun;
     virt_fat_flush();
-    msc_medium_ejected = true;
 }
 
 // Callback invoked when received an SCSI command not in built-in list below

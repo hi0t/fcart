@@ -5,9 +5,9 @@
 #include <stdio.h>
 #include <string.h>
 
-// Disk: ~32MB FAT16 (65536 sectors * 512 bytes)
+// Disk: 16MB FAT16 (32768 sectors * 512 bytes)
 #define DISK_BLOCK_SIZE 512
-#define DISK_BLOCK_COUNT 65536
+#define DISK_BLOCK_COUNT 32768
 
 // BPB Constants
 #define FAT_SECTOR_SIZE 512
@@ -125,13 +125,13 @@ void virt_fat_read(uint32_t lba, void *buffer)
         write_u16(&buf[14], RESERVED_SECTORS); // RsvdSecCnt
         buf[16] = NUMBER_OF_FATS; // NumFATs
         write_u16(&buf[17], ROOT_ENTRIES); // RootEntCnt
-        write_u16(&buf[19], 0); // TotSec16 (0 for > 65k)
+        write_u16(&buf[19], DISK_BLOCK_COUNT); // TotSec16
         buf[21] = 0xF8; // Media (Fixed disk)
         write_u16(&buf[22], FAT_SIZE_SECTORS); // FATSz16
         write_u16(&buf[24], 32); // SecPerTrk
         write_u16(&buf[26], 64); // NumHeads
         write_u32(&buf[28], 0); // HiddSec
-        write_u32(&buf[32], DISK_BLOCK_COUNT); // TotSec32
+        write_u32(&buf[32], 0); // TotSec32 (0 when TotSec16 is used)
 
         // FAT16 Extended
         buf[36] = 0x80; // Drive Number
