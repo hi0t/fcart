@@ -1,4 +1,4 @@
-bootloader_version = '0.3'
+bootloader_version = '0.4'
 
 bootloader = files(
     'fpga_cfg.c',

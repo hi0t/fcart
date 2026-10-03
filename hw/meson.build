@@ -26,7 +26,7 @@ endif
 bit = custom_target(
     f'@diamond_prj@.bit',
     input: tcl,
-    output: f'@diamond_prj@.bit',
+    output: [f'@diamond_prj@.bit', f'@diamond_prj@.jed'],
     command: diamondc_cmd + ['@INPUT@'],
     depend_files: rtl_sorces,
     depends: launcher_mem,

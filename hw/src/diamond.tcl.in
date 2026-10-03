@@ -41,6 +41,8 @@ prj_impl option VERILOG_DIRECTIVES "$DIRECTIVES"
 
 prj_project save
 prj_run Export -impl impl -task Bitgen
+prj_run Export -impl impl -task Jedecgen
 prj_project close
 
 file copy -force impl/@PROJECT_NAME@_impl.bit @PROJECT_NAME@.bit
+file copy -force impl/@PROJECT_NAME@_impl.jed @PROJECT_NAME@.jed

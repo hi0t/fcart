@@ -1,7 +1,7 @@
 project(
     'fcart',
     'c',
-    version: '0.3',
+    version: '0.4',
     default_options: ['b_ndebug=if-release'],
     meson_version: '>=1.3',
 )
@@ -20,7 +20,7 @@ custom_target(
         py,
         meson.project_source_root() / 'make_uf2.py',
         '--app', fcart_elf,
-        '--bitstream', bit,
+        '--jed', bit[1],
         '--objcopy', objcopy,
         '--output', '@OUTPUT@',
     ],

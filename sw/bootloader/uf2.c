@@ -78,7 +78,7 @@ static bool write_uf2_content(UF2_Block *uf2)
     uint32_t size = uf2->payloadSize;
 
     // Check for FPGA bitstream address (0x09000000)
-    if ((addr & 0xFF000000) == 0x09000000) {
+    if ((addr & 0xFFF00000) == 0x09000000) {
         if (!fpga_programming_active) {
             if (fpga_cfg_start() != 0) {
                 return false;
@@ -86,6 +86,17 @@ static bool write_uf2_content(UF2_Block *uf2)
             fpga_programming_active = true;
         }
         return fpga_cfg_write(uf2->data, size) == 0;
+    }
+
+    // Check for FPGA Feature Row / FEAbits address (0x09100000)
+    if ((addr & 0xFFF00000) == 0x09100000) {
+        if (!fpga_programming_active) {
+            if (fpga_cfg_start() != 0) {
+                return false;
+            }
+            fpga_programming_active = true;
+        }
+        return fpga_cfg_write_features(uf2->data, size) == 0;
     }
 
     // Bootloader protection

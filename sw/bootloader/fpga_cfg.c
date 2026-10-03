@@ -10,9 +10,11 @@ LOG_MODULE(fpga_cfg);
 #define IDCODE_PUB { 0xE0, 0x00, 0x00, 0x00 }
 #define LSC_READ_STATUS { 0x3C, 0x00, 0x00, 0x00 }
 #define ISC_ENABLE_X { 0x74, 0x08, 0x00, 0x00 }
-#define ISC_ERASE { 0x0E, 0x04, 0x00, 0x00 } // 0x12 for cfg and UFM
+#define ISC_ERASE { 0x0E, 0x06, 0x00, 0x00 } // 0x06 for CFG Flash (0x04) and Feature Row (0x02)
 #define LSC_INITADDRESS { 0x46, 0x00, 0x00, 0x00 }
 #define LSC_PROG_INCR_NV { 0x70, 0x00, 0x00, 0x01 }
+#define LSC_PROG_FEATURE { 0xE4, 0x00, 0x00, 0x00 }
+#define LSC_PROG_FEABITS { 0xF8, 0x00, 0x00, 0x00 }
 #define ISC_PROGRAM_DONE { 0x5E, 0x00, 0x00, 0x00 }
 #define ISC_DISABLE { 0x26, 0x00, 0x00 }
 #define LSC_REFRESH { 0x79, 0x00, 0x00 }
@@ -32,17 +34,23 @@ static int enable_cfg_interface();
 static int disable_cfg_interface();
 static int init_address();
 static int write_page(uint8_t *data);
+static int write_feature_row(uint8_t *data);
+static int write_feabits(uint8_t *data);
 static int program_done();
 static int erase_flash();
-static int refresh();
-static void cleanup();
 static void dump_status(uint32_t status);
+
+static bool features_present = false;
+static uint8_t saved_feature_row[8];
+static uint8_t saved_feabits[2];
 
 int fpga_cfg_start()
 {
     uint32_t id;
     uint32_t status = 0;
     int rc;
+
+    features_present = false;
 
     LOG_INF("Initializing FPGA flash...");
     get_status(&status);
@@ -111,12 +119,48 @@ int fpga_cfg_write(uint8_t *data, uint32_t len)
     return 0;
 }
 
+int fpga_cfg_write_features(uint8_t *data, uint32_t len)
+{
+    if (len < 10) {
+        LOG_ERR("Feature data too short: %u", len);
+        return -EINVAL;
+    }
+
+    memcpy(saved_feature_row, data, 8);
+    memcpy(saved_feabits, data + 8, 2);
+    features_present = true;
+
+    return 0;
+}
+
 int fpga_cfg_done()
 {
     uint32_t status;
     int rc;
 
     LOG_INF("Finalizing FPGA flash programming...");
+
+    if (features_present) {
+        LOG_INF("Programming Feature Row and FEAbits...");
+
+        if ((rc = init_address()) != 0) {
+            LOG_ERR("Failed to init address for features: %d", rc);
+            disable_cfg_interface();
+            return rc;
+        }
+
+        if ((rc = write_feature_row(saved_feature_row)) != 0) {
+            LOG_ERR("Failed to program Feature Row: %d", rc);
+            disable_cfg_interface();
+            return rc;
+        }
+
+        if ((rc = write_feabits(saved_feabits)) != 0) {
+            LOG_ERR("Failed to program FEAbits: %d", rc);
+            disable_cfg_interface();
+            return rc;
+        }
+    }
 
     if ((rc = program_done()) != 0) {
         return rc;
@@ -128,7 +172,7 @@ int fpga_cfg_done()
     dump_status(status);
     if (!test_bit(status, BIT_DONE)) {
         LOG_ERR("FPGA flash programming failed");
-        cleanup();
+        disable_cfg_interface();
         return -EINVAL;
     }
 
@@ -260,6 +304,38 @@ static int write_page(uint8_t *data)
     return rc == 0 ? wait_until_ready(1) : rc;
 }
 
+static int write_feature_row(uint8_t *data)
+{
+    uint8_t cmd[] = LSC_PROG_FEATURE;
+    int rc;
+
+    spi_begin();
+    if ((rc = spi_send(cmd, sizeof(cmd))) != 0) {
+        spi_end();
+        return rc;
+    }
+    rc = spi_send(data, 8);
+    spi_end();
+
+    return rc == 0 ? wait_until_ready(1) : rc;
+}
+
+static int write_feabits(uint8_t *data)
+{
+    uint8_t cmd[] = LSC_PROG_FEABITS;
+    int rc;
+
+    spi_begin();
+    if ((rc = spi_send(cmd, sizeof(cmd))) != 0) {
+        spi_end();
+        return rc;
+    }
+    rc = spi_send(data, 2);
+    spi_end();
+
+    return rc == 0 ? wait_until_ready(1) : rc;
+}
+
 static int program_done()
 {
     uint8_t buf[] = ISC_PROGRAM_DONE;
@@ -283,29 +359,6 @@ static int erase_flash()
 
     // Takes 5 seconds for the largest device.
     return rc == 0 ? wait_until_ready(1000) : rc;
-}
-
-static int refresh()
-{
-    uint8_t buf[] = LSC_REFRESH;
-    int rc;
-
-    spi_begin();
-    rc = spi_send(buf, sizeof(buf));
-    spi_end();
-
-    // Takes a few milliseconds depending on the model.
-    // We will poll once per millisecond.
-    return rc == 0 ? wait_until_ready(1) : rc;
-}
-
-static void cleanup()
-{
-    LOG_INF("Cleaning up FPGA flash state...");
-
-    if (erase_flash() == 0) {
-        refresh();
-    }
 }
 
 static const char *err_string(uint8_t err)
